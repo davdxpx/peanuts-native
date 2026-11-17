@@ -802,3 +802,19 @@ next run's `shader_split.py` listed `._ShaderArchive-….ushaderbytecode` (4 KB,
 Run: the FINAL FANTASY RESONANCE build onto that drive went through both places after the change (the archives reused from `ue_shaders`, then split). No
 shader-chain file is changed. Upstream candidate: the `shader_split.py` hunks, yes (the Mac's NSP script writes `ue_shaders` beside the dump, often on such a
 drive).
+
+### Round 16, the launcher on the second display (2026-11-17)
+
+While the launcher is in front, the second display shows the cover the D-pad is on and what can be done with it (`dev.peanuts.ui.BottomScreen`,
+`BottomPanel`, all Peanuts-owned). Home's header steps aside while it shows, so the hook hands that header over, with the way Settings opens (X).
+
+| File | Hunks | Hook | Marker |
+|---|---|---|---|
+| `android/app/src/main/java/dev/nxnative/android/MainActivity.java` | 1 | `buildHome()`: `BottomScreen.home(this, <the header just added>, () -> page(true))` | trailing `// PEANUTS: ...` |
+| `android/app/src/main/java/dev/nxnative/android/BananaBackgroundView.java` | 1 | `onDraw()`, after the drift offsets: `BackgroundFlow.offset(this, GRID_DEG, step, row, SPEED_X_DP, SPEED_Y_DP)` replaces them when not null | trailing `// PEANUTS: ...` |
+
+The second hook makes the two screens' backgrounds one field: `BackgroundFlow` returns the grid offset that puts this view's grid where the field's
+is (the two displays placed as on the device, one phase for both), or null without the bottom screen, and the view draws as before.
+
+Everything else (the lifecycle through `ActivityLifecycleCallbacks`, the focus, the builds, X on Home through an unhandled-key listener on the
+window) lives in `dev.peanuts.ui`. No upstream-candidate general fix: both lines call Peanuts-owned code.

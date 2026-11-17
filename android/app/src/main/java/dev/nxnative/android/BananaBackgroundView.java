@@ -102,6 +102,7 @@ public final class BananaBackgroundView extends View implements Choreographer.Fr
         // Rows alternate a half step sideways and a mirrored tilt, so the pattern repeats every step across and every two rows down
         float ox = (float) ((phase * SPEED_X_DP * density) % step);
         float oy = (float) ((phase * SPEED_Y_DP * density) % (2 * row));
+        float[] flow = dev.peanuts.ui.BackgroundFlow.offset(this, GRID_DEG, step, row, SPEED_X_DP, SPEED_Y_DP); if (flow != null) { ox = flow[0]; oy = flow[1]; }   // PEANUTS: one background across both screens (dev.peanuts.ui.BackgroundFlow)
         float cx = w / 2f, cy = h / 2f, reach = (float) Math.hypot(w, h) / 2f + step;
         int cols = (int) Math.ceil(reach / step) + 1, rows = 2 * ((int) Math.ceil(reach / row / 2) + 1);
         canvas.save();
