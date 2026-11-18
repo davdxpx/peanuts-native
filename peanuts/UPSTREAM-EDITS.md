@@ -1318,3 +1318,14 @@ A texture in a shader-code pool placed its parts and queued a join like a buffer
 without a PID keep their worker counts. `PrepareText.java` points an interrupted build at the log for its cause.
 The service drains the tool log before the final job save and scans each chunk once. A JVM replay with two pack
 processes selected the interrupted job’s native crash. A 2,304,000-byte backlog retained the final shader summary.
+
+### Round 27, one progress bar for Peanuts' screens: the cover's strip (2026-11-19)
+
+The Prepare card showed upstream's bar (`Ui.progress`: the platform's thin horizontal bar, scaled 1.6x), the building cover a 6 dp rounded strip of its own.
+`dev/peanuts/ui/Strip.java` is that strip (banana deep on its track, 6 dp, rounded ends); the cover, the build card, the second screen's build card, the build
+log's and the GPU driver page's bars (which took `PUi.progress`) and the Prepare card use it, so the progress bars of Peanuts' screens look the same.
+`PUi` stays a verbatim copy of `Ui`; upstream's own screens (the app update, the game's shader prewarm) keep `Ui.progress`.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `android/app/src/ondevice/java/dev/nxnative/android/Ondevice.java` | 1 | The Prepare card's progress bar is `dev.peanuts.ui.Strip.card`, the building cover's 6 dp rounded strip, in place of `Ui.progress` | `PEANUTS` |
