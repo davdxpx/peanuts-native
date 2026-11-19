@@ -26,6 +26,8 @@ too.
 
 ## Supported games
 
+<!-- PEANUTS begin: the Supported games table, written by peanuts/scripts/games_catalog.py from peanuts/games.tsv, peanuts/release-titles.txt and the profiles. Edit peanuts/games.tsv, not this table -->
+
 Peanuts Native 0.1.5 includes 39 games. The Companion column shows whether a game appears in the Eden Duo Companions catalog. Updates are shown as version numbers or numeric update IDs.
 
 | Game | Title ID | Game update | Companion |
@@ -69,6 +71,8 @@ Peanuts Native 0.1.5 includes 39 games. The Companion column shows whether a gam
 | Diablo III: Eternal Collection | `01001B300B9BE000` | 2.7.7.92380 | Yes |
 | EA Sports FC 27 | `0100C49025D3E000` | 1.8d.6523 | No |
 | Tomodachi Life: Living the Dream | `010051F0207B2000` | 1.0.4 | No |
+
+<!-- PEANUTS end: the Supported games table -->
 
 On the 0.1.5 verification build, an AYN Thor with Turnip v26.2.0 R5 reached the rooftop fight in Demon Slayer 2 and the opening cave in Tears of the Kingdom. Kirby and the Forgotten Land skipped no draws in the opening walk with either a fresh or a saved shader cache.
 
@@ -160,7 +164,7 @@ The companion runtime and package format come from [Eden Duo](https://github.com
 
 Contributors: the builder for PC, Mac and Linux (`peanuts/docs/BUILDER.md`) is by [intermission88](https://github.com/intermission88)
 (pull request #13), and so are the profile of Kirby's Return to Dream Land Deluxe and the guide for adding a game
-(`peanuts/docs/NEW-GAME.md`, pull request #34). The issue and discussion forms were set right by [ArchOwlen](https://github.com/ArchOwlen) (pull request #5).
+(`peanuts/docs/NEW-GAME.md`, pull request #34). The issue and discussion forms were first set right by [ArchOwlen](https://github.com/ArchOwlen) (pull request #5), and [davdxpx](https://github.com/davdxpx) rebuilt them from the ground up: seven forms with picks instead of free text, written from a game catalog that also keeps the Supported games table up to date (pull request #175).
 
 The project as a whole is licensed GPL-3.0-or-later. Frame generation (ported from Eden and lsfg-vk) and other
 components carry their own licenses; see `android/NOTICE.md` and `dm/third_party/README.md`.
