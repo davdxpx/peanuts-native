@@ -251,9 +251,11 @@ static void fx_title(const FxKeys *k, const char *path, uint64_t tid, uint64_t a
     if (ticket) { content->rights = 1; for (int j = 0; j < 8; j++) content->rid[7 - j] = (uint8_t)(tid >> (8 * j)); memset(content->rid + 8, 0, 8); }
     fx_fill(content->key, 16);
     fx_nca(k, content, &cb);
+    { uint8_t sha[32]; nx_sha256(cb.p, cb.n, sha); memcpy(content->id, sha, 16); memcpy(rec, sha, 32); }   // as a console's: the NCA is named by its SHA-256, which the CNMT records
     fx_w64(h, tid); fx_w32(h + 8, ver); h[0xC] = (uint8_t)(0x80 + kind); fx_w16(h + 0xE, sizeof ext); fx_w16(h + 0x10, 1);
     fx_w64(ext, kind ? app : 0);
     memcpy(rec + 0x20, content->id, 16); rec[0x36] = kind == 2 ? 2 : 1;   // the content's type in the title: program, or data
+    for (int q = 0; q < 6; q++) rec[0x30 + q] = (uint8_t)((uint64_t)cb.n >> (8 * q));   // its size (6 bytes)
     fx_put(&cnmt, h, sizeof h); fx_put(&cnmt, ext, sizeof ext); fx_put(&cnmt, rec, sizeof rec);
     memset(&meta, 0, sizeof meta); meta.content_type = 1; meta.title_id = tid; fx_fill(meta.id, 16); fx_fill(meta.key, 16);
     meta.sec[0].present = 1; meta.sec[0].fs_type = NX_FS_PFS0; meta.sec[0].crypt = 3; meta.sec[0].data_off = 0x200;
@@ -261,6 +263,7 @@ static void fx_title(const FxKeys *k, const char *path, uint64_t tid, uint64_t a
       FxEnt ce; snprintf(ce.name, sizeof ce.name, "%s_%016llx.cnmt", kind == 0 ? "Application" : kind == 1 ? "Patch" : "AddOnContent", (unsigned long long)tid); ce.p = cnmt.p; ce.n = cnmt.n;
       fx_fs0(&ce, 1, 0, &meta.sec[0].body); }
     fx_nca(k, &meta, &mb);
+    { uint8_t sha[32]; nx_sha256(mb.p, mb.n, sha); memcpy(meta.id, sha, 16); }
     char hex[33]; fx_hex(hex, content->id, 16); snprintf(e[ne].name, sizeof e[ne].name, "%s.nca", hex); e[ne].p = cb.p; e[ne++].n = cb.n;
     fx_hex(hex, meta.id, 16); snprintf(e[ne].name, sizeof e[ne].name, "%s.cnmt.nca", hex); e[ne].p = mb.p; e[ne++].n = mb.n;
     if (ticket) {   // a ticket with an RSA-2048 signature block (0x140): the title key block @+0x40 (the key wrapped with titlekek), the key type @+0x141, the rights ID @+0x160
