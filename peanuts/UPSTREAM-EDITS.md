@@ -1318,3 +1318,28 @@ A texture in a shader-code pool placed its parts and queued a join like a buffer
 without a PID keep their worker counts. `PrepareText.java` points an interrupted build at the log for its cause.
 The service drains the tool log before the final job save and scans each chunk once. A JVM replay with two pack
 processes selected the interrupted job’s native crash. A 2,304,000-byte backlog retained the final shader summary.
+
+### Round 29, compressed game files: .nsz and .xcz (2026-11-19, issue #149)
+
+The importer builds a game from NSP and XCI files compressed with nsz: an `.ncz` entry is an NCA stored as zstd with the keys and counters of its
+encrypted ranges, and `dm/peanuts/import/nx_ncz.c` gives the NCA reader its original bytes through a store below it (`nx_nca_open_store`), so the `.nup` is
+the uncompressed files' byte for byte. A block NCZ is read in place, a solid one unpacked once into a temporary file beside the `.nup`; each is checked
+against its name and its CNMT record before the writer starts. Stop reaches the importer (`nximport_cancel`, `Native.cancel`), also for a plain NSP. The
+app lists the files and counts their real size and the temporary space (`dev.peanuts.build.Compressed`, `LibraryScanner`, `GameSheet`, `BuildService`);
+the desktop builder takes them (`peanuts_build.py`, `nximport_cli check`). zstd is the vendored decoder (`dm/third_party/zstd`, unchanged), compiled into
+`libnximport` from the importer's own CMakeLists. The run-time reader (`peanuts_nsp.c`) still refuses compressed dumps. Docs: `dm/peanuts/import/HOOKS.md`
+"Compressed dumps", `peanuts/docs/FAQ.md` "Can I build from NSZ or XCZ files?", `peanuts/docs/BUILDER.md` "Compressed files".
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `README.md` | 1 | "your own game dump" names NSZ and XCZ | `PEANUTS` (an HTML comment at the line's end) |
+| `.github/workflows/peanuts.yml` | 1 | a step that builds the importer and runs its ctest (`nsp_test`, `font_test`, `ncz_test`, ...), which no workflow ran before | `PEANUTS` (the comment above the step) |
+
+Peanuts' own files, no marker: `dm/peanuts/import/` (`nx_ncz.c` new; `nx_nca.c`, `nx_internal.h`, `nximport.c`, `nximport.h`, `nximport_cli.c`,
+`nximport_jni.c`, `CMakeLists.txt`, `HOOKS.md`; `tests/ncz_test.c`, `tests/ncz_fixture.h` new, `tests/nsp_fixture.h`: NCAs named by their SHA-256 and the CNMT's
+real hashes and sizes), `android/app/src/main/java/dev/peanuts/` (`build/Compressed.java` new; `BuildService`, `BuildListener`, `Importer`, `SpaceEstimate`,
+`BuildLogBundle`, `Reimport`, `importer/Native`, `ui/LibraryScanner`, `ui/GameSheet`, `ui/Library`, `ui/LibrarySettings`), `peanuts/` (`scripts/peanuts_build.py`,
+`docs/FAQ.md`, `docs/BUILDER.md`, `docs/README.github.md`, `tests/test_compressed.py` new, `tests/test_peanuts_build.py`, `tests/test_reimport.py`).
+
+Tests: `ncz_test` (ctest; also under ASan, UBSan and TSan), `nsp_test`, `font_test`, `peanuts/tests/test_compressed.py`, `test_peanuts_build.py`,
+`test_reimport.py`. Upstream candidate: no (Banana Native takes dump folders and `.nup` files only).
