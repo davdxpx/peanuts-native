@@ -1440,3 +1440,18 @@ Peanuts' own files, no marker: `android/app/src/main/java/dev/peanuts/ui/` (`Pag
 
 Tests: `peanuts/tests/test_page_place.py`. Upstream candidate: possibly (Banana Native rebuilds its pages the same way); the code would then live in
 MainActivity.
+
+### Round 43, the bottom screen's peanuts pop (2026-11-21)
+
+Tapping the drifting peanuts on the Thor's bottom screen did nothing: the launcher's page there (`dev.peanuts.ui.BottomPanel`) draws upstream's
+`BananaBackgroundView`, but nothing routed a tap to its `popAt`. The panel now tells a tap on its background itself (`BackgroundTap`) and pops the peanut;
+the count goes through MainActivity's own counter, so Settings' line follows. All logic is in Peanuts' own files; the upstream line only hands the counter over.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `android/app/src/main/java/dev/nxnative/android/MainActivity.java` | 1 | `onCreate`, after `bananas.setOnPop(...)`: `dev.peanuts.ui.BottomScreen.onPop(this, ...)` with the same count and Settings line as the top screen's pop | `PEANUTS` |
+
+Peanuts' own files, no marker: `android/app/src/main/java/dev/peanuts/ui/` (`BackgroundTap.java` new, `BottomPanel.java`, `BottomScreen.java`),
+`android/app/src/jvmtest/java/dev/peanuts/ui/BackgroundTapJvmTest.java` new, `peanuts/tests/test_bottom_screen_peanuts.py` new.
+
+Tests: `peanuts/tests/test_bottom_screen_peanuts.py`. Upstream candidate: no (the second display is Peanuts').

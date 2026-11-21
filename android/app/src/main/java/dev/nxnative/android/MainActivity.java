@@ -74,6 +74,7 @@ public final class MainActivity extends Activity {
             bananas.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);
             if (poppedText != null) poppedText.setText(poppedLine(n));
         });
+        dev.peanuts.ui.BottomScreen.onPop(this, () -> { long n = Prefs.addBananaPopped(this); if (poppedText != null) poppedText.setText(poppedLine(n)); });   // PEANUTS: a peanut popped on the bottom screen counts as these do (dev.peanuts.ui.BottomPanel; its own tick)
         setContentView(frame);
         PadFocus.watch(getWindow());   // a controller: the focus frame (PadFocus)
         build();

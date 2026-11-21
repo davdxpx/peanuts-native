@@ -203,6 +203,9 @@ The script fetches, rebases `peanuts` onto the target, then checks that every `P
    - `android/app/src/main/java/dev/nxnative/android/BananaBackgroundView.java` — (2026-11-17, the same) one line each in `onDraw` and `popAt`
      after the drift `wx, wy`: `dev.peanuts.ui.BackgroundFlow.drift(...)` replaces it while the second display shows the launcher, so both screens
      draw one field and a tap pops the banana where it is drawn. The drawing stays upstream's. `peanuts/UPSTREAM-EDITS.md` Round 20.
+   - `android/app/src/main/java/dev/nxnative/android/MainActivity.java` — (2026-11-21, the bottom screen's peanuts pop) one line in `onCreate` after
+     `bananas.setOnPop(...)`: `dev.peanuts.ui.BottomScreen.onPop(this, ...)` counts a peanut popped on the second display as the top screen's
+     (`Prefs.addBananaPopped`, Settings' line while it shows). `peanuts/UPSTREAM-EDITS.md` Round 43.
    - `android/app/src/main/java/dev/nxnative/android/NxApp.java` — (2026-11-17, the same) one line in `onCreate`: `dev.peanuts.ui.AppScreens.install(this)`
      lets the app's pages in other processes (Readiness check, Graphics self-test) tell the launcher they are in front, so the second display keeps
      its page. `peanuts/UPSTREAM-EDITS.md` Round 20.
@@ -247,3 +250,10 @@ The script fetches, rebases `peanuts` onto the target, then checks that every `P
   two rows are one **Share log…**. When both logs in Settings › Share log are of one game, its name is the sheet's title and the lines carry only when
   and how. Emulator (test app, a run log, a failed build log and an exit record of Link's Awakening): Settings › Share log, the game page's Share log…
   and the "Game stopped" notice ask and share; the build card, the Prepare card and its menu are covered by `peanuts/tests/test_share_log_choice.py`.
+- 2026-11-21 (the bottom screen's peanuts): a tap on the drifting peanuts of the launcher's page on the second display pops the one under it and counts it,
+  as on the top screen. The page drew upstream's `BananaBackgroundView` under its pages, but no touch ever reached its `popAt`: the pages' scroll views
+  took every touch and nothing looked for a tap on the background. `BottomPanel.dispatchTouchEvent` now looks at each touch without taking it; a press
+  where no card, button, bar or dimming scrim is, that moves no more than the touch slop and lifts before a long press (`BackgroundTap`, the same rule as
+  `MainActivity.bananaTaps`), pops the peanut there, with a light tick, and `BottomScreen.popped` counts it through MainActivity's own counter. The start
+  page is not a background. The pop's look and the counter are upstream's, unchanged. UPSTREAM-EDITS Round 43; test
+  `peanuts/tests/test_bottom_screen_peanuts.py`.
