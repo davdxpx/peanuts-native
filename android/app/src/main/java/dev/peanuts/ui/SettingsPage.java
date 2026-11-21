@@ -75,6 +75,7 @@ public final class SettingsPage {
         rowIcons.clear();
         if (drawer != null) { drawer.dismiss(); drawer = null; }
         places.clear();
+        lastFocus.clear();
         explained = null;
         buildTag = null;
         Map<String, Map<String, List<Item>>> placed = new LinkedHashMap<>();
@@ -351,7 +352,7 @@ public final class SettingsPage {
     }
 
     private static LinearLayout column(Activity a, SettingsSections.Section s, Map<String, List<Item>> groups, List<Item> loose) {
-        LinearLayout col = new LinearLayout(a);
+        LinearLayout col = new Page(a);
         col.setOrientation(LinearLayout.VERTICAL);
         col.addView(top(a, s));
         if (!wide) PUi.add(col, line(a, s.line, 13), 4);
@@ -507,7 +508,7 @@ public final class SettingsPage {
         FrameLayout frame = (FrameLayout) scroll.getParent();
         int at = frame.indexOfChild(scroll);
         View scrim = at + 1 < frame.getChildCount() ? frame.getChildAt(at + 1) : null;   // Ui.page's scrim under the status bar, above both
-        ScrollView side = new ScrollView(a);
+        ScrollView side = new Side(a);
         side.setClipToPadding(false);
         side.setVerticalScrollBarEnabled(false);
         LinearLayout col = new LinearLayout(a);
@@ -544,6 +545,103 @@ public final class SettingsPage {
             return in;
         });
         frame.requestApplyInsets();
+    }
+
+    // ---- The D-pad between the sidebar and the page (wide) ----
+
+    private static final Map<String, View> lastFocus = new HashMap<>();   // the view the focus was on last in each section's page
+
+    /**
+     * A section's page. Wide, the D-pad stays in it going up and down: Android's own search goes to whatever is nearest in that direction, and where the
+     * page has nothing more below (or above) that was an entry of the sidebar beside it. Down from a tab row (About's Overview, Games, ...) goes to the
+     * tab's first item. Left from the page goes to the selected section's entry, not to the entry that happens to be at the same height
+     */
+    private static final class Page extends LinearLayout {
+        Page(android.content.Context c) { super(c); }
+
+        @Override public View focusSearch(View focused, int dir) {
+            View next = super.focusSearch(focused, dir);
+            if (!wide || focused == null || !isIn(focused, this)) return next;
+            if (dir == FOCUS_DOWN && inTabs(focused)) {
+                View d = byDefault(this);
+                if (d != null && d != focused) return d;
+            }
+            if (next != null && isIn(next, this)) return next;
+            if (dir == FOCUS_LEFT) {
+                View e = selectedEntry();
+                return e != null ? e : next;
+            }
+            if (dir == FOCUS_UP || dir == FOCUS_DOWN) {
+                View in = android.view.FocusFinder.getInstance().findNextFocus(this, focused, dir);
+                return in != null ? in : focused;
+            }
+            return next;
+        }
+    }
+
+    /** The sidebar: right from an entry goes into the page (where the focus was last, else its first item); up and down stay in the sidebar */
+    private static final class Side extends ScrollView {
+        Side(android.content.Context c) { super(c); }
+
+        @Override public View focusSearch(View focused, int dir) {
+            View next = super.focusSearch(focused, dir);
+            if (focused == null || !isIn(focused, this)) return next;
+            if (dir == FOCUS_RIGHT && focused.getTag() instanceof Entry) {
+                View t = pageTarget();
+                if (t != null) return t;
+            }
+            if ((dir == FOCUS_UP || dir == FOCUS_DOWN) && next != null && !isIn(next, this)) return focused;
+            return next;
+        }
+    }
+
+    private static View selectedEntry() {
+        for (View e : entries) if (e.isSelected() && e.isShown()) return e;
+        return null;
+    }
+
+    /** Where right from the sidebar lands in the page that shows: where the focus was last, else the item the page marks as its first (About: Check for
+     *  updates), else the first one under the page's title */
+    private static View pageTarget() {
+        LinearLayout page = pages.get(current);
+        if (page == null || !page.isShown()) return null;
+        View last = lastFocus.get(current);
+        if (last != null && last.isShown() && last.isFocusable() && isIn(last, page)) return last;
+        View d = byDefault(page);
+        if (d != null) return d;
+        for (int i = 1; i < page.getChildCount(); i++) {   // child 0 is the page's title row (its search button)
+            View f = firstClickable(page.getChildAt(i));
+            if (f != null) return f;
+        }
+        return null;
+    }
+
+    /** The view under v that says it takes the focus first (View.setFocusedByDefault), not hidden */
+    static View byDefault(View v) {
+        if (v.getVisibility() != View.VISIBLE) return null;
+        if (v.isFocusedByDefault() && v.isFocusable()) return v;
+        if (v instanceof ViewGroup) for (int i = 0; i < ((ViewGroup) v).getChildCount(); i++) {
+            View f = byDefault(((ViewGroup) v).getChildAt(i));
+            if (f != null) return f;
+        }
+        return null;
+    }
+
+    /** The first view under v, in the order of the page, that can be focused and pressed (a selectable text is not one), not hidden (v may not be
+     *  in a window yet: About marks its first item while it builds the tab) */
+    static View firstClickable(View v) {
+        if (v.getVisibility() != View.VISIBLE) return null;
+        if (v.isFocusable() && v.isClickable()) return v;
+        if (v instanceof ViewGroup) for (int i = 0; i < ((ViewGroup) v).getChildCount(); i++) {
+            View f = firstClickable(((ViewGroup) v).getChildAt(i));
+            if (f != null) return f;
+        }
+        return null;
+    }
+
+    private static boolean inTabs(View v) {
+        for (View x = v; x != null; x = x.getParent() instanceof View ? (View) x.getParent() : null) if (x instanceof PUi.Segmented) return true;
+        return false;
     }
 
     @SuppressWarnings("deprecation")   // MainActivity's own Back (onBackPressed): Settings goes back to Home
@@ -621,6 +719,8 @@ public final class SettingsPage {
     /** The focus moved in the launcher's window: a row or a section's entry is explained */
     private static void focused(View now) {
         if (now == null || pane == null || !pane.isAttachedToWindow()) return;
+        LinearLayout page = pages.get(current);
+        if (wide && page != null && isIn(now, page)) lastFocus.put(current, now);   // right from the sidebar comes back here
         focusedRow(now);
     }
 

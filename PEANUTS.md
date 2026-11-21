@@ -65,6 +65,10 @@ Banana Native ships several releases a day, so this fork is kept as a **thin ove
      and shows one, with a sidebar of them on a window 600 dp wide or more, tiles of them on a tablet and a drawer on a phone. The rows, their listeners and
      `refreshSettings()` stay upstream's. And one line in `onBackPressed()`: `SettingsPage.onBack(this)` takes a tablet's Back from a section's page to
      the tiles. `peanuts/UPSTREAM-EDITS.md` Round 44.
+   - `android/app/src/main/java/dev/nxnative/android/PadFocus.java` — (2026-11-21, the controller's focus on buttons and tabs) `watch()` puts the focus
+     frame on through `dev.peanuts.ui.FocusFrame.at`, which draws it where the view shows: a one-line, centred text (every button, Segmented tab and chip)
+     scrolls far inside itself, and a view draws its foreground in those scrolled coordinates, so the frame was off screen there and About's Check for
+     updates showed no focus at all. The frame also counts as the view's focus look, so Android adds no grey highlight. `peanuts/UPSTREAM-EDITS.md` Round 44.
    - `android/app/src/main/java/dev/nxnative/android/BananaBackgroundView.java` — (2026-11-21, Peanuts cracked) one line at the start of `drawBanana`:
      `dev.peanuts.ui.Crack.draw(...)` draws the first 900 ms of a pop as the app's peanut cracking open (PeanutArt) in a Peanuts build while the system's
      animations are on; the burst stays upstream's otherwise, and so do the gone and grow-back phases. `peanuts/UPSTREAM-EDITS.md` Round 45.

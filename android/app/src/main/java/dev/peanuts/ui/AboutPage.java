@@ -70,6 +70,16 @@ final class AboutPage {
             case 3: licenses(a, body, wide); break;
             default: overview(a, body, wide, buildTag, update, faq);
         }
+        View first = SettingsPage.firstClickable(body);   // a controller: right from the sidebar, or down from the tabs, lands here (Overview: Check for updates)
+        if (first == null) return;
+        first.setFocusedByDefault(true);
+        if (first.getId() == View.NO_ID) first.setId(View.generateViewId());
+        ViewGroup col = body.getParent() instanceof ViewGroup ? (ViewGroup) body.getParent() : null;   // the tabs: down goes here (the page's ScrollView
+        if (col != null) for (int i = 0; i < col.getChildCount(); i++) {                             // moves the focus by its own search, nearest first)
+            if (!(col.getChildAt(i) instanceof PUi.Segmented)) continue;
+            ViewGroup seg = (ViewGroup) col.getChildAt(i);
+            for (int k = 0; k < seg.getChildCount(); k++) seg.getChildAt(k).setNextFocusDownId(first.getId());
+        }
     }
 
     // ---- Overview ----

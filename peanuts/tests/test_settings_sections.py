@@ -118,6 +118,30 @@ class Wiring(unittest.TestCase):
         body = between(main, 'private void buildSettings(LinearLayout content)', '/** A settings group\'s card of rows')
         self.assertRegex(body, r'refreshSettings\(\);\n\s*dev\.peanuts\.ui\.SettingsPage\.lay\(this, content\);[^\n]*\n\s*\}\s*$')
 
+    def test_focus_frame_where_the_view_shows(self):
+        """PadFocus.watch puts its frame on through FocusFrame.at (a one-line, centred button or tab scrolls far, and a foreground is drawn scrolled);
+        FocusFrame draws it scrolled back and counts as the focus look, so no grey default highlight"""
+        pad = (MAIN.parent / 'PadFocus.java').read_text(encoding='utf-8')
+        line = [l for l in pad.splitlines() if 'FocusFrame' in l]
+        self.assertEqual(len(line), 1)
+        self.assertIn('now.setForeground(dev.peanuts.ui.FocusFrame.at(now, frame(now.getContext())));', line[0])
+        self.assertIn('// PEANUTS', line[0])
+        frame = (UI / 'FocusFrame.java').read_text(encoding='utf-8')
+        self.assertIn('canvas.translate(sx, sy)', frame)
+        self.assertRegex(frame, r'hasFocusStateSpecified\(\) \{ return true; \}')
+        self.assertRegex(frame, r'isStateful\(\) \{ return true; \}')
+
+    def test_dpad_between_sidebar_and_page(self):
+        """Wide: the page keeps the D-pad going up and down, left goes to the selected entry; right from an entry goes to where the focus was, else the
+        page's first item; About marks its tab's first item and the tabs' down goes there"""
+        page = (UI / 'SettingsPage.java').read_text(encoding='utf-8')
+        self.assertIn('LinearLayout col = new Page(a);', page)
+        self.assertIn('ScrollView side = new Side(a);', page)
+        self.assertIn('lastFocus.put(current, now)', page)
+        about = (UI / 'AboutPage.java').read_text(encoding='utf-8')
+        self.assertIn('first.setFocusedByDefault(true);', about)
+        self.assertIn('setNextFocusDownId(first.getId())', about)
+
     def test_control_interface_names_sections(self):
         ctl = (REPO / 'android/app/src/main/java/dev/peanuts/ctl/Ctl.java').read_text(encoding='utf-8')
         self.assertIn('dev.peanuts.ui.SettingsPage.go(a, section)', ctl)
