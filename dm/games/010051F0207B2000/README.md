@@ -30,11 +30,24 @@ On the AYN Thor with Turnip Gen8 V39, both settings reached the Mii creator's fa
 
 **Resolved (GitHub issue #329):** at most starts the game said "Your system time has changed since the last time you played" and "If you start the game as is, the in-game time may change, or the items offered in shops may not change for a little while"; then the fountain gave nothing, the market stayed "Still setting up..." in the afternoon and at night, and no new foods came, for days. The save was started on Eden and played on a phone.
 
-The game keeps two adjustable `ClockSnapshot`s in `Player.sav` and compares the saved one with a new one at start (`main+0x8713a8` on 1.0.4). When it cannot compute the span (status 2), or the user clock moved (status 3), it shifts every timestamp it stores by that change, so the time does not count: on the AYN Thor with the issue's save, +11,051 s (the time since the save) for status 2 and −30,494 s (the reported change) for status 3, in all 269 timestamps of `Player.sav`. It warns when the span is unknown, when the change is more than 2 hours forward, or when it goes back across a day. The host's steady clock stopped while the phone slept, so every sleep came out as the user setting the clock forward, and the game threw that time away: [The steady clock runs through sleep and restarts](../../../docs/reference/services.md#the-steady-clock-runs-through-sleep-and-restarts). A save from before the fix, or from another emulator, warns once at its first start: its snapshots are of another clock.
+The game keeps two adjustable `ClockSnapshot`s in `Player.sav` and compares the saved one with a new one at start (`main+0x8713a8` on 1.0.4). When it cannot compute the span (status 2), or the user clock moved by any amount (status 3), it shows both messages and shifts every timestamp it stores by that change, so the time does not count. The host's steady clock stopped while the phone slept, so every sleep came out as the user setting the clock forward, and the game threw that time away; the context could also come out a second off between two starts: [The steady clock runs through sleep and restarts](../../../docs/reference/services.md#the-steady-clock-runs-through-sleep-and-restarts). A save from before the fix, or from another emulator, warns once at its first start: its snapshots are of another clock.
+
+Measured on the AYN Thor (Turnip T30) with a copy of the issue's save, all 269 timestamps of `Player.sav` compared before and after a start and a Save:
+
+| Build | Start | Log | Messages | Timestamps |
+|---|---|---|---|---|
+| old clock | first start on the Thor | `the user clock was moved -30494 s` | both | −30,494 s |
+| old clock | 38 minutes after its save, no deep sleep | `the user clock was moved -1 s` | both | −1 s |
+| fix | first start (the save's snapshots of the old clock) | `two steady clocks and no network time, the span is unknown` | both, once | +11,051 s (the time since the save) |
+| fix | the next start, right after | none | none | (not saved) |
+| fix | 67 minutes after its save | none | none | unchanged |
+| fix, Qualcomm's driver | 7 minutes after that save | none | none | (not saved) |
+
+The Thor did not deep-sleep while plugged into the PC, so a start after a real sleep was not measured on it; `t_peanuts_time` runs that case.
 
 Time of day (Settings › System, `DM_TIME`) sets the console's clock, which this game treats as the user changing it, as on a Switch: it warns and shifts its times by the change. Leave it on the phone's clock for this game.
 
-On the Thor with the issue's save, the boot crashed in four of eight starts in `nn::fontll::ScalableFontEngine` (`FSS_get_advance`, `map_char`; reads at 0x20 to 0x28; called from `main+0x105a1e8` ← `main+0x273218`), mostly when a warning showed at start: the crash from PR #86 above, still open.
+On the Thor with the issue's save, the boot crashed in eight of fifteen starts, with both clocks and also with no message at start, in `nn::fontll::ScalableFontEngine` (`FSS_get_advance` and `map_char`; reads at 0 to 0x28; called from `main+0x105a1e8` ← `main+0x273218`, frame 11 or 12): the crash from PR #86 above, still open.
 
 ## Found on this game
 

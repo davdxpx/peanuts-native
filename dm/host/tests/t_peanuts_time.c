@@ -6,7 +6,8 @@
 //   3. a sleep while the game runs: the context is made again (Unity notices), its offset stays, no user clock change;
 //   4. a custom time (DM_TIME_OFFSET, DM_TIME) is a user clock change, the same in every snapshot of its run, and its clock runs with the host's;
 //   5. a snapshot of the old monotonic steady clock (source "dmhost-steady-01"): a span to it is unknown, no user clock change;
-//   6. a snapshot's user time is its context's offset plus its steady time point (one reading); DM_FIXED_TIME stays fixed.
+//   6. a snapshot's user time is its context's offset plus its steady time point (one reading); DM_FIXED_TIME stays fixed;
+//   7. two runs whose clocks sit at other points within the second: no user clock change (two readings came out a second apart, which the game also warns about).
 // make GAME=<id> peanuts-time (part of peanuts-host). No game files.
 #include "../hle.h"
 #undef HLE_FORCE_BIG
@@ -17,9 +18,9 @@
 #include <unistd.h>
 
 // The host's clocks: seconds the test sets (real time) and moves (monotonic: stops while the phone sleeps, starts again at a restart)
-static int64_t g_rt = 1795251429, g_mono = 31523;
-uint64_t plat_clock_ns(clockid_t c) { return (uint64_t)(c == CLOCK_REALTIME ? g_rt : g_mono) * 1000000000ull; }
-uint64_t guest_ns(void) { return (uint64_t)g_mono * 1000000000ull; }   // the guest ticks run on the monotonic clock (hle_os.c now_ns)
+static int64_t g_rt = 1795251429, g_mono = 31523, g_rt_sub, g_mono_sub;   // seconds, and nanoseconds within the second
+uint64_t plat_clock_ns(clockid_t c) { return c == CLOCK_REALTIME ? (uint64_t)g_rt * 1000000000ull + g_rt_sub : (uint64_t)g_mono * 1000000000ull + g_mono_sub; }
+uint64_t guest_ns(void) { return (uint64_t)g_mono * 1000000000ull + g_mono_sub; }   // the guest ticks run on the monotonic clock (hle_os.c now_ns)
 
 static int checks, failed;
 #define CHECK(c, ...) do { checks++; if (!(c)) { failed++; printf("FAIL %s:%d: ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); } else { printf("ok   "); printf(__VA_ARGS__); printf("\n"); } } while (0)
@@ -111,6 +112,17 @@ int main(void) {
     CHECK(get64(a, 0x40) == get64(a, 0x00) + get64(a, 0x90), "user time = context offset + steady time point");
     run(1795400000, 77, "DM_FIXED_TIME=1700000000", b);
     CHECK(get64(b, 0x40) == 1700000000, "DM_FIXED_TIME's user time");
+
+    // 7. No sleep, the host clock 0.8 s ahead of the monotonic one within the second: read at .9 / .1 and, 100.3 s later, at .2 / .4 (the Thor's two runs said -1 s)
+    {
+        pid_t p = fork();
+        if (!p) { g_rt = 1795400000; g_rt_sub = 900000000; g_mono = 31523; g_mono_sub = 100000000; _exit(h_time_AdjSnapshot(a) != RES_OK); }
+        int st = 0; waitpid(p, &st, 0);
+        p = fork();
+        if (!p) { g_rt = 1795400101; g_rt_sub = 200000000; g_mono = 31623; g_mono_sub = 400000000; _exit(h_time_AdjSnapshot(b) != RES_OK); }
+        waitpid(p, &st, 0);
+        CHECK(h_time_UserDiff(a, b) == 0, "the clocks' phases within the second are no user clock change (was %lld s)", (long long)h_time_UserDiff(a, b) / 1000000000);
+    }
 
     printf("peanuts time: %d checks, %d failed\n", checks, failed);
     return failed != 0;

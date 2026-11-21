@@ -20,7 +20,8 @@ static int64_t fixed_time(void) {
 // monotonic clock under one fixed source ID: on Android CLOCK_MONOTONIC stops in deep sleep and starts again at 0 at every boot. The user clock context's
 // offset (user time minus steady time) then grew by every hour the phone slept, and CalculateStandardUserSystemClockDifferenceByUser reported that sleep as
 // the user setting the clock forward; after a reboot the steady clock went back. Tomodachi Life: Living the Dream shifts every timestamp of its save by such a
-// change (main+0x8713a8 on 1.0.4), so the hours the phone slept never counted, and warns when it is more than 2 hours forward. Now the steady clock is that clock in seconds
+// change (main+0x8713a8 on 1.0.4), so the hours the phone slept never counted, and warns at any change, even of a second: the context, read from the two clocks one
+// after the other, could also come out a second off between two starts. Now the steady clock is that clock in seconds
 // and the user clock is the same reading plus the custom time's offset (DM_TIME, DM_TIME_OFFSET below): the offset stays the same through sleep and restarts and
 // changes only when a custom time is set or changed, which games are meant to see. Changing the phone's own clock moves both, so a game counts it as time that
 // passed. The source ID is new: time points of the monotonic steady clock belong to another clock, and a span to them is unknown, as after an RTC reset
