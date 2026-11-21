@@ -133,7 +133,9 @@ public final class PictureActivity extends Activity {
         c.setFocusable(true);
         c.setClickable(true);
         c.setContentDescription(label != null ? label : "A picture from your firmware");
-        c.addView(UserFace.box(this, label != null ? label : name, p, 84, 14, true));
+        View box = UserFace.box(this, label != null ? label : name, p, 84, 14, true);
+        box.setTag(BOX);
+        c.addView(box);
         if (label != null) {
             TextView t = PUi.text(this, label, 13, R.color.bn_text, 600);
             t.setSingleLine(true);
@@ -166,6 +168,16 @@ public final class PictureActivity extends Activity {
         c.addView(t, PUi.wrap());
         c.setOnClickListener(Feel.button(v -> MiiEditor.edit(this, EDIT, null)));
         return c;
+    }
+
+    private static final String BOX = "picture";
+
+    /** The grid's pictures on the background just picked, as the picture will be (their faces stay, only the colour behind them changes) */
+    private void recolor() {
+        for (View cell : cells.values()) {
+            View box = cell.findViewWithTag(BOX);
+            if (box != null) box.setBackground(PUi.round(0xff000000 | pick.color(), PUi.dp(this, 14), 0, 0));
+        }
     }
 
     private void choose(String source) {
@@ -205,7 +217,7 @@ public final class PictureActivity extends Activity {
             s.setMinimumHeight(PUi.dp(c, 30));
             s.setContentDescription(UserPictures.BACKGROUND_NAMES[k]);
             s.setClickable(true);
-            s.setOnClickListener(Feel.row(v -> { pick = pick.withBackground(kk); bottom.refresh(); }));
+            s.setOnClickListener(Feel.row(v -> { pick = pick.withBackground(kk); recolor(); bottom.refresh(); }));
             GridLayout.LayoutParams lp = new GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED), GridLayout.spec(GridLayout.UNDEFINED, 1f));
             lp.width = 0;
             lp.height = PUi.dp(c, 30);   // a plain view would take all the height it is offered
