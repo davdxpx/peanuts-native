@@ -53,6 +53,13 @@ Banana Native ships several releases a day, so this fork is kept as a **thin ove
      `dev.peanuts.ui.BuildLogUi.shareLog(this, this::shareLog)` (the newest build instead, when a build log changed after the newest run), and one row after the
      game page's Share log; `ondevice/.../Ondevice.java` one line in the Panel's constructor after the Check for updates button (`BuildLogUi.card`: the
      button shows while the job has failed or is paused) and one button line in `manage()`.
+   - The Share log chooser everywhere (2026-11-21, `dev.peanuts.ui.BuildLogUi.shareLog`, words in `dev.peanuts.ui.LogChoice`, `peanuts/UPSTREAM-EDITS.md`
+     Round 42): every place that shares a log asks between the game's newest run and its build when it has both, and shares the one there is otherwise. Upstream
+     lines: `MainActivity.java` the game page's two rows Share log and Share build log become one **Share log…** row (`BuildLogUi.shareLog(this, g.titleId,
+     g.name, null, () -> shareLog(g.titleId))`; Settings › Share log keeps its line); `ExitWatch.java` the "Game stopped" notice's Share log
+     (`BuildLogUi.shareLog(a, title, name, log, () -> a.shareLog(log, digest))`); `ondevice/.../Ondevice.java` the Manage sheet's button (Share log,
+     `BuildLogUi.shareLog(a, j.titleId(), j.name(), null, null)`) and the Prepare card's comment. A run picked where the caller gives no way to share it goes
+     through `MainActivity.shareLog(File, File)` by reflection.
    - `SidePanel.java` `look()` — (2026-11-17) one line after the `look(box, ...)` call: `dev.peanuts.ui.PanelPolish.apply(box);   // PEANUTS: ...` (segmented short radio groups, one look for headings, notes and buttons; styling only).
    - `android/app/src/main/java/dev/nxnative/android/GameActivity.java` — (2026-11-17) one line after `GpuDriver.env(...)`: `dev.peanuts.overlay.Hud.driver(...)` with the selected driver's label, else `Readiness.driverWord` of the system facts (null reads "System"), for the table's DRV row.
    - `android/app/src/main/cpp/nxlaunch.c` — (2026-11-17, overlay graph in realtime) in `Java_dev_nxnative_android_Native_overlaySet`, one line before `nxhost_overlay_set`: `if (peanuts_ovl_block) peanuts_ovl_block(...)` (JNI entry points forwarded to `dm/peanuts`), with `#pragma weak peanuts_ovl_block` and its prototype beside the other weak host symbols. `android/host/CMakeLists.txt`: one line compiling `dm/peanuts/peanuts_graph.c`; `android/host/libnxhost.map`: one line exporting `peanuts_ovl_block` (the host exports only `nxhost_*` and `Java_*`). `dm/peanuts/peanuts.c`: `pn_graph_frame();` in `peanuts_tick`.
@@ -235,3 +242,8 @@ The script fetches, rebases `peanuts` onto the target, then checks that every `P
   press lands on it, unless the page was scrolled since. Home keeps its own place (`Library`). Thor: Back from Advanced, and from the Readiness check
   with the launcher's process ended behind it, land on the same row at the same position. UPSTREAM-EDITS Round 41; test
   `peanuts/tests/test_page_place.py`.
+- 2026-11-21 (the Share log chooser everywhere, UPSTREAM-EDITS Round 42): every place that shares a log asks between the game's newest run and its
+  build when it has both, each with when it happened and how it ended (`dev.peanuts.ui.LogChoice`); with one log it is shared at once. The game page's
+  two rows are one **Share log…**. When both logs in Settings › Share log are of one game, its name is the sheet's title and the lines carry only when
+  and how. Emulator (test app, a run log, a failed build log and an exit record of Link's Awakening): Settings › Share log, the game page's Share log…
+  and the "Game stopped" notice ask and share; the build card, the Prepare card and its menu are covered by `peanuts/tests/test_share_log_choice.py`.

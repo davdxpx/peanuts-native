@@ -937,8 +937,7 @@ public final class MainActivity extends Activity {
         LinearLayout more = Ui.add(content, Ui.listCard(this), 6);
         if (noProfile == null && Shortcuts.supported(this))
             more.addView(new Ui.Setting(this, "🏠", "Add to home screen", v -> Shortcuts.pin(this, g)).value("A shortcut that starts this game").chevron(this).view);
-        more.addView(new Ui.Setting(this, "📨", "Share log", v -> shareLog(g.titleId)).value("This game's newest log").chevron(this).view);
-        more.addView(new Ui.Setting(this, "🧾", "Share build log", v -> dev.peanuts.ui.BuildLogUi.share(this, g.titleId, g.name)).value("Logs of this game's build, in one .zip").chevron(this).view);   // PEANUTS: Share build log
+        more.addView(new Ui.Setting(this, "📨", "Share log…", v -> dev.peanuts.ui.BuildLogUi.shareLog(this, g.titleId, g.name, null, () -> shareLog(g.titleId))).value("This game's newest run or build").chevron(this).view);   // PEANUTS: one row asks which (dev.peanuts.ui.BuildLogUi.shareLog; upstream: Share log, shareLog(g.titleId))
         String lp = Pack.libraryProblem(new File(g.packDir), g.titleId);
         File save = Folders.save(this, g);
         Ui.Details info = Ui.details(this, "Title ID: " + g.titleId + "\nGame: " + (PickedNup.is(this, g.gameDir) ? new File(g.gameDir).getName() + " (.nup used where it is, picked with the file picker)"

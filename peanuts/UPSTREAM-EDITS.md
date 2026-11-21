@@ -1258,6 +1258,31 @@ All logic is in Peanuts' own files; the upstream lines only call it.
 
 Tests: `dm/tools/tests/test_android_build_log.py`. Upstream candidate: no (it serves Peanuts' build pipeline).
 
+### Round 42, the Share log chooser everywhere (2026-11-21)
+
+Share log asked between the newest game run and the newest build only in Settings, and only when a build log was newer than the newest run. The game's
+Storage tab had two rows, the build cards and the Prepare card's menu shared the build only, the "Game stopped" notice the run only. Now every place asks
+when the game has both a run log and a build (a build log or a job folder), and shares the one there is otherwise. Each choice says when it happened and
+how it ended, from the files' own facts: "Stopped today at 14:32 after 18 min", "Failed while translating shaders yesterday at 21:05 after 3 min"
+(`dev.peanuts.ui.LogChoice`: a run's start from its log's name, its end from the log's last change, how it ended from the exit record or its log's end; a
+build's newest run from its build log's start, end and progress lines, or its job.json). All logic is in Peanuts' own files; the upstream lines only call it.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `android/app/src/main/java/dev/nxnative/android/MainActivity.java` | 1 | The game page's Share log and Share build log rows become one Share log… row: `BuildLogUi.shareLog(this, g.titleId, g.name, null, () -> shareLog(g.titleId))` (upstream's own Share log of the game when the run is picked, and its "No log of this game yet.") | `PEANUTS` |
+| `android/app/src/main/java/dev/nxnative/android/ExitWatch.java` | 1 | The notice's Share log calls `BuildLogUi.shareLog` with that run; picking the run sends it with its digest as before (`a.shareLog(log, digest)`) | `PEANUTS` |
+| `android/app/src/ondevice/java/dev/nxnative/android/Ondevice.java` | 2 | The Manage sheet's button reads Share log and calls `BuildLogUi.shareLog`; the Prepare card's `BuildLogUi.card` line keeps its call, its comment says Share log | `PEANUTS` |
+
+Peanuts' own files, no marker: `android/app/src/main/java/dev/peanuts/ui/LogChoice.java` (new), `ui/BuildLogUi.java` (the choice, the card's button, a run shared
+through `MainActivity.shareLog(File, File)` by reflection where the caller has no way of its own), `ui/Library.java` (the build card's Share log),
+`build/BuildLogShare.java` (`found`: the build log's end and the newest job, as `make` finds them), `android/app/src/jvmtest/java/dev/peanuts/ui/LogChoiceJvmTest.java`
+(new), `peanuts/tests/test_share_log_choice.py` (new), `dm/tools/tests/test_android_build_log.py` (the entry points), `peanuts/docs/FAQ.md`,
+`peanuts/scripts/issue_forms.py` and the two forms it writes (`.github/ISSUE_TEMPLATE/1_game_problem.yml`, `2_build_problem.yml`, allow-listed in
+`peanuts/upstream-unmarked.txt`: Newest game run and Newest build), `peanuts/tests/test_issue_forms.py` (the app's words).
+
+Tests: `peanuts/tests/test_share_log_choice.py`, `dm/tools/tests/test_android_build_log.py`, and upstream's `dm/tools/tests/test_android_game_settings.py` (the game
+page still calls `shareLog(g.titleId)`). Upstream candidate: no (it serves Peanuts' build pipeline).
+
 ### Shader extraction and build failure cards (2026-11-19)
 
 The marked changes in `dm/gfx/tools/uepak.py` stream decoded LZ4 shader records to disk and reuse the completed
