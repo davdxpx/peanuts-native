@@ -1505,3 +1505,21 @@ the preselected user, `DM_USER`, which upstream already reads.
 Peanuts' own files, no marker: `dev/peanuts/Screens.java` (`startGame`'s first line asks), `dev/peanuts/users/WhoPlaysActivity.java` new.
 
 Tests: `peanuts/tests/test_users_page.py` (`WhoPlays.decide`). Upstream candidate: no.
+
+### Round 49, the users' pictures for games: `LoadProfileImage` (2026-11-21)
+
+A game that asks for the user's picture got none. The launcher keeps each picture as the console does, a 256 x 256 JPEG (`files/users/images/<uid>.jpg`,
+`dev.peanuts.users.UserImages`), and the host gives it to the game.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `dm/host/hle_account.c` | 1 | `user_image` (reads `DM_USER_IMAGES/<uid>.jpg`, at most 128 KiB, JPEG only); `LoadProfileImage` returns it, else fails as before; `HLE_FORCE_BIG` for `fopen` | `PEANUTS` block |
+| `docs/env_switches.tsv` | 1 row | `DM_USER_IMAGES` | `[PEANUTS]` |
+| `docs/reference/services.md` | 1 | the entry "Users' profile pictures" | `PEANUTS` block |
+| `docs/agents/symptoms.md` | 1 | regenerated (`docs_symptoms.py`, allow-listed) | `(PEANUTS)` in the symptom |
+
+Peanuts' own files, no marker: `dev/peanuts/build/GameEnv.java` (`DM_USER_IMAGES` when the folder exists; `dev.peanuts.users.UserImages` writes the
+files, Round 46).
+
+Tests: none on a game yet (no game in the table is known to call it); the switch was seen reaching the host. Upstream candidate: maybe (the host side, with a
+front end that writes the files).
