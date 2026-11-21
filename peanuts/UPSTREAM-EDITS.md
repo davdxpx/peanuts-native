@@ -1471,3 +1471,22 @@ page's second half on the bottom screen or below it; `UsersPort.java`, `UserPict
 
 Tests: `peanuts/tests/test_mii_parts.py` (block-linear order, packed parts, BC4 and BC7 blocks, a synthetic texture and shape file, the colour tables).
 Upstream candidate: no (Peanuts' pages).
+
+### Round 47, Users in Settings: cards with profile pictures (2026-11-21)
+
+Settings › Users shows the users as cards with their pictures (a letter on a colour until one is picked), Add a user, and the Who's playing? and Miis rows; the
+focused user's card with Change picture, Rename, Remove user and Start games as is on the bottom screen. A picture is one of the player's Miis or one of the
+firmware's own pictures (system data AvatarImage `010000000000080A`, `chara/*.szs`, Yaz0-packed 256 x 256 RGBA, which the importer now reads with the fonts and
+MiiModel into `files/firmware/avatar/chara`; a firmware added before is read again once at the next start), on one of eight backgrounds. The users stay
+upstream's (`Users`, its preferences); Peanuts keeps only the pictures (`files/users/pictures.tsv`).
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `android/app/src/main/AndroidManifest.xml` | 1 line | the `dev.peanuts.users.PictureActivity` activity | `PEANUTS` |
+
+Peanuts' own files, no marker: `android/app/src/main/java/dev/peanuts/users/` (`UsersPage.java`, `PictureActivity.java`, `UsersPrefs.java` and
+`WhoPlays.java`, the Who's playing? setting and its rule, new), `dev/peanuts/ui/SettingsPage.java` (the Users section
+filled by `UsersPage`), `dev/peanuts/ui/LibrarySettings.java` (the firmware read again when its pictures are missing), `dm/peanuts/import/nximport.c`
+(AvatarImage), `android/app/src/jvmtest/java/dev/peanuts/users/UserPicturesJvmTest.java` new, `peanuts/tests/test_users_page.py` new.
+
+Tests: `peanuts/tests/test_users_page.py`, `test_settings_sections.py`. Upstream candidate: no.
