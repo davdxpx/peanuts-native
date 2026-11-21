@@ -48,6 +48,11 @@ public final class SettingsPage {
     private static Activity owner;
     private static LinearLayout pane;            // upstream's column: the right side (wide) or the whole page (phone)
     private static boolean wide;
+    private static boolean twoScreens;           // the device has a second screen: Screens' icon and tile say so (SettingsSections.icon, summary)
+    private static final Map<View, String> rowIcons = new HashMap<>();   // the icon a row's tile shows now, for the rows whose icon follows their value
+    private static boolean tablet;               // a tablet (its smaller side 600 dp or more): the sections as tiles (the hub), a section's page with Back
+    private static boolean atHub = true;         // a tablet's Settings shows its tiles (again whenever Settings is opened anew)
+    private static LinearLayout hubPage;
     private static final Map<String, LinearLayout> pages = new HashMap<>();   // each section's column, built once per lay()
     private static final List<View> entries = new ArrayList<>();              // the sidebar's entries (wide)
     private static Dialog drawer;
@@ -64,7 +69,10 @@ public final class SettingsPage {
     public static void lay(Activity a, LinearLayout content) {
         owner = a;
         pane = content;
-        wide = a.getResources().getConfiguration().screenWidthDp >= WIDE_DP;
+        tablet = a.getResources().getConfiguration().smallestScreenWidthDp >= WIDE_DP;
+        wide = !tablet && a.getResources().getConfiguration().screenWidthDp >= WIDE_DP;
+        twoScreens = dev.peanuts.Companion.hasSecondDisplay(a);
+        rowIcons.clear();
         if (drawer != null) { drawer.dismiss(); drawer = null; }
         places.clear();
         explained = null;
@@ -81,8 +89,8 @@ public final class SettingsPage {
             SettingsSections.Place p = SettingsSections.place(it.title, it.heading);
             placed.computeIfAbsent(p.section.key, k -> new LinkedHashMap<>()).computeIfAbsent(p.group, k -> new ArrayList<>()).add(it);
             likeUpstream(it.view);
-            if (p.icon != null) tileIcon(it.view, p.icon);
             places.put(it.view, new Explained(it.title, p));
+            rowIcon(it.view);
         }
         content.removeAllViews();
         pages.clear();
@@ -91,7 +99,9 @@ public final class SettingsPage {
         entries.clear();
         if (wide) sidebar(a, content);
         if (SettingsSections.section(current) == null) current = "library";
-        show(current, false);
+        hubPage = tablet ? hub(a) : null;
+        if (tablet && atHub) showHub(false);
+        else show(current, false);
         if (wide && !content.isInTouchMode()) content.post(() -> {   // a controller: the focus starts on the selected section (a page that keeps its place moves it on after)
             if (pane != content) return;
             for (View e : entries) if (e.isSelected()) { e.requestFocus(); break; }
@@ -99,8 +109,127 @@ public final class SettingsPage {
         bottom(a, content);
     }
 
-    /** The section that shows (its key: library, console, …) */
-    public static String current() { return current; }
+    /** About how wide a section's page is, in dp: the page's width (Ui.page's, at most PAGE_DP) less its gutters, less the sidebar where there is one */
+    static int paneDp(android.content.Context c) {
+        int w = Math.min(c.getResources().getConfiguration().screenWidthDp, PAGE_DP) - 40;
+        return wide ? w - SIDEBAR_DP - 18 : w;
+    }
+
+    /** The section that shows (its key: library, console, …), or "hub" while a tablet shows the tiles of the sections */
+    public static String current() { return tablet && atHub ? "hub" : current; }
+
+    /**
+     * MainActivity.onBackPressed (PEANUTS hook): on a tablet, Back from a section's page goes to the tiles of the sections; true when it did. Elsewhere,
+     * and from the tiles, false: Back goes on as it did (Advanced closes, Settings goes back to Home)
+     */
+    public static boolean onBack(Activity a) {
+        if (!tablet || atHub || a != owner || pane == null || !pane.isAttachedToWindow()) return false;
+        toHub();
+        return true;
+    }
+
+    private static void toHub() { showHub(true); }
+
+    /** A tablet: the tiles of the sections in the pane, where the section's page was */
+    private static void showHub(boolean animate) {
+        if (hubPage == null || pane == null) return;
+        atHub = true;
+        if (hubPage.getParent() != pane) {
+            pane.removeAllViews();
+            if (hubPage.getParent() instanceof ViewGroup) ((ViewGroup) hubPage.getParent()).removeView(hubPage);
+            pane.addView(hubPage, PUi.fill());
+        }
+        if (pane.getParent() instanceof ScrollView) ((ScrollView) pane.getParent()).scrollTo(0, 0);
+        if (animate) Motion.enterPage(hubPage, 1);
+        explained = null;
+        if (owner != null) BottomScreen.explain(owner, null);
+        if (animate && !pane.isInTouchMode()) pane.post(() -> {   // a controller: on the tile of the section it came from
+            for (int i = 0; i < hubPage.getChildCount(); i++) {
+                View f = tileOf(hubPage.getChildAt(i), current);
+                if (f != null) { f.requestFocus(); return; }
+            }
+        });
+        dev.peanuts.ctl.Ctl.screen();
+    }
+
+    private static boolean isIn(View v, View group) {
+        for (View x = v; x != null; x = x.getParent() instanceof View ? (View) x.getParent() : null) if (x == group) return true;
+        return false;
+    }
+
+    private static View tileOf(View v, String key) {
+        if (v.getTag() instanceof Entry && key.equals(((Entry) v.getTag()).key)) return v;
+        if (v instanceof ViewGroup) for (int i = 0; i < ((ViewGroup) v).getChildCount(); i++) { View t = tileOf(((ViewGroup) v).getChildAt(i), key); if (t != null) return t; }
+        return null;
+    }
+
+    /**
+     * A tablet's Settings (the canvas's Konzept board "Variante B: Kategorien-Übersicht (wie Eden)"): Back to Home, "Settings" and the search, then the ten
+     * sections as tiles across the screen, each its icon, its name and what it holds; a tile opens the section's page
+     */
+    private static LinearLayout hub(Activity a) {
+        LinearLayout col = new LinearLayout(a);
+        col.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout h = PUi.row(a);
+        h.setMinimumHeight(PUi.dp(a, 56));
+        h.addView(PUi.back(a, v -> back(a)));
+        TextView title = PUi.title(a, "Settings");
+        title.setAccessibilityHeading(true);
+        title.setPadding(PUi.dp(a, 14), 0, PUi.dp(a, 8), 0);
+        h.addView(title, PUi.weight());
+        h.addView(iconButton(a, "search", R.drawable.ic_search, "Search settings", v -> openSearch(a)));
+        col.addView(h);
+        int avail = Math.min(a.getResources().getConfiguration().screenWidthDp, PAGE_DP) - 40;
+        int cols = Math.max(3, Math.min(5, avail / 160));
+        LinearLayout row = null;
+        int n = 0;
+        for (SettingsSections.Section s : SettingsSections.ALL) {
+            if (n % cols == 0) { row = PUi.row(a); row.setBaselineAligned(false); PUi.add(col, row, n == 0 ? 14 : 12); }
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1);
+            if (n % cols > 0) lp.setMarginStart(PUi.dp(a, 12));
+            row.addView(tile(a, s), lp);
+            n++;
+        }
+        for (int k = n % cols; k > 0 && k < cols; k++) {   // the last row's empty places keep the tiles' width
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1);   // as the tiles (a fixed height would set the row's); a Space asks for no height of its own
+            lp.setMarginStart(PUi.dp(a, 12));
+            row.addView(new android.widget.Space(a), lp);
+        }
+        return col;
+    }
+
+    /** One section's tile: a card with its icon, its name and its line; a tap or A opens the section */
+    private static View tile(Activity a, SettingsSections.Section s) {
+        LinearLayout t = new LinearLayout(a);
+        t.setOrientation(LinearLayout.VERTICAL);
+        t.setTag(new Entry(s.key, true));
+        t.setMinimumHeight(PUi.dp(a, 148));
+        int p = PUi.dp(a, 16);
+        t.setPadding(p, p, p, p);
+        t.setBackground(PUi.ripple(a, PUi.round(PUi.col(a, R.color.bn_card), PUi.dp(a, 20), PUi.col(a, R.color.bn_card_stroke), PUi.dp(a, 1))));
+        ImageView ic = new ImageView(a);
+        ic.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        ic.setImageDrawable(Icons.get(a, icon(s), Icons.Ink.NORMAL));
+        t.addView(ic, new LinearLayout.LayoutParams(PUi.dp(a, 30), PUi.dp(a, 30)));
+        TextView name = PUi.text(a, s.label, 17, R.color.bn_text, 700);
+        PUi.add(t, name, 12);
+        TextView line = PUi.text(a, SettingsSections.summary(s, twoScreens), 14, R.color.bn_text_2, 400);
+        line.setMaxLines(4);
+        line.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        PUi.add(t, line, 4);
+        t.setClickable(true);
+        t.setFocusable(true);
+        t.setContentDescription(s.label + ". " + SettingsSections.summary(s, twoScreens));
+        t.setOnClickListener(v -> {
+            Haptics.play(v, Haptics.Word.CLICK);
+            show(s.key, true);
+            LinearLayout page = pages.get(s.key);
+            if (page != null && !page.isInTouchMode()) page.post(() -> {   // a controller: on the section's first row (its tile has gone with the tiles)
+                for (View f : page.getFocusables(View.FOCUS_FORWARD)) if (!isIn(f, page.getChildAt(0))) { f.requestFocus(); return; }
+            });
+        });
+        return t;
+    }
 
     /**
      * The control interface's `nav to=settings section=<name>`: the section of that name (a section, one of its groups, or one of the old long page's
@@ -109,6 +238,7 @@ public final class SettingsPage {
     public static boolean go(Activity a, String name) {
         SettingsSections.Place p = SettingsSections.find(name);
         if (p == null || a != owner || pane == null || !pane.isAttachedToWindow()) return false;
+        atHub = false;
         show(p.section.key, false);
         if (p.group != null) scrollToGroup(p.group);
         return true;
@@ -175,6 +305,29 @@ public final class SettingsPage {
         if (col.getChildCount() > 1 && col.getChildAt(1) instanceof TextView) ((TextView) col.getChildAt(1)).setMaxLines(8);   // its value whole, as upstream's (PUi cuts at two lines)
     }
 
+    /** A section's icon on this device (Screens: one screen or two) */
+    private static String icon(SettingsSections.Section s) { return SettingsSections.icon(s, twoScreens); }
+
+    /** The icon of a row as it is set now (SettingsSections.icon: from its value line or its switch), the section's for a row the table does not know */
+    private static String iconNow(View row) {
+        Explained x = places.get(row);
+        if (x == null) return null;
+        TextView v = value(row);
+        android.widget.Switch sw = toggle(row);
+        String i = SettingsSections.icon(x.place, x.title, v != null ? v.getText() : null, sw != null ? sw.isChecked() : null);
+        return i != null ? i : icon(x.place.section);
+    }
+
+    /** The row's tile shows its icon as the row is set now; again when that changes (its value line, its switch), only when the icon is another */
+    private static void rowIcon(View row) {
+        Explained x = places.get(row);
+        if (x == null || x.place.icon == null) return;   // a row the table does not know keeps its emoji
+        String i = iconNow(row);
+        if (i.equals(rowIcons.get(row))) return;
+        rowIcons.put(row, i);
+        tileIcon(row, i);
+    }
+
     /** The row's emoji tile shows its Peanuts icon instead (the emoji stays when this build has no icons) */
     private static void tileIcon(View row, String icon) {
         View t = ((LinearLayout) row).getChildAt(0);
@@ -202,7 +355,7 @@ public final class SettingsPage {
         col.setOrientation(LinearLayout.VERTICAL);
         col.addView(top(a, s));
         if (!wide) PUi.add(col, line(a, s.line, 13), 4);
-        if (s.key.equals("about")) { AboutPage.fill(a, col, wide, buildTag, () -> press("Check for updates"), () -> press("Questions and answers")); return col; }
+        if (s.key.equals("about")) { AboutPage.fill(a, col, wide || tablet, buildTag, () -> press("Check for updates"), () -> press("Questions and answers")); return col; }   // a tablet: About in two columns, as on a wide screen
         boolean first = true;
         for (String label : SettingsSections.groupOrder(s)) {
             List<Item> items = groups.get(label);
@@ -224,7 +377,7 @@ public final class SettingsPage {
     private static View top(Activity a, SettingsSections.Section s) {
         LinearLayout h = PUi.row(a);
         h.setMinimumHeight(PUi.dp(a, wide ? 48 : 56));   // wide: level with the sidebar's Back and "Settings"
-        if (!wide) h.addView(iconButton(a, "menu", R.drawable.ic_more, "Sections of Settings", v -> openDrawer(a)));
+        if (!wide) h.addView(tablet ? PUi.back(a, v -> toHub()) : iconButton(a, "menu", R.drawable.ic_more, "Sections of Settings", v -> openDrawer(a)));
         LinearLayout t = new LinearLayout(a);
         t.setOrientation(LinearLayout.VERTICAL);
         t.setPadding(PUi.dp(a, wide ? 4 : 14), 0, PUi.dp(a, 8), 0);
@@ -255,8 +408,9 @@ public final class SettingsPage {
     private static void show(String key, boolean animate) {
         LinearLayout page = pages.get(key);
         if (page == null || pane == null) return;
-        boolean changed = !key.equals(current);   // another section opens at its top; the same one built again stays where it was
+        boolean changed = !key.equals(current) || (tablet && atHub);   // another section opens at its top; the same one built again stays where it was
         current = key;
+        atHub = false;
         if (page.getParent() != pane) {
             pane.removeAllViews();
             if (page.getParent() instanceof ViewGroup) ((ViewGroup) page.getParent()).removeView(page);
@@ -338,7 +492,7 @@ public final class SettingsPage {
         l.setBackground(on ? PUi.round(PUi.col(a, R.color.bn_banana), r, 0, 0) : PUi.ripple(a, PUi.round(Color.TRANSPARENT, r, 0, 0)));
         l.setSelected(on);
         SettingsSections.Section s = SettingsSections.section(tag.key);
-        ((ImageView) l.getChildAt(0)).setImageDrawable(s == null ? null : Icons.get(a, s.icon, on ? Icons.Ink.ON_BANANA : big ? Icons.Ink.NORMAL : Icons.Ink.QUIET));
+        ((ImageView) l.getChildAt(0)).setImageDrawable(s == null ? null : Icons.get(a, icon(s), on ? Icons.Ink.ON_BANANA : big ? Icons.Ink.NORMAL : Icons.Ink.QUIET));
         TextView t = (TextView) l.getChildAt(1);
         t.setTextColor(PUi.col(a, on ? R.color.bn_on_banana : big ? R.color.bn_text : R.color.bn_text_2));
         t.setTypeface(PUi.face(on ? 700 : 600));
@@ -425,18 +579,43 @@ public final class SettingsPage {
             if (v != null) v.addTextChangedListener(new android.text.TextWatcher() {
                 @Override public void beforeTextChanged(CharSequence x, int st, int c, int af) {}
                 @Override public void onTextChanged(CharSequence x, int st, int b, int c) {}
-                @Override public void afterTextChanged(android.text.Editable x) { if (explained == row) explainRow(row); }
+                @Override public void afterTextChanged(android.text.Editable x) { rowIcon(row); if (explained == row) explainRow(row); }
             });
+            android.widget.Switch sw = toggle(row);
+            if (sw != null && SettingsSections.followsValue(places.get(row).title)) sw.setForeground(new Watch(() -> rowIcon(row)));   // a switch changes no text
             row.setOnTouchListener((x, e) -> { if (e.getActionMasked() == android.view.MotionEvent.ACTION_UP) explainRow(row); return false; });
         }
         content.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
             @Override public void onViewAttachedToWindow(View v) {}
             @Override public void onViewDetachedFromWindow(View v) {
                 content.removeOnAttachStateChangeListener(this);
-                UI.post(() -> { if (pane == content && !content.isAttachedToWindow()) { explained = null; BottomScreen.explain(a, null); } });   // Settings left (no new lay)
+                UI.post(() -> { if (pane == content && !content.isAttachedToWindow()) { explained = null; atHub = true; BottomScreen.explain(a, null); } });   // Settings left (no new lay): a tablet opens on its tiles again
             }
         });
         content.post(() -> { if (pane == content && !focusedRow(a.getCurrentFocus())) explainSection(current); });
+    }
+
+    /**
+     * Draws nothing; tells when the view's state changes (a switch's foreground: it gets the switch's checked state, from a tap, A or the bottom screen
+     * alike), where a CompoundButton takes one listener only and upstream's has it
+     */
+    private static final class Watch extends Drawable {
+        private final Runnable changed;
+        private boolean checked, known;
+        Watch(Runnable changed) { this.changed = changed; }
+        @Override public boolean isStateful() { return true; }
+        @Override protected boolean onStateChange(int[] state) {
+            boolean c = false;
+            for (int x : state) if (x == android.R.attr.state_checked) c = true;
+            if (known && c != checked) UI.post(changed);
+            checked = c;
+            known = true;
+            return false;
+        }
+        @Override public void draw(android.graphics.Canvas canvas) {}
+        @Override public void setAlpha(int alpha) {}
+        @Override public void setColorFilter(android.graphics.ColorFilter cf) {}
+        @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSPARENT; }
     }
 
     /** The focus moved in the launcher's window: a row or a section's entry is explained */
@@ -474,7 +653,7 @@ public final class SettingsPage {
         if (a == null || x == null) return;
         BottomScreen.Explain e = new BottomScreen.Explain();
         e.key = row;
-        e.icon = x.place.icon != null ? x.place.icon : x.place.section.icon;
+        e.icon = iconNow(row);
         e.title = x.title;
         e.place = SettingsHelp.place(x.place.section);
         SettingsHelp.Help h = SettingsHelp.of(x.title);
@@ -507,7 +686,7 @@ public final class SettingsPage {
         if (a == null || s == null) return;
         BottomScreen.Explain e = new BottomScreen.Explain();
         e.key = s.key;
-        e.icon = s.icon;
+        e.icon = icon(s);
         e.title = s.label;
         if (s.key.equals("about")) e.cracked = Cracked.total(a);   // About: Peanuts cracked, big
         e.place = "Settings";
@@ -550,7 +729,8 @@ public final class SettingsPage {
         q.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         q.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH | android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);   // landscape (the Thor): the keyboard beside the results, not over them
         q.setOnEditorActionListener((v, id, ev) -> {   // the keyboard's search key: the keyboard goes, the results show (a landscape screen has room for one of them)
-            if (id != android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) return false;
+            boolean enter = ev != null && ev.getKeyCode() == KeyEvent.KEYCODE_ENTER && ev.getAction() == KeyEvent.ACTION_DOWN;   // a hardware keyboard
+            if (id != android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH && !enter) return false;
             android.view.inputmethod.InputMethodManager im = a.getSystemService(android.view.inputmethod.InputMethodManager.class);
             if (im != null) im.hideSoftInputFromWindow(v.getWindowToken(), 0);
             return true;
@@ -619,7 +799,7 @@ public final class SettingsPage {
                 String where = SettingsSections.MORE.equals(x.place.group) ? x.place.section.label : x.place.section.label + ", " + x.place.group;
                 PUi.Setting r = new PUi.Setting(a, "", x.title, v -> { d.dismiss(); jump(row); }).value(where).chevron(a);
                 likeUpstream(r.view);
-                tileIcon(r.view, x.place.icon != null ? x.place.icon : x.place.section.icon);
+                tileIcon(r.view, iconNow(row));
                 card.addView(r.view);
             }
         }

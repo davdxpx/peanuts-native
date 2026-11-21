@@ -400,7 +400,7 @@ The count on Settings › **About**. A peanut cracks open each time you tap one 
 
 ### How do I find a setting?
 
-Settings has ten sections: Library, Console, Graphics, Controls, Screens, Users, App, Help, Developer and About. On a wide screen they are listed on the left; on a phone the button with three lines opens the list. The search button at the top of each section finds a row in any section by its name, a word of what it does or its value, and the matching switches of Advanced. Tap a result to go to it.
+Settings has ten sections: Library, Console, Graphics, Controls, Screens, Users, App, Help, Developer and About. On a wide screen such as the AYN Thor they are listed on the left; on a tablet they are tiles across the screen (tap one, Back returns to the tiles); on a phone the button with three lines opens the list. The search button at the top of each section finds a row in any section by its name, a word of what it does or its value, and the matching switches of Advanced. Tap a result to go to it.
 
 ### Is there frame generation or upscaling?
 

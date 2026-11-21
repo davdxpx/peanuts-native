@@ -234,7 +234,7 @@ final class AboutPage {
     /** The cards, as many side by side as fit at about 220 dp each */
     private static void grid(Activity a, LinearLayout grid, boolean wide, List<Game> games) {
         grid.removeAllViews();
-        int avail = a.getResources().getConfiguration().screenWidthDp - (wide ? SettingsPage.SIDEBAR_DP + 58 : 32);
+        int avail = SettingsPage.paneDp(a);
         int cols = Math.max(1, Math.min(3, avail / 220));
         LinearLayout row = null;
         for (int i = 0; i < games.size(); i++) {

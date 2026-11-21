@@ -23,6 +23,9 @@ public final class SettingsSectionsJvmTest {
             labels.add(s.label);
             yes(s.icon != null && !s.icon.isEmpty(), s.key + " has an icon");
             yes(s.line != null && !s.line.isEmpty(), s.key + " has a line under its title");
+            yes(!SettingsSections.summary(s, true).equals(s.line), s.key + " has a few words of what it holds (a tablet's tile)");
+            eq(s.key.equals("screens") ? "screen-landscape" : s.icon, SettingsSections.icon(s, false));   // one screen: only Screens changes its icon
+            eq(s.icon, SettingsSections.icon(s, true));
         }
         eq("[Library, Console, Graphics, Controls, Screens, Users, App, Help, Developer, About]", labels);
         eq(labels, SettingsSections.names());
@@ -83,6 +86,28 @@ public final class SettingsSectionsJvmTest {
         eq("screens/Display", SettingsSections.find("Display"));   // the old heading Display is a group of Screens now
         eq("null", SettingsSections.find("Nowhere"));
         eq("null", SettingsSections.find(null));
+
+        // icons that show what a row is set to: its value line's first word(s), or its switch
+        SettingsSections.Place screens = SettingsSections.place("Bottom screen", null);
+        eq("companion", SettingsSections.icon(screens, "Bottom screen", "On: a second screen shows the game you are on", null));
+        eq("screens-android", SettingsSections.icon(screens, "Bottom screen", "Off: a second screen shows Android's own launcher", null));
+        eq("swap-on", SettingsSections.icon(screens, "Swap screens", "On: games start on the other screen", null));
+        eq("swap-off", SettingsSections.icon(screens, "Swap screens", "Off: games start on this screen", null));
+        eq("swap-off", SettingsSections.icon(SettingsSections.place("Swap screens", null), "Swap screens", "Onward", null));   // a word, not a prefix: the table's icon
+        eq("screens-cover", SettingsSections.icon(screens, "Games without a companion", "The game's cover stays on the second screen", null));
+        eq("screens-android", SettingsSections.icon(screens, "Games without a companion", "Needs Bottom screen on.", null));
+        eq("screen-rotate", SettingsSections.icon(screens, "Screen rotation", "Automatic: the game follows the phone's rotation", null));
+        eq("screen-landscape", SettingsSections.icon(screens, "Screen rotation", "Landscape: the game window stays horizontal", null));
+        eq("awake", SettingsSections.icon(screens, "Keep the screen on while preparing", "While Home shows a game being prepared", true));
+        eq("sleep", SettingsSections.icon(screens, "Keep the screen on while preparing", "While Home shows a game being prepared", false));
+        SettingsSections.Place mode = SettingsSections.place("Console mode", null);
+        eq("docked", SettingsSections.icon(mode, "Console mode", "Docked", null));
+        eq("console", SettingsSections.icon(mode, "Console mode", "Handheld", null));
+        eq("game", SettingsSections.icon(mode, "Console mode", "Each game's own (most: Docked)", null));   // no word of its own: the table's
+        eq("search", SettingsSections.icon(SettingsSections.place("Upscaler", null), "Upscaler", "FSR", null));   // a row that does not follow its value
+        eq("null", String.valueOf(SettingsSections.icon(SettingsSections.place("Not in the table", null), "Not in the table", "On", null)));
+        yes(SettingsSections.followsValue("Swap screens") && !SettingsSections.followsValue("Upscaler"), "followsValue");
+        yes(!SettingsSections.summary(SettingsSections.section("screens"), false).contains("Both"), "one screen: Screens' tile says nothing of two");
 
         System.out.println("ok " + n);
     }

@@ -62,8 +62,9 @@ Banana Native ships several releases a day, so this fork is kept as a **thin ove
      The activity result refreshes the game settings. Installs still go through `GpuDriver.install`. `peanuts/UPSTREAM-EDITS.md` Round 22.
    - `android/app/src/main/java/dev/nxnative/android/MainActivity.java` — (2026-11-21, Settings in ten sections) one line at the end of `buildSettings()`:
      `dev.peanuts.ui.SettingsPage.lay(this, content)` moves the rows upstream built, by their titles, into the sections of `dev.peanuts.ui.SettingsSections`
-     and shows one, with a sidebar of them on a window 600 dp wide or more and a drawer on a phone. The rows, their listeners and `refreshSettings()` stay
-     upstream's. `peanuts/UPSTREAM-EDITS.md` Round 44.
+     and shows one, with a sidebar of them on a window 600 dp wide or more, tiles of them on a tablet and a drawer on a phone. The rows, their listeners and
+     `refreshSettings()` stay upstream's. And one line in `onBackPressed()`: `SettingsPage.onBack(this)` takes a tablet's Back from a section's page to
+     the tiles. `peanuts/UPSTREAM-EDITS.md` Round 44.
    - `android/app/src/main/java/dev/nxnative/android/BananaBackgroundView.java` — (2026-11-21, Peanuts cracked) one line at the start of `drawBanana`:
      `dev.peanuts.ui.Crack.draw(...)` draws the first 900 ms of a pop as the app's peanut cracking open (PeanutArt) in a Peanuts build while the system's
      animations are on; the burst stays upstream's otherwise, and so do the gone and grow-back phases. `peanuts/UPSTREAM-EDITS.md` Round 45.
@@ -229,10 +230,14 @@ The script fetches, rebases `peanuts` onto the target, then checks that every `P
   to Ready in 8 min 4 s; Stop while unpacking left nothing behind. UPSTREAM-EDITS Round 29; HOOKS.md "Compressed dumps".
 - 2026-11-21 (Settings in ten sections, the canvas "Peanuts Settings Redesign", page App-Look): Settings shows one of ten sections at a time, Library,
   Console, Graphics, Controls, Screens, Users, App, Help, Developer and About, instead of one long page whose Library card mixed folders, keys, haptics,
-  both screens and Miis. A window 600 dp wide or more (the Thor's top screen, a tablet) has the sections in a sidebar at the left, the selected one on
-  banana yellow, and the rows at the right; a narrow phone has the section's page with a button of three lines that opens a drawer of the sections. Every
-  row keeps upstream's look and listener; its tile and each section show the Peanuts icons (`android/app/src/peanuts/res/drawable/pi_*.xml`, the kernel in
-  the accent). The section that shows is kept while the app runs. `nav to=settings section=` of the control interface picks a section. UPSTREAM-EDITS
+  both screens and Miis. A window 600 dp wide or more (the Thor's top screen, a phone held sideways) has the sections in a sidebar at the left, the
+  selected one on banana yellow, and the rows at the right; a tablet (its smaller side 600 dp or more) opens Settings on the ten sections as tiles across
+  the screen (the canvas's board "Variante B, wie Eden"), a tile opens its section's page and Back goes to the tiles again; a narrow phone has the
+  section's page with a button of three lines that opens a drawer of the sections. Every row keeps upstream's look and listener; its tile and each section
+  show the Peanuts icons (`android/app/src/peanuts/res/drawable/pi_*.xml`, the kernel in the accent). Console's icon is a console with its two
+  controllers; Screens' is two screens on a device with a second screen, one screen on any other. The rows of Screens and Console mode show what they
+  are set to (`SettingsSections.BY_VALUE`): the second screen on, left to Android or showing the cover, where the game plays after a swap, a turning or a
+  sideways phone, a sun or a moon, a TV or the console; the icon changes with the value. The section that shows is kept while the app runs. `nav to=settings section=` of the control interface picks a section. UPSTREAM-EDITS
   Round 44; test `peanuts/tests/test_settings_sections.py`.
 - 2026-11-21 (Settings on the second display): while Settings shows, the launcher's page on the second display explains what the focus is on. A
   section's entry: the section, its line and its rows with their values now. A row: its icon, what it does (`dev.peanuts.ui.SettingsHelp`), its value now

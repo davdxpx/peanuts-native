@@ -56,7 +56,7 @@ public final class SettingsSections {
                     new Group("Folders", r("Game folder", "folder"), r("Update folder", "update"), r("DLC folder", "dlc"), r("Build folders", "build"),
                             r("Folders", "folder"), r("Rescan", "search")),
                     new Group("Space", r("Free up space", "trash"), r("Storage", "storage"))),
-            new Section("console", "Console", "key", "What games find on a console of their own: its keys, its firmware and its clock.",
+            new Section("console", "Console", "console", "What games find on a console of their own: its keys, its firmware and its clock.",
                     new Group("Keys and firmware", r("Keys", "key"), r("Firmware", "driver")),
                     new Group("Clock", r("Time of day", "clock"))),
             new Section("graphics", "Graphics", "driver", DEFAULTS,
@@ -69,9 +69,9 @@ public final class SettingsSections {
                     new Group("Touch", r("On-screen controls", "game"), r("Show / hide button", "game")),
                     new Group("Controller", r("Controller: in-game panel", "controller"), r("Rumble", "controller"))),
             new Section("screens", "Screens", "companion", "What each screen shows, and when the screen stays on.",
-                    new Group("Second screen", r("Bottom screen", "companion"), r("Games without a companion", "game"), r("Swap screens", "companion"),
+                    new Group("Second screen", r("Bottom screen", "companion"), r("Games without a companion", "screens-cover"), r("Swap screens", "swap-off"),
                             r("Companions", "companion")),
-                    new Group("Display", r("Screen rotation", "game"), r("Keep the screen on while preparing", "sleep"))),
+                    new Group("Display", r("Screen rotation", "screen-landscape"), r("Keep the screen on while preparing", "awake"))),
             new Section("users", "Users", "user", "Who plays, and the Miis games can use.",
                     new Group("Users", r("Users", "user")),
                     new Group("Miis", r("Miis", "user"))),
@@ -84,6 +84,61 @@ public final class SettingsSections {
             new Section("developer", "Developer", "build", "For testing and for adb. Leave these as they are unless you were asked to change one.",
                     new Group("Testing", r("Advanced", "settings"), r("Tester settings", "build"), r("ADB control (debug)", "build"))),
             new Section("about", "About", "peanut", "The app, the games in it and the people who made it.")));
+
+    /** What each section holds, in a few words: a tablet's tile of it (SettingsPage's hub) */
+    private static final String[][] SUMMARY = {
+            {"library", "Game, update and DLC folders, builds and space"}, {"console", "Keys, firmware and the clock"},
+            {"graphics", "GPU driver, picture and speed"}, {"controls", "Buttons, touch controls and the controller"},
+            {"screens", "Both screens, rotation, keeping the screen on"}, {"users", "Users and Miis"}, {"app", "Haptics, motion and updates"},
+            {"help", "Readiness check, self-test, log and answers"}, {"developer", "Advanced, tester settings and adb"},
+            {"about", "The app, its games, credits, licenses and Peanuts cracked"}};
+
+    /** A section's few words of what it holds; its line when there are none. twoScreens: the device has a second screen (Screens says so) */
+    public static String summary(Section s, boolean twoScreens) {
+        if (s.key.equals("screens") && !twoScreens) return "Rotation, keeping the screen on, and a second screen";
+        for (String[] x : SUMMARY) if (x[0].equals(s.key)) return x[1];
+        return s.line;
+    }
+
+    /** A section's icon on this device: Screens shows two screens on a device with a second one, one screen on any other */
+    public static String icon(Section s, boolean twoScreens) {
+        return s.key.equals("screens") && !twoScreens ? "screen-landscape" : s.icon;
+    }
+
+    /**
+     * The rows whose icon shows what they are set to now: the row's title, then pairs of how its value line starts (a whole word or more) and the icon
+     * for it. A row with a switch has the pairs "on" and "off" instead. A value that starts otherwise (upstream changed its text) keeps the table's icon
+     */
+    static final String[][] BY_VALUE = {
+            {"Bottom screen", "On", "companion", "Off", "screens-android"},
+            {"Games without a companion", "The game's cover", "screens-cover", "Android's", "screens-android", "Needs", "screens-android"},
+            {"Swap screens", "On", "swap-on", "Off", "swap-off"},
+            {"Screen rotation", "Automatic", "screen-rotate", "Landscape", "screen-landscape"},
+            {"Keep the screen on while preparing", "on", "awake", "off", "sleep"},
+            {"Console mode", "Docked", "docked", "Handheld", "console"}};
+
+    /** Whether the row's icon follows its value (BY_VALUE) */
+    public static boolean followsValue(String title) {
+        for (String[] r : BY_VALUE) if (r[0].equals(title)) return true;
+        return false;
+    }
+
+    /**
+     * The icon of a row's tile as it is set now: from its value line, or from its switch (on: null when it has none); otherwise the table's icon (the
+     * place's), null for a row the table does not know
+     */
+    public static String icon(Place p, String title, CharSequence value, Boolean on) {
+        for (String[] r : BY_VALUE) {
+            if (!r[0].equals(title)) continue;
+            String now = on != null ? (on ? "on" : "off") : value == null ? "" : value.toString();
+            for (int i = 1; i + 1 < r.length; i += 2) if (startsWord(now, r[i])) return r[i + 1];
+        }
+        return p == null ? null : p.icon;
+    }
+
+    private static boolean startsWord(String s, String start) {
+        return s.startsWith(start) && (s.length() == start.length() || !Character.isLetter(s.charAt(start.length())));
+    }
 
     /** Upstream's headings of the one long page, and the section their rows belong to now (for a row the table does not know, and for Ctl's old names) */
     private static final String[][] HEADINGS = {

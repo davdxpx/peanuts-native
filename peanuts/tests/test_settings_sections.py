@@ -43,6 +43,12 @@ def table():
     return sections, rows
 
 
+def by_value():
+    """SettingsSections.BY_VALUE: the rows whose icon follows their value, each [title, start, icon, start, icon, ...]"""
+    body = between(TABLE.read_text(encoding='utf-8'), 'static final String[][] BY_VALUE = {', '};')
+    return [re.findall(r'"([^"]*)"', r) for r in re.findall(r'\{([^{}]+)\}', body)]
+
+
 @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'no JDK')
 class Jvm(unittest.TestCase):
     def test_jvm(self):
@@ -67,7 +73,8 @@ class Mapping(unittest.TestCase):
     def test_icons_are_in_the_resources(self):
         sections, rows = table()
         self.assertEqual([s[1] for s in sections], ['Library', 'Console', 'Graphics', 'Controls', 'Screens', 'Users', 'App', 'Help', 'Developer', 'About'])
-        icons = {s[2] for s in sections} | {i for _, i in rows} | {'menu', 'close'}
+        icons = {s[2] for s in sections} | {i for _, i in rows} | {'menu', 'close', 'screen-landscape'}   # Screens on a device with one screen
+        icons |= {i for r in by_value() for i in r[2::2]}
         res = APP / 'peanuts/res/drawable'
         for i in sorted(icons):
             f = res / f'pi_{i.replace("-", "_")}.xml'
@@ -80,12 +87,34 @@ class Mapping(unittest.TestCase):
             self.assertIn(f'<style name="{style}"', styles)
 
 
+class Values(unittest.TestCase):
+    def test_icons_follow_values_settings_writes(self):
+        """Each start of a value BY_VALUE knows is how Settings starts that row's value line (after an upstream change of that text the row would only
+        keep the table's icon; this says so); a row with "on" and "off" has a switch"""
+        rules = by_value()
+        self.assertGreaterEqual(len(rules), 6)
+        built = set(built_rows())
+        src = ''.join((MAIN.parent / f).read_text(encoding='utf-8') for f in ('MainActivity.java', 'ScreenMode.java'))
+        src += (UI / 'LibrarySettings.java').read_text(encoding='utf-8')
+        for r in rules:
+            title, pairs = r[0], list(zip(r[1::2], r[2::2]))
+            self.assertIn(title, built, f'{title} is a row Settings builds')
+            if [p for p, _ in pairs] == ['on', 'off']:
+                self.assertRegex(src, re.escape(f'"{title}"') + r'[^\n]*\.toggle\(', f'{title} has a switch')
+                continue
+            for start, _ in pairs:
+                self.assertRegex(src, '"' + re.escape(start) + '(?![A-Za-z])', f'{title}: Settings writes a value that starts "{start}"')
+
+
 class Wiring(unittest.TestCase):
-    def test_one_hook_at_the_end_of_buildSettings(self):
+    def test_the_two_hooks(self):
+        """One at the end of buildSettings (the rows into the sections), one in onBackPressed (a tablet: Back from a section to its tiles)"""
         main = MAIN.read_text(encoding='utf-8')
         hooks = [l for l in main.splitlines() if 'dev.peanuts.ui.SettingsPage' in l]
-        self.assertEqual(len(hooks), 1)
-        self.assertIn('PEANUTS', hooks[0])
+        self.assertEqual(len(hooks), 2)
+        for h in hooks:
+            self.assertIn('PEANUTS', h)
+        self.assertRegex(main, r'if \(ReleasePage\.back\(this\)\) return;[^\n]*\n\s*if \(dev\.peanuts\.ui\.SettingsPage\.onBack\(this\)\) return;')
         body = between(main, 'private void buildSettings(LinearLayout content)', '/** A settings group\'s card of rows')
         self.assertRegex(body, r'refreshSettings\(\);\n\s*dev\.peanuts\.ui\.SettingsPage\.lay\(this, content\);[^\n]*\n\s*\}\s*$')
 
