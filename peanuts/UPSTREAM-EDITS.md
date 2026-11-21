@@ -1491,20 +1491,25 @@ filled by `UsersPage`), `dev/peanuts/ui/LibrarySettings.java` (the firmware read
 
 Tests: `peanuts/tests/test_users_page.py`, `test_settings_sections.py`. Upstream candidate: no.
 
-### Round 48, Who's playing? before a game starts (2026-11-21)
+### Round 48, Who's playing?: when the app opens, and before a game a shortcut starts (2026-11-21)
 
-With two users or more, starting a game first asks who plays: big cards on the top screen with the user who played it last picked, and on the bottom screen the
-game, whether the user has a save, Play as and Always for this game (Settings › Users › Who's playing? turns the question off). The answer reaches the host as
-the preselected user, `DM_USER`, which upstream already reads.
+With two users or more, opening the app from its icon first asks who plays: big cards over the app's drifting peanuts, under its peanut badge, the user playing
+now picked, and on the bottom screen Continue as and Always. The pick is upstream's preselected user (`Users.setDefault`, `DM_USER`), so every game started in
+the app plays as them. Home's header shows that user's picture at the top right, beside FAQ and Settings; it opens a menu with Profile (Settings › Users) and
+the other users to switch to. A game a home screen shortcut or a frontend starts without the app (`FrontendLaunch`'s `frontend` extra) asks for itself, the user
+who played it last picked, with Play as and Always for this game; it runs in a task of its own, so Home never shows in between. Settings › Users › Who's
+playing? turns both questions off. Nothing of it shows with one user.
 
 | File | Hunks | Change | Marker |
 |---|---|---|---|
-| `android/app/src/main/AndroidManifest.xml` | 1 line | the `dev.peanuts.users.WhoPlaysActivity` activity | `PEANUTS` |
-| `android/app/src/main/java/dev/nxnative/android/GameActivity.java` | 1 | the users line: the preselected user is `WhoPlaysActivity.startUser` (the one picked, else upstream's default) | `PEANUTS` |
+| `android/app/src/main/AndroidManifest.xml` | 1 line | the `dev.peanuts.users.WhoPlaysActivity` activity, an empty `taskAffinity` | `PEANUTS` |
+| `android/app/src/main/java/dev/nxnative/android/GameActivity.java` | 1 | the users line: the preselected user is `WhoPlaysActivity.startUser` (the one picked for this game, else upstream's default) | `PEANUTS` |
+| `android/app/src/main/java/dev/nxnative/android/MainActivity.java` | 2 | `onCreate`'s `GameReturn.back` line: when no game comes back, `WhoPlaysActivity.appOpened`; `headerButtons` (a Peanuts block): `ProfileButton` after Settings | `PEANUTS` |
 
-Peanuts' own files, no marker: `dev/peanuts/Screens.java` (`startGame`'s first line asks), `dev/peanuts/users/WhoPlaysActivity.java` new.
+Peanuts' own files, no marker: `dev/peanuts/Screens.java` (`startGame`'s first line asks), `dev/peanuts/users/WhoPlaysActivity.java` and
+`ProfileButton.java` new, `WhoPlays.java` (`atAppStart`, and a start in the app plays as the user playing now), `UsersPage.java` (Switch to, Playing now).
 
-Tests: `peanuts/tests/test_users_page.py` (`WhoPlays.decide`). Upstream candidate: no.
+Tests: `peanuts/tests/test_users_page.py` (`WhoPlays.decide` and `WhoPlays.atAppStart` on the JVM). Upstream candidate: no.
 
 ### Round 49, the users' pictures for games: `LoadProfileImage` (2026-11-21)
 
@@ -1523,3 +1528,4 @@ files, Round 46).
 
 Tests: none on a game yet (no game in the table is known to call it); the switch was seen reaching the host. Upstream candidate: maybe (the host side, with a
 front end that writes the files).
+

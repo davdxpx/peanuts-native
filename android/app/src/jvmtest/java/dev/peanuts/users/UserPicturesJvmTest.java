@@ -47,20 +47,29 @@ public final class UserPicturesJvmTest {
 
     static void whoPlays() {
         List<String> one = Arrays.asList(A), two = Arrays.asList(A, B), three = Arrays.asList(A, B, C);
-        WhoPlays.Decision d = WhoPlays.decide(one, A, WhoPlays.ASK, null, null);
+        WhoPlays.Decision d = WhoPlays.decide(one, A, WhoPlays.ASK, null, null, true);
         check(!d.ask && A.equals(d.uid), "one user: never asked");
-        d = WhoPlays.decide(two, A, WhoPlays.ASK, null, null);
+        d = WhoPlays.decide(two, A, WhoPlays.ASK, null, null, true);
         check(d.ask && A.equals(d.uid), "two users: asked, the user games start with first");
-        d = WhoPlays.decide(three, A, WhoPlays.ASK, null, C);
+        d = WhoPlays.decide(three, A, WhoPlays.ASK, null, C, true);
         check(d.ask && C.equals(d.uid), "the game's last player picked already");
-        d = WhoPlays.decide(three, A, WhoPlays.ASK, B, C);
+        d = WhoPlays.decide(three, A, WhoPlays.ASK, B, C, true);
         check(!d.ask && B.equals(d.uid), "Always B for this game: not asked");
-        d = WhoPlays.decide(two, A, WhoPlays.ASK, C, null);
+        d = WhoPlays.decide(two, A, WhoPlays.ASK, C, null, true);
         check(d.ask && A.equals(d.uid), "an Always user that was removed is ignored");
-        d = WhoPlays.decide(two, B, WhoPlays.DONT_ASK, null, A);
+        d = WhoPlays.decide(two, B, WhoPlays.DONT_ASK, null, A, true);
         check(!d.ask && B.equals(d.uid), "Don't ask: the user games start with");
-        d = WhoPlays.decide(two, C, WhoPlays.ASK, null, null);
+        d = WhoPlays.decide(two, C, WhoPlays.ASK, null, null, true);
         check(d.ask && A.equals(d.uid), "a start user that is gone: the first");
+        // a start in the app plays as the user playing now, without a question, whatever the game's last user
+        d = WhoPlays.decide(three, B, WhoPlays.ASK, null, C, false);
+        check(!d.ask && d.uid.equals(B), "a start in the app: the user playing now");
+        // when the app opens: a question with two or more users and the setting on, the user playing now picked
+        check(!WhoPlays.atAppStart(one, A, WhoPlays.ASK).ask, "the app opens, one user: no question");
+        d = WhoPlays.atAppStart(three, B, WhoPlays.ASK);
+        check(d.ask && d.uid.equals(B), "the app opens, three users: asks, the user playing now picked");
+        check(!WhoPlays.atAppStart(two, A, WhoPlays.DONT_ASK).ask, "the app opens, Don't ask: no question");
+        check(WhoPlays.atAppStart(two, C, WhoPlays.ASK).uid.equals(A), "the app opens, an unknown user playing now: the first");
         check(WhoPlays.uid(B, A).equals(B) && WhoPlays.uid(null, A).equals(A) && WhoPlays.uid("../x", A).equals(A), "the start's user: the extra when it is an ID");
     }
 }

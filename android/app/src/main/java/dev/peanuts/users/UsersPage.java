@@ -197,11 +197,11 @@ public final class UsersPage {
     // ---- What a user's card says ----
 
     private String meta(UsersPort.User u) {
-        if (u.uid.equals(UsersPort.defaultUid(a)) && users.size() > 1) return "Starts games";
+        if (u.uid.equals(UsersPort.defaultUid(a)) && users.size() > 1) return "Playing now";
         return savesText(saves(a, u.uid));
     }
 
-    private static String savesText(int n) { return n == 0 ? "No saves yet" : n == 1 ? "1 save" : n + " saves"; }
+    static String savesText(int n) { return n == 0 ? "No saves yet" : n == 1 ? "1 save" : n + " saves"; }
 
     private static final Pattern GAME = Pattern.compile("[0-9A-Fa-f]{16}");
 
@@ -246,7 +246,7 @@ public final class UsersPage {
         chips.setOrientation(LinearLayout.HORIZONTAL);
         chips.setPadding(0, PUi.dp(c, 8), 0, 0);
         boolean starts = u.uid.equals(UsersPort.defaultUid(a));
-        if (starts && users.size() > 1) chips.addView(PUi.chip(c, "Starts games"), chipLp(c));
+        if (starts && users.size() > 1) chips.addView(PUi.chip(c, "Playing now"), chipLp(c));
         chips.addView(PUi.chip(c, savesText(saves(a, u.uid))), chipLp(c));
         text.addView(chips);
         card.addView(text, PUi.weight());
@@ -257,7 +257,7 @@ public final class UsersPage {
         if (u.first()) PUi.add(box, rename, 8);
         else PUi.add(box, PUi.pair(c, rename, PUi.button(c, "Remove user", PUi.Kind.DANGER, Feel.button(v -> remove(u)))), 8);
         if (!starts && users.size() > 1)
-            PUi.add(box, PUi.button(c, "Start games as " + u.name, PUi.Kind.SOFT, Feel.button(v -> { UsersPort.setDefault(a, u.uid); refresh(); })), 8);
+            PUi.add(box, PUi.button(c, "Switch to " + u.name, PUi.Kind.SOFT, Feel.button(v -> { UsersPort.setDefault(a, u.uid); refresh(); })), 8);   // the user playing now: games start as them
         return box;
     }
 
@@ -298,13 +298,13 @@ public final class UsersPage {
 
     private String whoLabel() {
         if (users.size() < 2) return "Asks when there are two or more users";
-        if (UsersPrefs.whoMode(a) == WhoPlays.ASK) return "Ask at every start";
+        if (UsersPrefs.whoMode(a) == WhoPlays.ASK) return "Asks when the app opens";
         UsersPort.User d = find(UsersPort.defaultUid(a));
-        return "Don't ask, start as " + (d != null ? d.name : users.get(0).name);
+        return "Don't ask, " + (d != null ? d.name : users.get(0).name) + " plays";
     }
 
     private void whoPlays() {
-        String[] items = {"Ask at every start", "Don't ask"};
+        String[] items = {"Ask when the app opens", "Don't ask"};
         AlertDialog d = new AlertDialog.Builder(a).setTitle("Who's playing?")
                 .setSingleChoiceItems(items, UsersPrefs.whoMode(a), (x, w) -> { UsersPrefs.whoMode(a, w); Feel.picked(x); x.dismiss(); refresh(); })
                 .setNegativeButton("Cancel", null).create();

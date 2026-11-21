@@ -76,6 +76,9 @@ Banana Native ships several releases a day, so this fork is kept as a **thin ove
    - `android/app/src/main/java/dev/nxnative/android/GameActivity.java` — (2026-11-21, Who's playing?) the users line in `start()`'s env: the preselected
      user (`DM_USER`) is `dev.peanuts.users.WhoPlaysActivity.startUser(...)`, the user picked before the game started, else upstream's default.
      `peanuts/UPSTREAM-EDITS.md` Round 48.
+   - `android/app/src/main/java/dev/nxnative/android/MainActivity.java` — (2026-11-21, Who's playing?) `onCreate`'s `GameReturn.back` line: when no game
+     comes back, `dev.peanuts.users.WhoPlaysActivity.appOpened(...)` asks who plays first (the app's icon, two users or more); and in the Peanuts block
+     `headerButtons`, `dev.peanuts.users.ProfileButton` after Settings: the user playing now, with Profile and switching. Round 48.
    - `dm/host/hle_account.c` — (2026-11-21, the users' pictures) a marked block before `LoadProfileImage` (`user_image`: `DM_USER_IMAGES/<uid>.jpg`) and one
      line in it; too much for a one-line hook, as `pack_android.py`'s, so block-marked. `peanuts/UPSTREAM-EDITS.md` Round 49.
 3. **Settings go through upstream's own mechanisms**: `env.txt` keys named `PN_*`, `settings.tsv` rows, `DM_CTL` lines. No new settings UI inside upstream classes.
