@@ -5,10 +5,15 @@ and a zip in, into the app's packs/<id> and into a build folder's <id>/pack (sta
 version or another game refused with nothing written, the Storage tab's import, a running game, another list entry on the same pack folder and an unfinished
 Prepare job refusing it, a picked pack folder let go, a dump folder the pack fits listed (ready to play) and one of another build refused. The upstream classes
 that need Android are stand-ins written here; the source checks below say that upstream's still have the names and parameters Upstream.java reflects on, and
-that Build still takes a pack it finds where the import puts it. Skipped without a JDK."""
+that Build still takes a pack it finds where the import puts it. The hand-over to Build: a real .nup (dm/tools/nup_pack.py of a dump made here, the profile's
+build in its update) put where Build writes it, and upstream's own PackFind and BuildCheck choose the imported pack for it, the way Folders.packFor does for
+Prepare; a .nup of another build gets none. Skipped without a JDK."""
+import hashlib
 import re
 import shutil
+import struct
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,7 +24,7 @@ UP = APP / 'main/java/dev/nxnative/android'
 OND = APP / 'ondevice/java/dev/nxnative/android'
 OWN = APP / 'main/java/dev/peanuts'
 SRC = [OWN / 'pack' / n for n in ('FirstImport.java', 'PackImport.java', 'Upstream.java')]
-REAL = [UP / f'{n}.java' for n in ('PackZip', 'Pack', 'DumpLayout', 'BuildCheck', 'RomfsCheck', 'Nup', 'Nsp', 'Zstd', 'Profile', 'ShaderLibs', 'SaveStore')]
+REAL = [UP / f'{n}.java' for n in ('PackZip', 'Pack', 'DumpLayout', 'BuildCheck', 'RomfsCheck', 'Nup', 'Nsp', 'Zstd', 'Profile', 'ShaderLibs', 'SaveStore', 'PackFind')]
 TEST = APP / 'jvmtest/java/dev/peanuts/pack/FirstImportJvmTest.java'
 
 BUILD_CONFIG = '''package dev.nxnative.android;
@@ -234,11 +239,48 @@ class Wiring(unittest.TestCase):
             self.assertNotIn('FirstImport', src, f.name)
 
 
+TID, VER = 0x040074A01BF12000, 458752   # the stub BuildConfig's Donkey Kong Bananza and its update
+
+
+def nso(build):
+    """A valid NSO (three uncompressed segments with their hashes, as dm/tools/tests/test_nup.py's module) whose build ID is build"""
+    hdr, body, mo = bytearray(0x100), b'', 0
+    hdr[:4] = b'NSO0'; hdr[0x40:0x60] = build
+    for i, s in enumerate((bytes(range(256)) * 20 + build, b'read-only ' * 300, b'\x01\x02' * 0x900)):
+        struct.pack_into('<III', hdr, 0x10 + i * 0x10, 0x100 + len(body), mo, len(s)); struct.pack_into('<I', hdr, 0x60 + 4 * i, len(s))
+        hdr[0xa0 + 0x20 * i:0xc0 + 0x20 * i] = hashlib.sha256(s).digest()
+        body += s; mo = (mo + len(s) + 0xfff) & ~0xfff
+    return bytes(hdr) + body
+
+
+def npdm(tid):
+    d = bytearray(0x100)
+    d[:4] = b'META'
+    struct.pack_into('<II', d, 0x70, 0x80, 0x20)
+    d[0x80:0x84] = b'ACI0'
+    struct.pack_into('<Q', d, 0x90, tid)
+    return bytes(d)
+
+
+def game_nup(root, seed):
+    """The .nup Build would make of an NSP and its update: base and update VER, the update's main of FirstImportJvmTest.nso(seed)'s build (22: the profile's)"""
+    dump = root / f'dump-{seed}'
+    for sub, build in (('base', bytes(32)), (f'updates/{VER}', bytes((seed * 31 + i) & 0xff for i in range(32)))):
+        (dump / sub / 'exefs').mkdir(parents=True); (dump / sub / 'romfs').mkdir()
+        (dump / sub / 'exefs/main').write_bytes(nso(build)); (dump / sub / 'exefs/main.npdm').write_bytes(npdm(TID))
+        (dump / sub / 'romfs/data.bin').write_text(f'{sub}\n', encoding='utf-8')
+    out = root / f'game-{seed}.nup'
+    r = subprocess.run([sys.executable, str(REPO / 'dm/tools/nup_pack.py'), '--raw', str(dump), str(out)], capture_output=True, text=True)
+    if r.returncode: raise AssertionError(r.stdout + r.stderr)
+    return out
+
+
 @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'no JDK')
 class FirstImportJvm(unittest.TestCase):
     def test_import(self):
         with tempfile.TemporaryDirectory() as d:
             d = Path(d)
+            nups = [str(game_nup(d, 22)), str(game_nup(d, 9))]   # the pack's build, another
             stub = d / 'stub'
             for rel, src in {**STUBS, 'dev/nxnative/android/BuildConfig.java': BUILD_CONFIG}.items():
                 (stub / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -247,7 +289,7 @@ class FirstImportJvm(unittest.TestCase):
             c = subprocess.run(['javac', '-Xlint:all,-try', '-Werror', '-encoding', 'UTF-8', '-d', str(d / 'classes'), *srcs], capture_output=True, text=True)
             self.assertEqual(c.returncode, 0, c.stdout + c.stderr)
             (d / 'run').mkdir()
-            r = subprocess.run(['java', '-cp', str(d / 'classes'), 'dev.peanuts.pack.FirstImportJvmTest', str(d / 'run')], capture_output=True, text=True, timeout=300)
+            r = subprocess.run(['java', '-cp', str(d / 'classes'), 'dev.peanuts.pack.FirstImportJvmTest', str(d / 'run'), *nups], capture_output=True, text=True, timeout=300)
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
             self.assertTrue(r.stdout.startswith('ok '), r.stdout)
 

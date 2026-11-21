@@ -7,8 +7,10 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -23,7 +25,7 @@ import java.util.Set;
  * against upstream's sources) and for android.content.Context and android.util.Log. The profile is the stub BuildConfig's Donkey Kong Bananza
  * (040074A01BF12000, build 458752, main=aa…), the library chain "c0ffee".
  * <p>
- * {@code <scratch folder>}: every case; prints "ok &lt;n&gt;" and exits 0, or the first failure and exits 1.
+ * {@code <scratch folder> <.nup of the pack's build> <.nup of another build>} (both made by the Python test with dm/tools/nup_pack.py): every case; prints "ok &lt;n&gt;" and exits 0, or the first failure and exits 1.
  */
 public final class FirstImportJvmTest {
     static final String ID = "040074A01BF12000", MKW = "0400C3F00006E000";
@@ -158,6 +160,7 @@ public final class FirstImportJvmTest {
         dumpOtherBuild(new File(t, "dump-other"));
         damaged(new File(t, "damaged"));
         swapAside(new File(t, "aside"));
+        handOver(new File(t, "hand-over"), new File(args[1]), new File(args[2]));
         System.out.println("ok " + n);
     }
 
@@ -247,6 +250,62 @@ public final class FirstImportJvmTest {
                 && r.getMessage().endsWith("Nothing was changed."), "a pack of another version than Build uses: " + (r == null ? null : r.getMessage()));
         check(read(new File(target, "main.patched.bin")).equals("code old") && !leftovers(target.getParentFile()), "the old pack as it was, nothing left");
         check(r.detail.contains("The pack's version: " + V), "the details: the pack's version");
+    }
+
+    /**
+     * The pack Build's Prepare takes for a game file when no Build destination is set (its step 3: Folders.packFor, whose search is upstream's Folders.find):
+     * PackFind.candidates with the app's packs/&lt;id&gt;, the build folder's &lt;id&gt;/pack (PEANUTS in Folders.find), and PackFind.best judged by
+     * BuildCheck.build, as PackCheck.blocking ends for a pack that is finished and not being rewritten. null: none, Build makes its own
+     */
+    static File chosen(File app, File buildPack, File game) throws ReflectiveOperationException {
+        Class<?> judge = k("PackFind$Judge"), pack = k("Pack");
+        Method candidates = k("PackFind").getDeclaredMethod("candidates", File.class, File.class, File.class, String.class, File.class),
+                root = k("PackFind").getDeclaredMethod("volumeRoot", File.class), best = k("PackFind").getDeclaredMethod("best", List.class, String.class, boolean.class, judge),
+                build = k("BuildCheck").getDeclaredMethod("build", pack, File.class), isDump = pack.getDeclaredMethod("isDump", File.class);
+        for (Method m : new Method[] {candidates, root, best, build, isDump}) m.setAccessible(true);
+        @SuppressWarnings("unchecked") List<File> c = new ArrayList<>((List<File>) candidates.invoke(null, null, app, game, ID, root.invoke(null, game)));
+        if (!c.contains(buildPack) && new File(buildPack, "pack.tsv").isFile()) c.add(buildPack);
+        Object j = Proxy.newProxyInstance(judge.getClassLoader(), new Class<?>[] {judge}, (o, m, a) -> {   // PackFind.Judge.code: BuildCheck's message, null when it fits
+            Object r = build.invoke(null, a[0], game);
+            Field msg = r.getClass().getDeclaredField("message");
+            msg.setAccessible(true);
+            return msg.get(r);
+        });
+        Object f = best.invoke(null, c, ID, isDump.invoke(null, game), j);
+        if (f == null) return null;
+        Field dir = f.getClass().getDeclaredField("dir");
+        dir.setAccessible(true);
+        return (File) dir.get(f);
+    }
+
+    /**
+     * After the import, Build makes the .nup of an NSP game where FirstImport.buildFile says and looks for a pack: it takes the imported one (its code fits the
+     * .nup, its library is this APK's: nothing to prepare, the shaders are not made again), in the app's packs/&lt;id&gt; and in a build folder's &lt;id&gt;/pack.
+     * A .nup of another build gets no pack (Build makes its own, the imported one is never started with it)
+     */
+    static void handOver(File t, File fits, File other) throws Exception {
+        reset();
+        File app = new File(t, "app/packs/" + ID), builds = new File(t, "builds/" + ID), home = new File(t, "games/DK");
+        // the app's packs/<id>, no build folder: the .nup goes beside the game
+        File nup = FirstImport.buildFile(null, null, home, ID);
+        PackImport.Done d = PackImport.run(C, game(null, V, app, nup), pack(new File(t, "src"), ID, V, "pc"), TITLES);
+        check(!d.listed, "an NSP game: imported, not listed");
+        Files.copy(fits.toPath(), mkdirs(nup).toPath());
+        check(app.equals(chosen(app, new File(builds, "pack"), nup)), "Build takes the imported pack in the app's storage for the .nup it made: " + chosen(app, new File(builds, "pack"), nup));
+        Files.copy(other.toPath(), nup.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        check(chosen(app, new File(builds, "pack"), nup) == null, "a .nup of another build: the imported pack is not taken");
+        // a build folder: the pack in <build folder>/<id>/pack, the .nup and its job beside it
+        reset();
+        File target = new File(builds, "pack"), inBuild = FirstImport.buildFile(null, builds, home, ID);
+        PackImport.run(C, game(null, V, target, inBuild), pack(new File(t, "src2"), ID, V, "pc"), TITLES);
+        Files.copy(fits.toPath(), mkdirs(inBuild).toPath());
+        check(target.equals(chosen(new File(t, "app2/packs/" + ID), target, inBuild)), "Build takes the imported pack in the build folder: " + chosen(new File(t, "app2/packs/" + ID), target, inBuild));
+        check(read(new File(target, "shaders/v-c0ffee/dmsh_vk.lib")).equals("library pc"), "its library is the imported one");
+    }
+
+    static File mkdirs(File f) {
+        f.getParentFile().mkdirs();
+        return f;
     }
 
     static void otherTitle(File t) throws Exception {
