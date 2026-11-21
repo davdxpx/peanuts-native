@@ -83,6 +83,8 @@ Banana Native ships several releases a day, so this fork is kept as a **thin ove
      line in it; too much for a one-line hook, as `pack_android.py`'s, so block-marked. `peanuts/UPSTREAM-EDITS.md` Round 49.
    - `dm/gfx/vk_android/vka_tex.c`, `vka_draw.c`, `vka.h` — (2026-11-21, GitHub issue #286) the block-linear write-back of block-compressed textures a GPU
      encoder drew; a general fix, marked `PEANUTS(upstream-candidate)`, confirmed on Tomodachi Life, to go upstream (rule 4). `peanuts/UPSTREAM-EDITS.md` Round 50.
+   - `android/app/src/main/java/dev/nxnative/android/MainActivity.java` — (2026-11-21, Home's first focus) `buildHome`'s header line (the rebrand's):
+     `dev.peanuts.ui.Library.homeHeader` makes the build line plain text, so a controller's first focus is the first cover. Round 51.
 3. **Settings go through upstream's own mechanisms**: `env.txt` keys named `PN_*`, `settings.tsv` rows, `DM_CTL` lines. No new settings UI inside upstream classes.
 4. **Never reformat or "fix" upstream files.** A general fix belongs upstream as a PR to Banana Native (its AGENTS.md prefers general changes), then it arrives by rebase.
 5. **Branches:** `upstream/android` is Banana Native; `peanuts` is this overlay, always a linear set of commits on top of a Banana Native tag. History is rewritten on every update (rebase, never merge).

@@ -1553,3 +1553,15 @@ waits one submission. The pool's placing and the opaque-write record run after `
 
 Tests: `dm/tools/tests/test_vka_bc_writeback.py`; Tomodachi Life 1.0.4 on an AYN Thor with Turnip T30 (2026-11-21): the face paint no longer turns to
 noise. **Open:** the paint shows on the head only after the editor is opened again (the entry in `docs/reference/rendering.md`). Upstream candidate: yes.
+
+### Round 51, Home's first controller focus on the first game, not the build line (2026-11-21)
+
+Upstream's header makes Home's build line selectable text, so it was the page's first focus stop: with a controller, Home opened with the focus frame round
+the whole line. The line is plain text on Home now (Settings › About still has the tag selectable), and the first cover takes the first focus
+(`setFocusedByDefault`).
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `android/app/src/main/java/dev/nxnative/android/MainActivity.java` | 0 (the header line, already marked for the rebrand) | `buildHome`'s header goes through `dev.peanuts.ui.Library.homeHeader` | trailing `// PEANUTS: ...` |
+
+Tests: on the AYN Thor. Upstream candidate: no (the header's look is Peanuts').

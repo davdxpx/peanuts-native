@@ -286,7 +286,7 @@ public final class MainActivity extends Activity {
         trailing.addView(dev.peanuts.ui.Library.screensOffButton(this), sop);
         trailing.addView(headerButtons());
         // PEANUTS end
-        content.addView(Ui.header(this, Ui.badge(this, 44), "Peanuts Native", Prefs.buildId(), trailing));   // the build identifier under the title (Prefs.buildId, the part of the overlay's build tag after the app's name), so a screenshot of Home names its build; Settings › About has the full tag   // PEANUTS: rebrand
+        content.addView(dev.peanuts.ui.Library.homeHeader(Ui.header(this, Ui.badge(this, 44), "Peanuts Native", Prefs.buildId(), trailing)));   // the build identifier under the title (Prefs.buildId, the part of the overlay's build tag after the app's name), so a screenshot of Home names its build; Settings › About has the full tag   // PEANUTS: rebrand; homeHeader: the build line is no focus stop
         dev.peanuts.ui.BottomScreen.home(this, () -> page(true));   // PEANUTS: bottom screen (dev.peanuts.ui.BottomScreen)
         accessCard = accessCard();
         Ui.add(content, accessCard, 16);
