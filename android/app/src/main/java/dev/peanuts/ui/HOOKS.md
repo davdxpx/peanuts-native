@@ -37,6 +37,8 @@ call `Haptics` themselves, and both would play.
 - `SettingsPage`, `SettingsSections`, `Icons` — Settings in ten sections: the table of which row goes where (by title; a row it does not know goes to
   the section of its old heading, under More), the page that shows one section (a sidebar on a window 600 dp wide or more, a drawer on a phone), and the
   Peanuts icons (`pi_*` drawables, their two colours from a style; found by name, so a build without the Peanuts resources keeps its emoji).
+- `SettingsHelp` — what each Settings row does and its app default, for the second display's explanation of the row the focus is on
+  (`BottomScreen.explain`, `BottomPanel`'s explanation page).
 - `Haptics`, `Motion`: the launcher's feedback, six haptic words (TICK, CLICK, HEAVY, EDGE, DONE, REJECT) and six motion tokens (SNAP, FOCUS, ENTER, EXIT,
   EMPHASIS, PROGRESS), called from `Library`, `GameSheet`, `LibrarySettings` and `CompanionVersions`, never from inside `PUi` (it stays a verbatim copy). No
   upstream hook: the D-pad's focus haptic rides on the key listeners the library's own views have, the app-in-front flag and the focus after a game on

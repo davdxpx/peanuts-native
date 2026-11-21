@@ -609,6 +609,8 @@ The game the controller is on, and what you can do with it:
 
 With a controller connected, each button shows the controller button that does the same: **A** is the main action, **Y** the second one, **X** opens Settings. Without one, they show the app's own icons (the gear for Settings). You can always tap them. The controller always stays on the main screen. While a question or a game's sheet is open on the main screen, the second screen dims and waits until it closes. The drifting peanuts behind both screens are one background: they carry on from one screen to the other.
 
+In Settings, the second screen explains what the D-pad is on: a section with its rows and their values, or a row with what it does, its value now and the app default. A switch can be flipped there too.
+
 During a game without a companion the second screen is Android's, as before. Settings › Screens › **Games without a companion** keeps the game's cover there instead.
 
 On Home, open Settings with the top-screen gear or press **X**, as shown under the gear. The second screen also has a Settings button. To give the second screen back to Android while you are in the launcher, turn off Settings › Screens › **Bottom screen**. This setting controls the launcher and the optional cover shown while playing without a companion.

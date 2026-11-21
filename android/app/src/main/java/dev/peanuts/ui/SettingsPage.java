@@ -66,6 +66,8 @@ public final class SettingsPage {
         pane = content;
         wide = a.getResources().getConfiguration().screenWidthDp >= WIDE_DP;
         if (drawer != null) { drawer.dismiss(); drawer = null; }
+        places.clear();
+        explained = null;
         Map<String, Map<String, List<Item>>> placed = new LinkedHashMap<>();
         Map<String, List<Item>> loose = new HashMap<>();   // whole cards (About), by section
         for (Item it : collect(content)) {
@@ -74,6 +76,7 @@ public final class SettingsPage {
             placed.computeIfAbsent(p.section.key, k -> new LinkedHashMap<>()).computeIfAbsent(p.group, k -> new ArrayList<>()).add(it);
             likeUpstream(it.view);
             if (p.icon != null) tileIcon(it.view, p.icon);
+            places.put(it.view, new Explained(it.title, p));
         }
         content.removeAllViews();
         pages.clear();
@@ -87,6 +90,7 @@ public final class SettingsPage {
             if (pane != content) return;
             for (View e : entries) if (e.isSelected()) { e.requestFocus(); break; }
         });
+        bottom(a, content);
     }
 
     /** The section that shows (its key: library, console, …) */
@@ -239,6 +243,7 @@ public final class SettingsPage {
         for (View e : entries) style(e, e.getTag() instanceof Entry && key.equals(((Entry) e.getTag()).key));
         if (changed && pane.getParent() instanceof ScrollView) ((ScrollView) pane.getParent()).scrollTo(0, 0);
         if (animate) Motion.enterPage(page, 1);
+        if (changed) explainSection(key);
         dev.peanuts.ctl.Ctl.screen();
     }
 
@@ -367,6 +372,141 @@ public final class SettingsPage {
 
     @SuppressWarnings("deprecation")   // MainActivity's own Back (onBackPressed): Settings goes back to Home
     private static void back(Activity a) { a.onBackPressed(); }
+
+    // ---- The second display: what the focus is on (BottomScreen.explain) ----
+
+    /** A row's title and place, for its explanation */
+    private static final class Explained {
+        final String title;
+        final SettingsSections.Place place;
+        Explained(String title, SettingsSections.Place place) { this.title = title; this.place = place; }
+    }
+
+    private static final Map<View, Explained> places = new HashMap<>();   // the rows of this lay(), by their view
+    private static View explained;                                           // the row the second display explains now
+    private static boolean explainedOn;                                      // its switch's state when it was explained
+    private static Activity focusWatched;
+    private static final android.os.Handler UI = new android.os.Handler(android.os.Looper.getMainLooper());
+
+    /**
+     * The second display follows Settings: the section that shows, or the row the D-pad is on (or that was tapped), with what it does, its value now and the
+     * app default. A row's value that changes (after its dialog, a switch flipped on either screen) updates it in place. Leaving Settings (Home, Advanced)
+     * gives the display back to its logo
+     */
+    private static void bottom(Activity a, LinearLayout content) {
+        if (focusWatched != a) {
+            focusWatched = a;
+            a.getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((was, now) -> focused(now));
+        }
+        for (View row : places.keySet()) {
+            TextView v = value(row);
+            if (v != null) v.addTextChangedListener(new android.text.TextWatcher() {
+                @Override public void beforeTextChanged(CharSequence x, int st, int c, int af) {}
+                @Override public void onTextChanged(CharSequence x, int st, int b, int c) {}
+                @Override public void afterTextChanged(android.text.Editable x) { if (explained == row) explainRow(row); }
+            });
+            row.setOnTouchListener((x, e) -> { if (e.getActionMasked() == android.view.MotionEvent.ACTION_UP) explainRow(row); return false; });
+        }
+        content.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+            @Override public void onViewAttachedToWindow(View v) {}
+            @Override public void onViewDetachedFromWindow(View v) {
+                content.removeOnAttachStateChangeListener(this);
+                UI.post(() -> { if (pane == content && !content.isAttachedToWindow()) { explained = null; BottomScreen.explain(a, null); } });   // Settings left (no new lay)
+            }
+        });
+        content.post(() -> { if (pane == content && !focusedRow(a.getCurrentFocus())) explainSection(current); });
+    }
+
+    /** The focus moved in the launcher's window: a row or a section's entry is explained */
+    private static void focused(View now) {
+        if (now == null || pane == null || !pane.isAttachedToWindow()) return;
+        focusedRow(now);
+    }
+
+    private static boolean focusedRow(View now) {
+        for (View v = now; v != null; v = v.getParent() instanceof View ? (View) v.getParent() : null) {
+            if (places.containsKey(v)) { explainRow(v); return true; }
+            if (v.getTag() instanceof Entry) { explained = null; explainSection(((Entry) v.getTag()).key); return true; }
+        }
+        return false;
+    }
+
+    /** The row's value line (Ui.Setting: the second line of its column), or null */
+    private static TextView value(View row) {
+        if (!(row instanceof LinearLayout) || ((LinearLayout) row).getChildCount() < 2 || !(((LinearLayout) row).getChildAt(1) instanceof LinearLayout)) return null;
+        LinearLayout col = (LinearLayout) ((LinearLayout) row).getChildAt(1);
+        return col.getChildCount() > 1 && col.getChildAt(1) instanceof TextView ? (TextView) col.getChildAt(1) : null;
+    }
+
+    /** The row's switch (Ui.Setting.toggle: its last view), or null */
+    private static android.widget.Switch toggle(View row) {
+        if (!(row instanceof LinearLayout)) return null;
+        LinearLayout r = (LinearLayout) row;
+        View last = r.getChildAt(r.getChildCount() - 1);
+        return last instanceof android.widget.Switch ? (android.widget.Switch) last : null;
+    }
+
+    private static void explainRow(View row) {
+        Activity a = owner;
+        Explained x = places.get(row);
+        if (a == null || x == null) return;
+        BottomScreen.Explain e = new BottomScreen.Explain();
+        e.key = row;
+        e.icon = x.place.icon != null ? x.place.icon : x.place.section.icon;
+        e.title = x.title;
+        e.place = SettingsHelp.place(x.place.section);
+        SettingsHelp.Help h = SettingsHelp.of(x.title);
+        e.text = h != null ? h.text : "";
+        e.deflt = h != null ? h.deflt : null;
+        TextView v = value(row);
+        e.value = v != null && v.getVisibility() == View.VISIBLE ? v.getText() : null;
+        android.widget.Switch sw = toggle(row);
+        if (sw != null) {
+            e.on = sw.isChecked();
+            e.flip = () -> { if (sw.isEnabled()) { sw.toggle(); explainRow(row); } };
+            explainedOn = sw.isChecked();
+        }
+        boolean fresh = explained != row;
+        explained = row;
+        BottomScreen.explain(a, e);
+        if (sw != null && fresh) UI.postDelayed(new Runnable() {   // a switch flipped on the top screen (A, a tap) changes no text: looked at while it is explained
+            @Override public void run() {
+                if (explained != row || !row.isAttachedToWindow()) return;
+                if (sw.isChecked() != explainedOn) explainRow(row);
+                UI.postDelayed(this, 250);
+            }
+        }, 250);
+    }
+
+    /** A section: its line, and each of its rows with its value as it is now */
+    private static void explainSection(String key) {
+        Activity a = owner;
+        SettingsSections.Section s = SettingsSections.section(key);
+        if (a == null || s == null) return;
+        BottomScreen.Explain e = new BottomScreen.Explain();
+        e.key = s.key;
+        e.icon = s.icon;
+        e.title = s.label;
+        e.place = "Settings";
+        e.text = s.line;
+        e.rows = new ArrayList<>();
+        LinearLayout page = pages.get(key);
+        if (page != null) for (int i = 0; i < page.getChildCount(); i++) {
+            if (!(page.getChildAt(i) instanceof LinearLayout)) continue;
+            LinearLayout card = (LinearLayout) page.getChildAt(i);
+            for (int k = 0; k < card.getChildCount(); k++) {
+                View r = card.getChildAt(k);
+                Explained x = places.get(r);
+                if (x == null || r.getVisibility() != View.VISIBLE) continue;
+                android.widget.Switch sw = toggle(r);
+                TextView v = value(r);
+                CharSequence shown = sw != null ? (sw.isChecked() ? "On" : "Off") : v != null && v.getVisibility() == View.VISIBLE ? v.getText() : "";
+                e.rows.add(new CharSequence[] {x.title, shown});
+            }
+        }
+        explained = null;
+        BottomScreen.explain(a, e);
+    }
 
     // ---- A phone: the drawer ----
 

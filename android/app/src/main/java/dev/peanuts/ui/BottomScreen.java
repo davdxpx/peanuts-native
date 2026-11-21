@@ -61,6 +61,19 @@ public final class BottomScreen {
         Runnable stop, screensOff, open;
     }
 
+    /** Settings: the row or the section the focus is on, explained (SettingsPage) */
+    public static final class Explain {
+        public String icon;                  // a Peanuts icon's name (Icons), null: none
+        public String title = "", place = "", text = "";
+        public CharSequence value;           // a row's value line as it is now; null for a section
+        public String deflt;                 // the app default's words; null: none to name
+        public Boolean on;                   // a switch row's state; null: not a switch
+        public Runnable flip;                // a switch row: flips it on the top screen
+        public java.util.List<CharSequence[]> rows;   // a section: its rows' titles and values; null for a row
+        public Object key;                   // what is explained (an equal key: updated in place, no fade)
+        public java.util.function.Function<android.content.Context, View> view;   // a view of its own instead (built with this display's context); the fields above unused
+    }
+
     /** Play pressed: the panel stays until the game says what it shows there (Companion.STATE) */
     private static final class Launch {
         String titleId, name;
@@ -78,6 +91,9 @@ public final class BottomScreen {
     private static Runnable openSettings;   // null off Home
     private static Card card;
     private static BuildInfo building;
+    private static Explain explain;   // Settings: what the focus is on
+    private static long lastExplainAt;
+    private static Runnable pendingExplain;
     private static Launch launch;
     private static long lastCardAt;
     private static Runnable pendingCard;
@@ -98,6 +114,7 @@ public final class BottomScreen {
     public static void home(Activity a, Runnable settings) {
         watch(a);
         openSettings = settings;
+        explain = null;
         watchFocus(a);
         UI.post(BottomScreen::show);   // back from Settings or a game's page: the Settings hint again
     }
@@ -124,8 +141,28 @@ public final class BottomScreen {
     static void page(Activity a) {
         if (a != owner) return;
         openSettings = null;
-        card = null; building = null;
+        card = null; building = null; explain = null;
         show();
+    }
+
+    /**
+     * Settings (SettingsPage): the row or section the focus is on, on this display; null: the logo again. While the D-pad is held only the one it stops on is
+     * shown, as the covers on Home
+     */
+    public static void explain(Activity a, Explain e) {
+        if (a != owner) return;
+        if (pendingExplain != null) { UI.removeCallbacks(pendingExplain); pendingExplain = null; }
+        Explain was = explain;
+        if (e != null && was != null && e.key != null && e.key.equals(was.key)) {   // the same row, its value changed: in place
+            explain = e;
+            if (showing() && (panel.page() == BottomPanel.EXPLAIN || panel.page() == BottomPanel.VIEW)) panel.showExplain(e);
+            return;
+        }
+        long now = SystemClock.uptimeMillis();
+        boolean rested = now - lastExplainAt > 250;
+        lastExplainAt = now;
+        pendingExplain = () -> { pendingExplain = null; explain = e; show(); };
+        if (rested) pendingExplain.run(); else UI.postDelayed(pendingExplain, 90);
     }
 
     static boolean showing() { return panel != null && panel.isShowing(); }
@@ -300,6 +337,7 @@ public final class BottomScreen {
         if (l != null && l.companion) panel.showLaunch(l.titleId, l.name, l.icon, "Starting the game");
         else if (started && building != null && card != null && card.kind == Card.K_BUILDING) panel.showBuild(building);
         else if (started && card != null && openSettings != null) panel.showCard(card);
+        else if (started && explain != null && openSettings == null) panel.showExplain(explain);
         else panel.showLogo(started && openSettings != null && !setup);
         if (!was) panel.appear();
     }
@@ -371,7 +409,7 @@ public final class BottomScreen {
                 launch = null; UI.removeCallbacks(launchEnd); UI.removeCallbacks(launchStuck); UI.removeCallbacks(launchDialog);
                 dismiss();
                 if (dm != null && displays != null) { try { dm.unregisterDisplayListener(displays); } catch (RuntimeException ignored) { } }
-                dm = null; displays = null; owner = null; openSettings = null; card = null; building = null; started = resumed = false;
+                dm = null; displays = null; owner = null; openSettings = null; card = null; building = null; explain = null; started = resumed = false;
                 focusOwner = null; ownerFocused = true;
             }
             @Override public void onActivityCreated(Activity x, Bundle b) {}

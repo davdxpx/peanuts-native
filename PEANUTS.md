@@ -231,3 +231,10 @@ The script fetches, rebases `peanuts` onto the target, then checks that every `P
   row keeps upstream's look and listener; its tile and each section show the Peanuts icons (`android/app/src/peanuts/res/drawable/pi_*.xml`, the kernel in
   the accent). The section that shows is kept while the app runs. `nav to=settings section=` of the control interface picks a section. UPSTREAM-EDITS
   Round 44; test `peanuts/tests/test_settings_sections.py`.
+- 2026-11-21 (Settings on the second display): while Settings shows, the launcher's page on the second display explains what the focus is on. A
+  section's entry: the section, its line and its rows with their values now. A row: its icon, what it does (`dev.peanuts.ui.SettingsHelp`), its value now
+  and its app default; a switch row shows Off | On there, and a tap flips the switch on the top screen. A row tapped on the top screen is explained too, and
+  a value that changes updates the page in place. Leaving Settings gives the display back to its logo. No upstream hook: `SettingsPage` watches the focus
+  of the launcher's window, `BottomScreen.explain` and `BottomPanel`'s explanation page draw it; a page may hand a view of its own instead
+  (`BottomScreen.Explain.view`, for the Users section of package 3). `PUi.Segmented` is upstream's `Ui.Segmented`, copied.
+  Test `peanuts/tests/test_settings_explain.py`.
