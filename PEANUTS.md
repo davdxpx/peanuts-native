@@ -73,6 +73,9 @@ Banana Native ships several releases a day, so this fork is kept as a **thin ove
    - `android/app/src/main/java/dev/nxnative/android/BananaBackgroundView.java` — (2026-11-21, Peanuts cracked) one line at the start of `drawBanana`:
      `dev.peanuts.ui.Crack.draw(...)` draws the first 900 ms of a pop as the app's peanut cracking open (PeanutArt) in a Peanuts build while the system's
      animations are on; the burst stays upstream's otherwise, and so do the gone and grow-back phases. `peanuts/UPSTREAM-EDITS.md` Round 45.
+   - `android/app/src/main/java/dev/nxnative/android/GameActivity.java` — (2026-11-21, Who's playing?) the users line in `start()`'s env: the preselected
+     user (`DM_USER`) is `dev.peanuts.users.WhoPlaysActivity.startUser(...)`, the user picked before the game started, else upstream's default.
+     `peanuts/UPSTREAM-EDITS.md` Round 48.
 3. **Settings go through upstream's own mechanisms**: `env.txt` keys named `PN_*`, `settings.tsv` rows, `DM_CTL` lines. No new settings UI inside upstream classes.
 4. **Never reformat or "fix" upstream files.** A general fix belongs upstream as a PR to Banana Native (its AGENTS.md prefers general changes), then it arrives by rebase.
 5. **Branches:** `upstream/android` is Banana Native; `peanuts` is this overlay, always a linear set of commits on top of a Banana Native tag. History is rewritten on every update (rebase, never merge).

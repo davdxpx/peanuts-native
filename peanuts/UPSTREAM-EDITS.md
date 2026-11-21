@@ -1490,3 +1490,18 @@ filled by `UsersPage`), `dev/peanuts/ui/LibrarySettings.java` (the firmware read
 (AvatarImage), `android/app/src/jvmtest/java/dev/peanuts/users/UserPicturesJvmTest.java` new, `peanuts/tests/test_users_page.py` new.
 
 Tests: `peanuts/tests/test_users_page.py`, `test_settings_sections.py`. Upstream candidate: no.
+
+### Round 48, Who's playing? before a game starts (2026-11-21)
+
+With two users or more, starting a game first asks who plays: big cards on the top screen with the user who played it last picked, and on the bottom screen the
+game, whether the user has a save, Play as and Always for this game (Settings › Users › Who's playing? turns the question off). The answer reaches the host as
+the preselected user, `DM_USER`, which upstream already reads.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `android/app/src/main/AndroidManifest.xml` | 1 line | the `dev.peanuts.users.WhoPlaysActivity` activity | `PEANUTS` |
+| `android/app/src/main/java/dev/nxnative/android/GameActivity.java` | 1 | the users line: the preselected user is `WhoPlaysActivity.startUser` (the one picked, else upstream's default) | `PEANUTS` |
+
+Peanuts' own files, no marker: `dev/peanuts/Screens.java` (`startGame`'s first line asks), `dev/peanuts/users/WhoPlaysActivity.java` new.
+
+Tests: `peanuts/tests/test_users_page.py` (`WhoPlays.decide`). Upstream candidate: no.
