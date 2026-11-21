@@ -87,7 +87,7 @@ class About(unittest.TestCase):
         self.assertIn('TABS = {"Overview", "Games", "Credits", "Licenses"}', page)
         self.assertIn('getIdentifier("peanuts_games", "raw"', page)
         settings = (UI / 'SettingsPage.java').read_text(encoding='utf-8')
-        self.assertIn('AboutPage.fill(a, col, wide, buildTag, () -> press("Check for updates"), () -> press("Questions and answers"))', settings)
+        self.assertIn('AboutPage.fill(a, col, wide || tablet, buildTag, () -> press("Check for updates"), () -> press("Questions and answers"))', settings)
         self.assertIn('if (sec.equals("about")) { buildTag = firstText(it.view); continue; }', settings, 'upstream\'s About card is left out')
         panel = (UI / 'BottomPanel.java').read_text(encoding='utf-8')
         self.assertIn('page(crackedPage())', panel)
