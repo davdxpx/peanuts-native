@@ -60,6 +60,10 @@ Banana Native ships several releases a day, so this fork is kept as a **thin ove
      Readiness check's "Pick a GPU driver" open `dev.peanuts.ui.DriverActivity` instead of `GpuDriver.dialog`, two lines; the page itself and its
      manifest entry are Peanuts-owned. The Game settings row and the system-driver launch warning also open the page with a title ID.
      The activity result refreshes the game settings. Installs still go through `GpuDriver.install`. `peanuts/UPSTREAM-EDITS.md` Round 22.
+   - `android/app/src/main/java/dev/nxnative/android/MainActivity.java` — (2026-11-21, Back keeps your place) one line each in `onCreate` (after the
+     first `build()`), `onSaveInstanceState`, `openAdvanced` (before `build()`) and `closeAdvanced` (after it), and two in `onConfigurationChanged`
+     around its `build()`: `dev.peanuts.ui.PagePlace` takes the page's scroll position and focused row and puts them back once the page is built
+     again. Home keeps its own (`dev.peanuts.ui.Library`). `peanuts/UPSTREAM-EDITS.md` Round 41.
 3. **Settings go through upstream's own mechanisms**: `env.txt` keys named `PN_*`, `settings.tsv` rows, `DM_CTL` lines. No new settings UI inside upstream classes.
 4. **Never reformat or "fix" upstream files.** A general fix belongs upstream as a PR to Banana Native (its AGENTS.md prefers general changes), then it arrives by rebase.
 5. **Branches:** `upstream/android` is Banana Native; `peanuts` is this overlay, always a linear set of commits on top of a Banana Native tag. History is rewritten on every update (rebase, never merge).
@@ -220,3 +224,14 @@ The script fetches, rebases `peanuts` onto the target, then checks that every `P
   Paradise compressed with nsz 5.0.0: the `.nup` of the NSPs, of a solid set, of a block set and of a mixed set are one file (SHA-256 the same, 11.05
   GiB); import 30.8 s from the NSPs, 41.7 s from blocks, 64.3 s from solid; peak memory 321 to 403 MiB. A Build in the test app from the solid set ran
   to Ready in 8 min 4 s; Stop while unpacking left nothing behind. UPSTREAM-EDITS Round 29; HOOKS.md "Compressed dumps".
+- 2026-11-21 (Back keeps your place): Settings, Advanced and a game's page come back where they were. MainActivity builds a page anew for every
+  change, in a new ScrollView without a view id, and saved only which page was open, so the page came back at its top with a controller's focus on
+  its first row: Back from Advanced (over Settings or a game's page), a size change, and the activity made again. The last one is what Back from a
+  sub-page in front of Settings (GPU driver, Readiness check, Graphics self-test, Companions, Miis) runs into when Android ends the launcher's process
+  meanwhile; while the process lives, those pages keep the place (seen on the Thor with the controller and on the emulator). `dev.peanuts.ui.PagePlace`
+  takes the scroll position and the focused row before such a rebuild (also into the saved state) and puts them back in the new page's first layout,
+  before the page's own first-row focus. The row is found again by its words and which of the rows with those words it was, else by its place
+  (`PlacePick`). A window made again starts in touch mode, showing no focus: the row is then the page's default focus, so the controller's first
+  press lands on it, unless the page was scrolled since. Home keeps its own place (`Library`). Thor: Back from Advanced, and from the Readiness check
+  with the launcher's process ended behind it, land on the same row at the same position. UPSTREAM-EDITS Round 41; test
+  `peanuts/tests/test_page_place.py`.

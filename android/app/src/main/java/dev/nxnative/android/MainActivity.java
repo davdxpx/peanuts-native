@@ -77,6 +77,7 @@ public final class MainActivity extends Activity {
         setContentView(frame);
         PadFocus.watch(getWindow());   // a controller: the focus frame (PadFocus)
         build();
+        if (!onHome()) dev.peanuts.ui.PagePlace.restore(saved, pageScroll());   // PEANUTS: made again (a fold, dark mode, Android ended the process): the page where it was (dev.peanuts.ui.PagePlace)
         if (saved == null) { setIntent(gated(getIntent())); fromIntent(getIntent()); dev.peanuts.GameReturn.back(this, getIntent()); /* PEANUTS: Home made anew by the app's icon while a game runs (GameReturn) */ }   // start() reads no_pause from getIntent() too
         GpuGl.probe(this, () -> { if (!isFinishing() && settingsGame != null) gameSettingsAgain(); });   // the GPU's name and, before any readiness check, the system driver's facts for the recommendations
         Updater.onStart(this);   // the release app: a newer release on GitHub opens the update popup (once per process start: not on a resume or a rotation)
@@ -87,14 +88,17 @@ public final class MainActivity extends Activity {
         super.onSaveInstanceState(out);
         out.putBoolean("settings", settingsPage);
         if (settingsGame != null) out.putString("game_settings", settingsGame.gameDir);
+        if (!onHome()) dev.peanuts.ui.PagePlace.save(out, pageScroll(), advancedOpen);   // PEANUTS: the page's scroll position and focused row (dev.peanuts.ui.PagePlace)
     }
 
     /** Rotation, a window resize: the same page again */
     @Override public void onConfigurationChanged(Configuration c) {
         super.onConfigurationChanged(c);
         int y = settingsGame != null ? scrollY() : 0;
+        dev.peanuts.ui.PagePlace place = onHome() ? null : dev.peanuts.ui.PagePlace.of(pageScroll());   // PEANUTS: Settings and Advanced keep their place too, and every page its focused row (dev.peanuts.ui.PagePlace)
         build();
         if (settingsGame != null) scrollTo(y);
+        if (place != null) place.restore(pageScroll());   // PEANUTS
         if (resumed) { onResumeViews(); if (onHome()) Ondevice.resume(this); }
     }
 
@@ -107,12 +111,14 @@ public final class MainActivity extends Activity {
         advancedOpen = true;
         advancedTitleId = titleId;
         advancedName = name;
+        dev.peanuts.ui.PagePlace.cover(pageScroll());   // PEANUTS: where the page under Advanced is, for Back (dev.peanuts.ui.PagePlace)
         build();
     }
 
     private void closeAdvanced() {
         advancedOpen = false;
         build();
+        dev.peanuts.ui.PagePlace.uncover(pageScroll());   // PEANUTS: the page back where it was when Advanced opened
         if (resumed) onResumeViews();
     }
 

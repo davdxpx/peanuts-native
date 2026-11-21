@@ -1399,3 +1399,19 @@ The Trinity reader in `dm/gfx/tools/shader_split.py` narrows a recognized build 
 | `README.md`, `peanuts/docs/README.github.md` | 1 + 1 each | the game's table row and its paragraph under Upcoming in 0.1.6 | inside the files' `PEANUTS` sections |
 | `dm/games/01002B00111A2000/game.tsv`, `dm/games/01002B00111A2000/README.md` | 1, 1 | Hyrule Warriors: Age of Calamity on Android: frame limits Game owned, 30 and 60 (the frame step's targets), measured on an AYN Thor; the note's Android section | `PEANUTS` |
 | `dm/games/01002B00111A2000/vk_prewarm.bin` | new | its Turnip prewarm seed (242 keys) | allow-listed in `peanuts/upstream-unmarked.txt` |
+
+### Round 41, Back keeps your place (2026-11-21)
+
+Settings and a game's page came back at their top, a controller's focus on the first row, after Advanced, a size change, or the activity made again
+(Android ended the launcher's process behind a sub-page such as the Readiness check, a fold, dark mode). `dev.peanuts.ui.PagePlace` keeps the scroll
+position and the focused row across MainActivity's rebuilds; the upstream lines only call it.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `android/app/src/main/java/dev/nxnative/android/MainActivity.java` | 5 | `onCreate` after the first `build()`: `PagePlace.restore(saved, ...)` off Home; `onSaveInstanceState`: `PagePlace.save(...)` off Home; `onConfigurationChanged`: `PagePlace.of(...)` before `build()` and `place.restore(...)` after it, off Home (upstream's own scroll keeping for a game's page stays); `openAdvanced`: `PagePlace.cover(...)` before `build()`; `closeAdvanced`: `PagePlace.uncover(...)` after it | `PEANUTS` |
+
+Peanuts' own files, no marker: `android/app/src/main/java/dev/peanuts/ui/` (`PagePlace.java`, `PlacePick.java` new),
+`android/app/src/jvmtest/java/dev/peanuts/ui/PagePlaceJvmTest.java` new, `peanuts/tests/test_page_place.py` new.
+
+Tests: `peanuts/tests/test_page_place.py`. Upstream candidate: possibly (Banana Native rebuilds its pages the same way); the code would then live in
+MainActivity.
