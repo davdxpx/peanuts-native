@@ -238,3 +238,8 @@ The script fetches, rebases `peanuts` onto the target, then checks that every `P
   of the launcher's window, `BottomScreen.explain` and `BottomPanel`'s explanation page draw it; a page may hand a view of its own instead
   (`BottomScreen.Explain.view`, for the Users section of package 3). `PUi.Segmented` is upstream's `Ui.Segmented`, copied.
   Test `peanuts/tests/test_settings_explain.py`.
+- 2026-11-21 (one search over every setting): each section's page has a search button. Its sheet finds the rows of all ten sections by Advanced's
+  rule (every word in the row's title, section, group, value or what it does; `dev.peanuts.ui.SettingsSearch`), the titles first, and below them
+  Advanced's own rows that match (upstream's `AdvancedTable.visible`, reached by reflection in `AdvancedPort`). A row of Settings jumps to its section
+  and place, with the focus on it or a short highlight; one of Advanced's opens Advanced with the words in its search field. No upstream hook. Test
+  `peanuts/tests/test_settings_search.py`.

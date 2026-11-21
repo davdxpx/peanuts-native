@@ -394,6 +394,10 @@ Games take the handheld's own buttons and sticks, external controllers and on-sc
 
 Most supported games run at 60 fps on the Thor. Animal Crossing: New Horizons runs at 30, as on the Switch. A few games that are 30 on the Switch run at 60 here because the app changes the game's frame step, for example Octopath Traveler 0 and Pokémon Sword. Some games lower their own rate in heavy scenes. The speed settings are **Frame rate cap**, **Hold 60 fps** and **Full game speed**.
 
+### How do I find a setting?
+
+Settings has ten sections: Library, Console, Graphics, Controls, Screens, Users, App, Help, Developer and About. On a wide screen they are listed on the left; on a phone the button with three lines opens the list. The search button at the top of each section finds a row in any section by its name, a word of what it does or its value, and the matching switches of Advanced. Tap a result to go to it.
+
 ### Is there frame generation or upscaling?
 
 - **Frame generation** needs your own `Lossless.dll` from Lossless Scaling. It is never part of the app.

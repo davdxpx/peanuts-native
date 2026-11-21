@@ -212,6 +212,7 @@ public final class SettingsPage {
         t.addView(title);
         t.addView(wide ? line(a, s.line, 13) : line(a, "Settings", 12));
         h.addView(t, PUi.weight());
+        h.addView(iconButton(a, "search", R.drawable.ic_search, "Search settings", v -> openSearch(a)));
         return h;
     }
 
@@ -508,6 +509,163 @@ public final class SettingsPage {
         BottomScreen.explain(a, e);
     }
 
+    // ---- One search over every setting ----
+
+    private static android.app.AlertDialog search;
+
+    /**
+     * The search, as a sheet of the app (Back and B close it): a field, then the rows of every section that match (Advanced's rule, SettingsSearch), then
+     * Advanced's own rows that match. A row of Settings jumps to its place; one of Advanced's opens Advanced with the words typed in
+     */
+    private static void openSearch(Activity a) {
+        if (search != null && search.isShowing()) return;
+        LinearLayout box = new LinearLayout(a);
+        box.setOrientation(LinearLayout.VERTICAL);
+        android.widget.EditText q = new android.widget.EditText(a);
+        q.setHint("Search every setting");
+        q.setTextSize(15);
+        q.setSingleLine(true);
+        q.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        q.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH | android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);   // landscape (the Thor): the keyboard beside the results, not over them
+        q.setOnEditorActionListener((v, id, ev) -> {   // the keyboard's search key: the keyboard goes, the results show (a landscape screen has room for one of them)
+            if (id != android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) return false;
+            android.view.inputmethod.InputMethodManager im = a.getSystemService(android.view.inputmethod.InputMethodManager.class);
+            if (im != null) im.hideSoftInputFromWindow(v.getWindowToken(), 0);
+            return true;
+        });
+        box.addView(q, PUi.fill());
+        LinearLayout results = new LinearLayout(a);
+        results.setOrientation(LinearLayout.VERTICAL);
+        PUi.add(box, results, 4);
+        android.app.AlertDialog d = PUi.sheet(a, "Search settings", box).setNegativeButton("Close", null).create();
+        q.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence x, int st, int c, int af) {}
+            @Override public void onTextChanged(CharSequence x, int st, int b, int c) {}
+            @Override public void afterTextChanged(android.text.Editable x) { results(a, d, results, x.toString()); }
+        });
+        results(a, d, results, "");
+        d.setOnKeyListener((x, k, e) -> {   // B closes it, as a dialog of the app
+            if (k != KeyEvent.KEYCODE_BUTTON_B) return false;
+            if (e.getAction() == KeyEvent.ACTION_UP) x.cancel();
+            return true;
+        });
+        d.setOnDismissListener(x -> { if (search == d) search = null; });
+        Window w = d.getWindow();
+        if (w != null) {
+            w.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE | WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+            Motion.sheet(d);
+        }
+        search = d;
+        d.show();
+        if (w != null) watchFocus(w);
+        q.requestFocus();
+    }
+
+    /** The results for the words typed so far */
+    private static void results(Activity a, android.app.AlertDialog d, LinearLayout out, String query) {
+        out.removeAllViews();
+        if (SettingsSearch.words(query).length == 0) {
+            PUi.add(out, PUi.small(a, "A row's name, a word of what it does or its value. Advanced's switches are found too."), 8);
+            return;
+        }
+        List<View> rows = new ArrayList<>();
+        List<String> titles = new ArrayList<>(), texts = new ArrayList<>();
+        for (SettingsSections.Section s : SettingsSections.ALL) {   // in the order Settings shows them
+            LinearLayout page = pages.get(s.key);
+            if (page == null) continue;
+            for (int i = 0; i < page.getChildCount(); i++) {
+                if (!(page.getChildAt(i) instanceof LinearLayout)) continue;
+                LinearLayout card = (LinearLayout) page.getChildAt(i);
+                for (int k = 0; k < card.getChildCount(); k++) {
+                    View r = card.getChildAt(k);
+                    Explained x = places.get(r);
+                    if (x == null || r.getVisibility() != View.VISIBLE) continue;
+                    TextView v = value(r);
+                    rows.add(r);
+                    titles.add(x.title);
+                    texts.add(SettingsSearch.text(x.title, s.label, SettingsSections.MORE.equals(x.place.group) ? null : x.place.group, v == null ? null : v.getText()));
+                }
+            }
+        }
+        List<Integer> hits = SettingsSearch.find(titles, texts, query);
+        if (!hits.isEmpty()) {
+            PUi.add(out, PUi.section(a, "Settings"), 12);
+            LinearLayout card = PUi.add(out, PUi.listCard(a), 6);
+            for (int i : hits) {
+                View row = rows.get(i);
+                Explained x = places.get(row);
+                String where = SettingsSections.MORE.equals(x.place.group) ? x.place.section.label : x.place.section.label + ", " + x.place.group;
+                PUi.Setting r = new PUi.Setting(a, "", x.title, v -> { d.dismiss(); jump(row); }).value(where).chevron(a);
+                likeUpstream(r.view);
+                tileIcon(r.view, x.place.icon != null ? x.place.icon : x.place.section.icon);
+                card.addView(r.view);
+            }
+        }
+        List<AdvancedPort.Hit> adv = AdvancedPort.find(a, query);
+        if (!adv.isEmpty()) {
+            PUi.add(out, PUi.section(a, "Advanced"), 16);
+            LinearLayout card = PUi.add(out, PUi.listCard(a), 6);
+            int shown = Math.min(adv.size(), 5);
+            for (int i = 0; i < shown; i++) {
+                AdvancedPort.Hit h = adv.get(i);
+                PUi.Setting r = new PUi.Setting(a, "", h.title, v -> { d.dismiss(); AdvancedPort.open(a, query); })
+                        .value(h.tryIf.isEmpty() ? null : "Try this if " + h.tryIf + ".").chevron(a);
+                likeUpstream(r.view);
+                tileIcon(r.view, "settings");
+                card.addView(r.view);
+            }
+            if (adv.size() > shown) {
+                PUi.Setting more = new PUi.Setting(a, "", "All " + adv.size() + " in Advanced", v -> { d.dismiss(); AdvancedPort.open(a, query); }).chevron(a);
+                likeUpstream(more.view);
+                tileIcon(more.view, "search");
+                card.addView(more.view);
+            }
+        }
+        if (hits.isEmpty() && adv.isEmpty()) PUi.add(out, PUi.small(a, "Nothing matches. Try another word, or a word of what the setting does."), 8);
+    }
+
+    /** A row found by the search: its section shows, scrolled to the row, the focus on it (a controller) or a calm highlight (touch), and it is explained */
+    private static void jump(View row) {
+        Explained x = places.get(row);
+        if (x == null || pane == null) return;
+        show(x.place.section.key, false);
+        pane.post(() -> {
+            if (!row.isAttachedToWindow() || !(pane.getParent() instanceof ScrollView)) return;
+            ScrollView sv = (ScrollView) pane.getParent();
+            android.graphics.Rect r = new android.graphics.Rect(0, 0, row.getWidth(), row.getHeight());
+            sv.offsetDescendantRectToMyCoords(row, r);
+            sv.smoothScrollTo(0, Math.max(0, r.top - PUi.dp(row.getContext(), 48)));
+            if (!row.isInTouchMode()) row.requestFocus();
+            else flash(row);
+            explainRow(row);
+        });
+    }
+
+    /** The row found lights up in banana yellow and fades out (Motion.EMPHASIS twice); under reduced motion it shows and goes */
+    private static void flash(View row) {
+        android.content.Context c = row.getContext();
+        GradientDrawable g = PUi.round((PUi.col(c, R.color.bn_banana) & 0x00FFFFFF) | 0x40000000, PUi.dp(c, 12), 0, 0);
+        row.setForeground(g);
+        if (!Motion.on()) { row.postDelayed(() -> { if (row.getForeground() == g) row.setForeground(null); }, 1200); return; }
+        android.animation.ObjectAnimator f = android.animation.ObjectAnimator.ofInt(g, "alpha", 255, 0);
+        f.setStartDelay(Motion.EMPHASIS);
+        f.setDuration(Motion.EMPHASIS * 2);
+        f.setInterpolator(Motion.IN);
+        f.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(android.animation.Animator x) { if (row.getForeground() == g) row.setForeground(null); }
+        });
+        f.start();
+    }
+
+    /** The app's focus frame in a window of Peanuts' own (PadFocus.watch, package-private) */
+    private static void watchFocus(Window w) {
+        try {
+            java.lang.reflect.Method m = Class.forName("dev.nxnative.android.PadFocus").getDeclaredMethod("watch", Window.class);
+            m.setAccessible(true);
+            m.invoke(null, w);
+        } catch (ReflectiveOperationException ignored) { /* touch still works */ }
+    }
+
     // ---- A phone: the drawer ----
 
     /** The drawer of the sections, over the page from the left: the app's badge, "Settings" and the version, a close button, the entries */
@@ -552,11 +710,7 @@ public final class SettingsPage {
             w.setDimAmount(0.65f);
             w.getDecorView().setPadding(0, 0, 0, 0);
             Motion.drawer(d);
-            try {   // a controller: the app's focus frame (PadFocus, package-private)
-                java.lang.reflect.Method m = Class.forName("dev.nxnative.android.PadFocus").getDeclaredMethod("watch", Window.class);
-                m.setAccessible(true);
-                m.invoke(null, w);
-            } catch (ReflectiveOperationException ignored) { /* touch still works */ }
+            watchFocus(w);   // a controller: the app's focus frame
         }
         d.setOnKeyListener((x, k, e) -> {   // B closes it, as a dialog of the app
             if (k != KeyEvent.KEYCODE_BUTTON_B) return false;
