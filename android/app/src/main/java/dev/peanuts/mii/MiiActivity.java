@@ -19,7 +19,7 @@ import java.util.Random;
 import dev.peanuts.ui.PUi;
 
 /**
- * Settings › Miis: the player's own Miis, which games list as the console's (MiiStore writes files/mii/database.bin, the host reads it as DM_MII_DB). The list page
+ * Settings › Users › Miis: the player's own Miis, which games list as the console's (MiiStore writes files/mii/database.bin, the host reads it as DM_MII_DB). The list page
  * adds (from one of the six default Miis, or random), edits and deletes; the edit page has a stepper for every CharInfo field, grouped as the console's editor
  * groups them. The app draws no preview: a game's Select a Mii shows the result. A game started after a change sees it.
  */

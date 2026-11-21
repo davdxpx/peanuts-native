@@ -317,7 +317,7 @@ public final class BottomScreen {
 
     private static boolean on(Display d) { return d.getState() != Display.STATE_OFF; }
 
-    /** Settings › Library › Bottom screen */
+    /** Settings › Screens › Bottom screen */
     static void settingChanged() {
         if (owner == null) return;
         if (PeanutsPrefs.bottomScreen(owner)) show(); else dismiss();

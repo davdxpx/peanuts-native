@@ -1399,3 +1399,26 @@ The Trinity reader in `dm/gfx/tools/shader_split.py` narrows a recognized build 
 | `README.md`, `peanuts/docs/README.github.md` | 1 + 1 each | the game's table row and its paragraph under Upcoming in 0.1.6 | inside the files' `PEANUTS` sections |
 | `dm/games/01002B00111A2000/game.tsv`, `dm/games/01002B00111A2000/README.md` | 1, 1 | Hyrule Warriors: Age of Calamity on Android: frame limits Game owned, 30 and 60 (the frame step's targets), measured on an AYN Thor; the note's Android section | `PEANUTS` |
 | `dm/games/01002B00111A2000/vk_prewarm.bin` | new | its Turnip prewarm seed (242 keys) | allow-listed in `peanuts/upstream-unmarked.txt` |
+
+### Round 44, Settings in ten sections (2026-11-21)
+
+Settings was one long page of eight cards, its Library card holding folders, keys, haptics, both screens and Miis. Its rows now sit in ten sections,
+Library, Console, Graphics, Controls, Screens, Users, App, Help, Developer and About (the design: the canvas "Peanuts Settings Redesign", page Konzept,
+board "Aufteilung"), one section shown at a time: on a window 600 dp wide or more a sidebar of the sections at the left, each with its Peanuts icon and the
+selected one on banana yellow; on a narrow phone the section's page with a button that opens a drawer of the sections. Upstream still builds every row as
+before, with its listeners, its fields and its `refreshSettings()`; one line at the end of `buildSettings()` hands the column to
+`dev.peanuts.ui.SettingsPage.lay`, which moves each row, by its title, into its section's group (`dev.peanuts.ui.SettingsSections`). A row that table does not
+know (one upstream adds) goes to the section of the heading it was built under, in a group "More". Each row's emoji tile shows a Peanuts icon instead.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `android/app/src/main/java/dev/nxnative/android/MainActivity.java` | 1 | `buildSettings()`, after `refreshSettings()`: `dev.peanuts.ui.SettingsPage.lay(this, content)` | `PEANUTS` |
+
+Peanuts' own files, no marker: `android/app/src/main/java/dev/peanuts/ui/` (`SettingsSections.java`, `SettingsPage.java`, `Icons.java` new; `Motion.java`:
+the drawer's window animation), `android/app/src/peanuts/res/` (`drawable/pi_*.xml` new: the icons, made with `design/peanuts-native/icons/icons.py`;
+`values/peanuts_icons.xml`, `anim/peanuts_drawer_in.xml`, `anim/peanuts_drawer_out.xml` new), `dev/peanuts/ctl/Ctl.java` (`nav to=settings section=`
+picks a section; `screen.settings_section`), the player texts that name a moved row (`FontGate`, `Library`, `CtlPort`), `peanuts/docs/` (`FAQ.md`,
+`CONTROL.md`), `android/app/src/jvmtest/java/dev/peanuts/ui/SettingsSectionsJvmTest.java` new, `peanuts/tests/test_settings_sections.py` new.
+
+Tests: `peanuts/tests/test_settings_sections.py` (the table on the JVM; every row Settings builds has its place and the table names no other; the icons are in
+the resources; the one hook), `test_ctl.py`. Upstream candidate: no (a new structure of upstream's page, drawn by Peanuts).
