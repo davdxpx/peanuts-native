@@ -1422,3 +1422,23 @@ picks a section; `screen.settings_section`), the player texts that name a moved 
 
 Tests: `peanuts/tests/test_settings_sections.py` (the table on the JVM; every row Settings builds has its place and the table names no other; the icons are in
 the resources; the one hook), `test_ctl.py`. Upstream candidate: no (a new structure of upstream's page, drawn by Peanuts).
+
+### Round 45, Peanuts cracked: a tapped peanut cracks open (2026-11-21)
+
+Upstream's background pops a tapped banana in a burst of flecks. In Peanuts the background is the app's peanut, and About counts "Peanuts cracked": a tap
+now cracks the peanut open, the seam running down it and the halves swinging apart about the foot as on the shader screen (`dev.peanuts.ui.PeanutArt`,
+the drawing `PrepareCover` had), then it fades, calmly (900 ms). Only the drawing of those first 900 ms changes: the hit test, the count (upstream's
+`Prefs.addBananaPopped`, which Peanuts cracked adds to), the time away and the growing back stay upstream's. A Banana build, and any build while the
+system's animations are off, keeps the burst.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `android/app/src/main/java/dev/nxnative/android/BananaBackgroundView.java` | 1 | `drawBanana`'s first line: `dev.peanuts.ui.Crack.draw(...)` draws the pop while it cracks | `PEANUTS` |
+
+Peanuts' own files, no marker: `android/app/src/main/java/dev/peanuts/ui/` (`Crack.java`, `CrackedPeanut.java`, `PeanutArt.java`, `Cracked.java`,
+`CrackedCount.java`, `AboutPage.java`, `AboutData.java` new; `PrepareCover.java` draws through `PeanutArt`; `SettingsPage.java`, `BottomPanel.java`,
+`BottomScreen.java`), `dev/peanuts/build/BuildService.java`, `dev/peanuts/GameReturn.java`, `dev/peanuts/mii/MiiActivity.java` (where points are
+counted), `android/app/src/peanuts/res/raw/peanuts_games.json` new (written by `peanuts/scripts/games_catalog.py`, kept by `.github/workflows/catalog.yml`),
+`android/app/src/jvmtest/java/dev/peanuts/ui/CrackedCountJvmTest.java` new, `peanuts/tests/test_peanuts_cracked.py` new, `peanuts/tests/test_issue_forms.py`. `.github/workflows/catalog.yml`: one marked line, the catalog's app copy staged with the rest.
+
+Tests: `peanuts/tests/test_peanuts_cracked.py`, `test_issue_forms.py`. Upstream candidate: no (the peanut is Peanuts' own art).

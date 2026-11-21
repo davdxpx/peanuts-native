@@ -222,7 +222,7 @@ It is a try, not a supported path. If it fails, use the supported update and bui
 
 Every game needs a profile built into the app. This app version has none for that game, so it cannot be built or played. There is no Build button for it: its sheet only says **This app version does not include … Install a build that includes it.**
 
-- To see which games this version includes: Settings › **About** › **Games in this app:**. The list has each game's name and title ID.
+- To see which games this version includes: Settings › **About** › **Games**. Each card has the game's name and the version this app builds; **New in** shows the games that came with this version.
 - Check for a newer app version: Settings › App › **Check for updates**, or the project's releases page.
 - If no version includes it, you can ask in the GitHub issues. Give the game's name and its title ID (the sheet shows it).
 
@@ -258,7 +258,7 @@ The games tested for 0.1.1 were Link's Awakening, Echoes of Wisdom, Fire Emblem:
 
 The 0.1.5 verification build was checked on an AYN Thor with Turnip v26.2.0 R5. Demon Slayer 2 reached the playable rooftop fight against Daki at about 30 fps. Tears of the Kingdom reached the opening cave and responded to movement. Kirby and the Forgotten Land prepared all 418 pipeline keys on its first launch, then reused the cache on relaunch. The other six additions have earlier, game-specific device checks.
 
-Settings › **About** lists the games of the app you have installed, each with its title ID.
+Settings › **About** › **Games** lists the games of the app you have installed, each with the version it builds.
 
 ### Why does building take so long?
 
@@ -393,6 +393,10 @@ Games take the handheld's own buttons and sticks, external controllers and on-sc
 ### What frame rate do games run at?
 
 Most supported games run at 60 fps on the Thor. Animal Crossing: New Horizons runs at 30, as on the Switch. A few games that are 30 on the Switch run at 60 here because the app changes the game's frame step, for example Octopath Traveler 0 and Pokémon Sword. Some games lower their own rate in heavy scenes. The speed settings are **Frame rate cap**, **Hold 60 fps** and **Full game speed**.
+
+### What is Peanuts cracked?
+
+The count on Settings › **About**. A peanut cracks open each time you tap one on the drifting background, and the count also grows as you use the app: 25 for building a game version you had not built before, 1 for every 1,000 shaders that build prepared, 5 for every hour you play, 10 for a game's first start and 5 for your first own Mii. Building the same version again (**Import again**, **Rebuild**) adds nothing. The bananas you popped before are part of it. On a dual-screen device the second screen shows the count and the next milestone while About is open.
 
 ### How do I find a setting?
 

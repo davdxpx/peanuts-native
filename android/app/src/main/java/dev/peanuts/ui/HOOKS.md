@@ -39,6 +39,9 @@ call `Haptics` themselves, and both would play.
   Peanuts icons (`pi_*` drawables, their two colours from a style; found by name, so a build without the Peanuts resources keeps its emoji).
 - `SettingsHelp` — what each Settings row does and its app default, for the second display's explanation of the row the focus is on
   (`BottomScreen.explain`, `BottomPanel`'s explanation page).
+- `AboutPage`, `AboutData`, `Cracked`, `CrackedCount`, `CrackedPeanut`, `Crack`, `PeanutArt` — Settings › About and Peanuts cracked: the four tabs, the
+  count and its rules (upstream's tap counter plus builds, shaders, play time and firsts), the app's peanut (PrepareCover's, shared), cracked open on About
+  and on a tapped background peanut (`BananaBackgroundView.drawBanana`'s one PEANUTS line).
 - `SettingsSearch`, `AdvancedPort` — Settings' one search: the matching and order (Advanced's rule over every row), and Advanced's own search and page
   reached by reflection (`AdvancedSettings.table`, `AdvancedTable.visible`, `MainActivity.openAdvanced`).
 - `Haptics`, `Motion`: the launcher's feedback, six haptic words (TICK, CLICK, HEAVY, EDGE, DONE, REJECT) and six motion tokens (SNAP, FOCUS, ENTER, EXIT,

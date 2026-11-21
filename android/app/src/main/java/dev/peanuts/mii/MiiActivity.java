@@ -68,7 +68,7 @@ public final class MiiActivity extends Activity {
         String[] from = {"Default Mii 1 (man)", "Default Mii 2 (man)", "Default Mii 3 (man)", "Default Mii 4 (woman)", "Default Mii 5 (woman)", "Default Mii 6 (woman)", "Random"};
         new AlertDialog.Builder(this).setTitle("Start from").setItems(from, (d, w) -> {
             MiiStore.Mii m = w < 6 ? MiiStore.fromDefault(w, "Mii " + (miis.size() + 1)) : MiiStore.random("Mii " + (miis.size() + 1), new Random());
-            miis.add(m); save(); showEdit(miis.size() - 1);
+            miis.add(m); save(); dev.peanuts.ui.Cracked.mii(this); showEdit(miis.size() - 1);   // Peanuts cracked: the first Mii of the player's own
         }).show();
     }
 

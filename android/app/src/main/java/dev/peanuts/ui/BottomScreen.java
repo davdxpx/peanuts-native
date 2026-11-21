@@ -72,6 +72,7 @@ public final class BottomScreen {
         public java.util.List<CharSequence[]> rows;   // a section: its rows' titles and values; null for a row
         public Object key;                   // what is explained (an equal key: updated in place, no fade)
         public java.util.function.Function<android.content.Context, View> view;   // a view of its own instead (built with this display's context); the fields above unused
+        public long cracked = -1;            // About: Peanuts cracked, shown big (its own page); -1: not About
     }
 
     /** Play pressed: the panel stays until the game says what it shows there (Companion.STATE) */
@@ -392,6 +393,7 @@ public final class BottomScreen {
                 launch = null; UI.removeCallbacks(launchEnd); UI.removeCallbacks(launchStuck); UI.removeCallbacks(launchDialog);   // back from the game
                 listen(x);
                 UI.post(BottomScreen::show);
+                Cracked.settle(x);   // back from a game: its play time counts for Peanuts cracked
             }
             @Override public void onActivityResumed(Activity x) { if (isMain(x) && x == owner) { resumed = true; if (!showing()) UI.post(BottomScreen::show); } }
             @Override public void onActivityStopped(Activity x) {

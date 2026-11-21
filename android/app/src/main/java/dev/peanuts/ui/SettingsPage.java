@@ -68,10 +68,16 @@ public final class SettingsPage {
         if (drawer != null) { drawer.dismiss(); drawer = null; }
         places.clear();
         explained = null;
+        buildTag = null;
         Map<String, Map<String, List<Item>>> placed = new LinkedHashMap<>();
         Map<String, List<Item>> loose = new HashMap<>();   // whole cards (About), by section
         for (Item it : collect(content)) {
-            if (it.title == null) { loose.computeIfAbsent(SettingsSections.ofHeading(it.heading).key, k -> new ArrayList<>()).add(it); continue; }
+            if (it.title == null) {
+                String sec = SettingsSections.ofHeading(it.heading).key;
+                if (sec.equals("about")) { buildTag = firstText(it.view); continue; }   // upstream's About card: About's own page has its three things
+                loose.computeIfAbsent(sec, k -> new ArrayList<>()).add(it);
+                continue;
+            }
             SettingsSections.Place p = SettingsSections.place(it.title, it.heading);
             placed.computeIfAbsent(p.section.key, k -> new LinkedHashMap<>()).computeIfAbsent(p.group, k -> new ArrayList<>()).add(it);
             likeUpstream(it.view);
@@ -177,11 +183,26 @@ public final class SettingsPage {
 
     // ---- A section's page ----
 
+    private static CharSequence buildTag;   // the build tag of upstream's About card (the first line of every log)
+
+    /** The first text of a card (upstream's About card: its build tag chip) */
+    private static CharSequence firstText(View v) {
+        if (v instanceof TextView) return ((TextView) v).getText();
+        if (v instanceof ViewGroup) for (int i = 0; i < ((ViewGroup) v).getChildCount(); i++) { CharSequence t = firstText(((ViewGroup) v).getChildAt(i)); if (t != null) return t; }
+        return null;
+    }
+
+    /** The row of this title presses its own action (About's Check for updates and Questions and answers are the App and Help rows') */
+    private static void press(String title) {
+        for (Map.Entry<View, Explained> e : places.entrySet()) if (e.getValue().title.equals(title)) { e.getKey().performClick(); return; }
+    }
+
     private static LinearLayout column(Activity a, SettingsSections.Section s, Map<String, List<Item>> groups, List<Item> loose) {
         LinearLayout col = new LinearLayout(a);
         col.setOrientation(LinearLayout.VERTICAL);
         col.addView(top(a, s));
         if (!wide) PUi.add(col, line(a, s.line, 13), 4);
+        if (s.key.equals("about")) { AboutPage.fill(a, col, wide, buildTag, () -> press("Check for updates"), () -> press("Questions and answers")); return col; }
         boolean first = true;
         for (String label : SettingsSections.groupOrder(s)) {
             List<Item> items = groups.get(label);
@@ -488,6 +509,7 @@ public final class SettingsPage {
         e.key = s.key;
         e.icon = s.icon;
         e.title = s.label;
+        if (s.key.equals("about")) e.cracked = Cracked.total(a);   // About: Peanuts cracked, big
         e.place = "Settings";
         e.text = s.line;
         e.rows = new ArrayList<>();

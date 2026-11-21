@@ -41,7 +41,7 @@ import dev.nxnative.android.R;
  * Compact column on small panels, cover beside the text from 600 dp landscape.
  */
 final class BottomPanel extends Presentation {
-    static final int LOGO = 0, CARD = 1, BUILD = 2, LAUNCH = 3, EXPLAIN = 4, VIEW = 5;
+    static final int LOGO = 0, CARD = 1, BUILD = 2, LAUNCH = 3, EXPLAIN = 4, CRACKED = 5, VIEW = 6;
     private static final float DIM = 0.5f;
 
     private FrameLayout root, stage;
@@ -75,6 +75,12 @@ final class BottomPanel extends Presentation {
     private TextView exTitle, exPlace, exText, exNow, exDefault;
     private PUi.Segmented exSwitch;
     private BottomScreen.Explain shownExplain;
+
+    // Peanuts cracked (Settings › About)
+    private TextView crCount, crNext;
+    private View crFill;
+    private LinearLayout crChips;
+    private final Runnable crUpdate = this::bindCracked;
 
     // start page
     private StartView start;
@@ -175,7 +181,7 @@ final class BottomPanel extends Presentation {
         coverDp = wide ? clamp(Math.round(h * 0.42f), 120, 280) : clamp(Math.round(h * 0.25f), 72, 120);
         stage.removeAllViews();
         start = new StartView(c);
-        pages = new View[] {page(logoPage()), page(cardPage()), page(buildPage()), start, page(explainPage()), page(viewPage())};
+        pages = new View[] {page(logoPage()), page(cardPage()), page(buildPage()), start, page(explainPage()), page(crackedPage()), page(viewPage())};
         for (View v : pages) { v.setVisibility(View.GONE); stage.addView(v); }
         if (hint != null) root.removeView(hint);
         hint = settingsBar(c);
@@ -331,6 +337,83 @@ final class BottomPanel extends Presentation {
         PUi.add(exCard, exList, 4);
         col.addView(exCard);
         return col;
+    }
+
+    /** Settings › About on this display: the app's peanut cracked open, big, the count, the way to the next milestone and the milestones around it */
+    private View crackedPage() {
+        Context c = getContext();
+        LinearLayout col = column(c);
+        col.setGravity(Gravity.CENTER_HORIZONTAL);
+        FrameLayout disc = new FrameLayout(c);
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        g.setColor(PUi.col(c, R.color.bn_card));
+        g.setStroke(PUi.dp(c, 1), PUi.col(c, R.color.bn_card_stroke));
+        disc.setBackground(g);
+        disc.addView(new CrackedPeanut(c), new FrameLayout.LayoutParams(PUi.dp(c, 160), PUi.dp(c, 160), Gravity.CENTER));
+        col.addView(disc, new LinearLayout.LayoutParams(PUi.dp(c, 168), PUi.dp(c, 168)));
+        crCount = PUi.text(c, "", 32, R.color.bn_text, 800);
+        crCount.setFontFeatureSettings("tnum");
+        crCount.setGravity(Gravity.CENTER);
+        PUi.add(col, crCount, 10, PUi.wrap());
+        LinearLayout next = column(c);
+        LinearLayout labels = PUi.row(c);
+        labels.addView(PUi.text(c, "Next", 13, R.color.bn_text_2, 600), PUi.weight());
+        crNext = PUi.text(c, "", 13, R.color.bn_text_2, 600);
+        crNext.setFontFeatureSettings("tnum");
+        labels.addView(crNext, PUi.wrap());
+        next.addView(labels, PUi.fill());
+        FrameLayout track = new FrameLayout(c);
+        track.setBackground(PUi.round(PUi.col(c, R.color.bn_tint), PUi.dp(c, 999), 0, 0));
+        crFill = new View(c);
+        crFill.setBackground(PUi.round(PUi.col(c, R.color.bn_banana), PUi.dp(c, 999), 0, 0));
+        crFill.setPivotX(0f);
+        track.addView(crFill, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        track.setClipToOutline(true);
+        track.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override public void getOutline(View v, android.graphics.Outline o) { o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), v.getHeight() / 2f); }
+        });
+        PUi.add(next, track, 6, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, PUi.dp(c, 8)));
+        PUi.add(col, next, 12);
+        crChips = PUi.row(c);
+        crChips.setGravity(Gravity.CENTER);
+        PUi.add(col, crChips, 16, PUi.wrap());
+        return col;
+    }
+
+    /** The count and the milestones as they are now (also when a peanut cracks while the page shows) */
+    private void bindCracked() {
+        Context c = getContext();
+        long n = Cracked.total(c);
+        crCount.setText(AboutPage.number(n) + " cracked");
+        long goal = CrackedCount.next(n);
+        crNext.setText(AboutPage.number(goal));
+        crFill.setScaleX(Math.max(0.02f, CrackedCount.progress(n)));
+        crChips.removeAllViews();
+        for (long m : CrackedCount.around(n)) {
+            boolean reached = m <= n;
+            TextView t = PUi.text(c, AboutPage.number(m), 12, R.color.bn_text_2, 600);
+            t.setGravity(Gravity.CENTER_VERTICAL);
+            t.setPadding(PUi.dp(c, reached ? 8 : 10), PUi.dp(c, 5), PUi.dp(c, 10), PUi.dp(c, 5));
+            android.graphics.drawable.GradientDrawable bg = PUi.round(reached ? PUi.col(c, R.color.bn_tint) : android.graphics.Color.TRANSPARENT, PUi.dp(c, 999), 0, 0);
+            if (!reached) bg.setStroke(PUi.dp(c, 1), PUi.col(c, R.color.bn_card_stroke), PUi.dp(c, 4), PUi.dp(c, 3));
+            t.setBackground(bg);
+            if (reached) {
+                Drawable ok = Icons.get(c, "check", Icons.Ink.NORMAL);
+                if (ok != null) ok = ok.mutate();
+                if (ok != null) {
+                    ok.setTint(PUi.col(c, R.color.bn_accent));
+                    int s = PUi.dp(c, 14);
+                    ok.setBounds(0, 0, s, s);
+                    t.setCompoundDrawablesRelative(ok, null, null, null);
+                    t.setCompoundDrawablePadding(PUi.dp(c, 5));
+                }
+            }
+            t.setContentDescription(AboutPage.number(m) + (reached ? ", reached" : ""));
+            LinearLayout.LayoutParams lp = PUi.wrap();
+            if (crChips.getChildCount() > 0) lp.setMarginStart(PUi.dp(c, 6));
+            crChips.addView(t, lp);
+        }
     }
 
     /** A page of the app's own on this display (BottomScreen.Explain.view): the view it builds, in the column */
@@ -542,6 +625,14 @@ final class BottomPanel extends Presentation {
             if (!same) switchTo(VIEW);
             return;
         }
+        if (e.cracked >= 0) {   // About: its own page, kept up to date while it shows
+            shownExplain = e;
+            bindCracked();
+            Cracked.listen(getContext(), crUpdate);
+            switchTo(CRACKED);
+            return;
+        }
+        Cracked.unlisten(crUpdate);
         boolean same = shownExplain != null && e.key != null && e.key.equals(shownExplain.key);
         boolean fade = page == EXPLAIN && !same && Motion.on() && stage.isShown();
         if (!fade) { bindExplain(e); switchTo(EXPLAIN); return; }
@@ -644,6 +735,7 @@ final class BottomPanel extends Presentation {
     /** Crossfade (cut under reduced motion); the incoming page rises a little */
     private void switchTo(int next) {
         if (pages == null || next == page) return;
+        if (next != CRACKED) Cracked.unlisten(crUpdate);
         View in = pages[next];
         View out = page >= 0 ? pages[page] : null;
         if (page == LAUNCH && next != LAUNCH) start.setAnimating(false);
