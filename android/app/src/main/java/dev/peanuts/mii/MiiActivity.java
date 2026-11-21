@@ -28,11 +28,12 @@ import dev.peanuts.users.UserPictures;
 
 /**
  * Settings › Users › Miis: the player's own Miis, which games list as the console's (MiiStore writes files/mii/database.bin, the host reads it as DM_MII_DB), shared
- * by every user. The top screen shows them as cards with their faces, drawn from the firmware's parts (New Mii first); the bottom screen acts on the focused one:
- * Edit (the Mii editor, MiiEditor), Duplicate and Delete. A game started after a change sees it.
+ * by every user. The top screen shows them as cards with their faces, drawn from the firmware's parts (New Mii and Import Miis first); the bottom screen acts on
+ * the focused one: Edit (the Mii editor, MiiEditor), Duplicate and Delete. Import Miis takes the Miis of another Switch emulator (Eden, yuzu, Ryujinx: their
+ * MiiDatabase.dat, a zip of their exported user data, or a .charinfo file; MiiImport, GitHub issue #320). A game started after a change sees it.
  */
 public final class MiiActivity extends Activity {
-    static final int EDIT = 1;
+    static final int EDIT = 1, IMPORT = 2;
     private static final String[] COLORS = {"Red", "Orange", "Yellow", "Light green", "Green", "Blue", "Light blue", "Pink", "Purple", "Brown", "White", "Black"};
 
     private List<MiiStore.Mii> miis;
@@ -77,7 +78,7 @@ public final class MiiActivity extends Activity {
             PUi.add(content, PUi.card(this), 12).addView(PUi.body(this, "Your firmware's Mii parts are missing, so the Miis show as letters. Add your firmware under Console in Settings to see their faces."));
         GridLayout grid = new GridLayout(this);
         grid.setColumnCount(Bottom.columns(this, wide ? 136 : 100, 5, 380, 5));   // as many as fit beside the bottom half, when it is on this screen
-        if (miis.size() < MiiStore.MAX_MIIS) grid.addView(newMii(), cell());
+        if (miis.size() < MiiStore.MAX_MIIS) { grid.addView(newMii(), cell()); grid.addView(importCard(), cell()); }
         View focus = null;
         for (MiiStore.Mii m : miis) {
             View c = card(m);
@@ -171,6 +172,92 @@ public final class MiiActivity extends Activity {
         return c;
     }
 
+    /** Import Miis: a dashed card as New Mii's, the download icon (Peanuts icons) */
+    private View importCard() {
+        LinearLayout c = new LinearLayout(this);
+        c.setOrientation(LinearLayout.VERTICAL);
+        c.setGravity(Gravity.CENTER);
+        c.setMinimumHeight(PUi.dp(this, 158));
+        GradientDrawable d = PUi.round(0, PUi.dp(this, 18), 0, 0);
+        d.setStroke(PUi.dp(this, 1.5f), PUi.col(this, R.color.bn_text_2), PUi.dp(this, 6), PUi.dp(this, 4));
+        c.setBackground(PUi.ripple(this, d));
+        c.setFocusable(true);
+        c.setClickable(true);
+        ImageView icon = new ImageView(this);
+        android.graphics.drawable.Drawable dl = dev.peanuts.ui.Icons.get(this, "download", dev.peanuts.ui.Icons.Ink.QUIET);
+        icon.setImageDrawable(dl != null ? dl : PUi.icon(this, R.drawable.ic_add, R.color.bn_text_2));
+        c.addView(icon, new LinearLayout.LayoutParams(PUi.dp(this, 26), PUi.dp(this, 26)));
+        TextView t = PUi.text(this, "Import Miis", 13, R.color.bn_text_2, 600);
+        t.setPadding(0, PUi.dp(this, 6), 0, 0);
+        c.addView(t, PUi.wrap());
+        TextView from = PUi.text(this, "From Eden, yuzu or Ryujinx", 11, R.color.bn_text_2, 400);
+        from.setGravity(Gravity.CENTER);
+        from.setPadding(PUi.dp(this, 6), PUi.dp(this, 2), PUi.dp(this, 6), 0);
+        c.addView(from, PUi.wrap());
+        c.setOnClickListener(Feel.button(v -> {
+            Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
+            try { startActivityForResult(pick, IMPORT); }
+            catch (android.content.ActivityNotFoundException e) { Toast.makeText(this, "No file picker on this device.", Toast.LENGTH_LONG).show(); }
+        }));
+        return c;
+    }
+
+    /** The picked file, read off the main thread (a zip of user data can be large: it is streamed, only the Mii database is kept) */
+    private void importFrom(android.net.Uri u) {
+        String file = displayName(u);
+        new Thread(() -> {
+            MiiImport.Found f;
+            try (java.io.InputStream in = getContentResolver().openInputStream(u)) { f = in == null ? null : MiiImport.read(in); }
+            catch (IOException | RuntimeException e) { f = null; }
+            MiiImport.Found found = f;
+            runOnUiThread(() -> { if (!isFinishing()) offer(found, file); });
+        }, "mii-import").start();
+    }
+
+    private String displayName(android.net.Uri u) {
+        try (android.database.Cursor c = getContentResolver().query(u, new String[] {android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (c != null && c.moveToFirst() && !c.isNull(0)) return c.getString(0);
+        } catch (RuntimeException ignored) { }
+        return "the file";
+    }
+
+    /** What the file holds, and Import for the new ones (create IDs not among the Miis yet, as many as fit under 100) */
+    private void offer(MiiImport.Found f, String file) {
+        miis = MiiStore.load(getFilesDir());
+        int found = f == null ? 0 : f.miis.size();
+        List<MiiStore.Mii> add = found == 0 ? new java.util.ArrayList<>() : MiiImport.newOnes(miis, f.miis);
+        android.app.AlertDialog.Builder b = new android.app.AlertDialog.Builder(this);
+        if (found == 0) {
+            b.setTitle("No Miis found").setMessage(file + " holds no Miis. Pick the Mii database of Eden, yuzu or Ryujinx: MiiDatabase.dat, in "
+                    + "nand/system/save/8000000000000030 (Eden shows its files in the picker under its own name). A zip of the emulator's exported user data "
+                    + "or a .charinfo file works too.").setPositiveButton("OK", null);
+        } else if (add.isEmpty()) {
+            b.setTitle("Nothing new").setMessage(miis.size() >= MiiStore.MAX_MIIS ? "There are already " + MiiStore.MAX_MIIS + " Miis. Delete some first."
+                    : (found == 1 ? "This Mii is" : "All " + found + " Miis in " + file + " are") + " among your Miis already.").setPositiveButton("OK", null);
+        } else {
+            int already = 0;
+            java.util.Set<String> have = new java.util.HashSet<>();
+            for (MiiStore.Mii m : miis) have.add(MiiStore.hex(m.createId));
+            for (MiiStore.Mii m : f.miis) if (have.contains(MiiStore.hex(m.createId))) already++;
+            StringBuilder msg = new StringBuilder(file + " holds " + (found == 1 ? "1 Mii" : found + " Miis") + ".");
+            if (already > 0) msg.append(" ").append(already == 1 ? "1 is" : already + " are").append(" among your Miis already.");
+            int over = found - already - add.size();
+            if (over > 0) msg.append(" ").append(over).append(" more do not fit: a console keeps ").append(MiiStore.MAX_MIIS).append(".");
+            b.setTitle(add.size() == 1 ? "Import 1 Mii?" : "Import " + add.size() + " Miis?").setMessage(msg)
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("Import", (x, w) -> {
+                        miis.addAll(add);
+                        if (!save()) return;
+                        dev.peanuts.ui.Cracked.mii(this);   // Peanuts cracked: the first Mii of the player's own
+                        focused = MiiStore.hex(add.get(0).createId);
+                        build();
+                    });
+        }
+        android.app.AlertDialog d = b.create();
+        Feel.dialog(d);
+        d.show();
+    }
+
     private void pick(String id) {
         if (id.equals(focused)) return;
         focused = id;
@@ -187,7 +274,7 @@ public final class MiiActivity extends Activity {
         col.setPadding(p, p, p, p);
         MiiStore.Mii m = focused != null ? find(focused) : null;
         if (m == null) {
-            col.addView(PUi.body(c, "No Miis yet. Make one with New Mii; games that ask for a Mii show it first."));
+            col.addView(PUi.body(c, "No Miis yet. Make one with New Mii, or bring yours from another emulator with Import Miis; games that ask for a Mii show them first."));
             PUi.add(col, PUi.button(c, "New Mii", PUi.Kind.PRIMARY, Feel.button(v -> MiiEditor.edit(this, EDIT, null))), 12);
             return col;
         }
@@ -243,6 +330,7 @@ public final class MiiActivity extends Activity {
 
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
+        if (request == IMPORT && result == RESULT_OK && data != null && data.getData() != null) { importFrom(data.getData()); return; }
         String id = MiiEditor.result(result, data);
         if (request == EDIT && id != null) focused = id;   // the edited or new Mii is the focused one (build() runs in onStart)
     }

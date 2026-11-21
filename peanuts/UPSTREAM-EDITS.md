@@ -1467,9 +1467,13 @@ Peanuts' own files, no marker: `README.md` and `dev/peanuts/ui/AboutData.java` (
 page's second half on the bottom screen or below it; `UsersPort.java`, `UserPictures.java`, `UserFace.java`, `FirmwarePictures.java`, `Yaz0.java`,
 `UserImages.java` new), `android/app/src/peanuts/res/drawable/pi_mii.xml`, `pi_flip.xml`, `pi_random.xml` and `pi_undo.xml` new (made with
 `design/peanuts-native/icons/icons.py`), `android/app/src/jvmtest/java/dev/peanuts/mii/MiiPartsJvmTest.java` new, `peanuts/tests/test_mii_parts.py` new,
-`peanuts/tests/test_peanuts_cracked.py` (the first own Mii is counted where the editor saves it).
+`peanuts/tests/test_peanuts_cracked.py` (the first own Mii is counted where the editor saves it). Import Miis (GitHub issue #320): `MiiImport.java` new, reading
+the Mii database of Eden, yuzu and Ryujinx (MiiDatabase.dat, the console's "NFDB" layout), a zip of their exported user data that holds it, one StoreData or a
+.charinfo file; `MiiActivity.java` its card and the question; `android/app/src/jvmtest/java/dev/peanuts/mii/MiiImportJvmTest.java` and
+`peanuts/tests/test_mii_import.py` new.
 
-Tests: `peanuts/tests/test_mii_parts.py` (block-linear order, packed parts, BC4 and BC7 blocks, a synthetic texture and shape file, the colour tables).
+Tests: `peanuts/tests/test_mii_parts.py` (block-linear order, packed parts, BC4 and BC7 blocks, a synthetic texture and shape file, the colour tables),
+`test_mii_import.py` (every field's bits of a StoreData, a database, a zip, a CharInfo, empty slots, Miis already there, the limit of 100).
 Upstream candidate: no (Peanuts' pages).
 
 ### Round 47, Users in Settings: cards with profile pictures (2026-11-21)
