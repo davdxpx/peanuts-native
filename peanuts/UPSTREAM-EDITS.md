@@ -1445,3 +1445,29 @@ counted), `android/app/src/peanuts/res/raw/peanuts_games.json` new (written by `
 `android/app/src/jvmtest/java/dev/peanuts/ui/CrackedCountJvmTest.java` new, `peanuts/tests/test_peanuts_cracked.py` new, `peanuts/tests/test_issue_forms.py`. `.github/workflows/catalog.yml`: one marked line, the catalog's app copy staged with the rest.
 
 Tests: `peanuts/tests/test_peanuts_cracked.py`, `test_issue_forms.py`. Upstream candidate: no (the peanut is Peanuts' own art).
+
+### Round 46, Miis drawn from the firmware's parts, and an editor of their own (2026-11-21)
+
+Upstream's Miis page was a list with steppers. The Miis are now drawn as the console draws them: `dev.peanuts.mii.MiiGl` (OpenGL ES 3, its own thread) reads the
+head parts from the MiiModel system data the importer took from the player's own firmware (`files/firmware/miimodel`, never shipped or committed), deswizzles
+and decodes their textures (Tegra block-linear; BC4, BC5 and BC7 from bcdec, MIT; ASTC through the GPU) and draws the face's mask, its shapes and a simple upper
+body (the firmware has only heads; games draw their own bodies). The colour tables and the mask's placement follow vee (MIT or Apache-2.0), which follows the FFL
+decompilation; the PR says so. The Miis page shows the Miis as cards with Edit, Duplicate and Delete on the bottom screen, and `dev.peanuts.mii.MiiEditor` (an
+activity for a result) edits one: tabs of picture tiles, the classic colours and all of them, a place pad on the bottom screen, Random, Undo and Done. A firmware
+without the parts keeps numbered tiles.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `android/app/src/main/AndroidManifest.xml` | 1 line | the `dev.peanuts.mii.MiiEditor` activity | `PEANUTS` |
+| `android/NOTICE.md` | 1 paragraph | vee and bcdec, whose tables and decoders the Mii code ports (MIT) | `PEANUTS` |
+
+Peanuts' own files, no marker: `README.md` and `dev/peanuts/ui/AboutData.java` (vee and bcdec in the credits and About › Licenses), `android/app/src/main/java/dev/peanuts/mii/` (`MiiParts.java`, `Tegra.java`, `MiiPixels.java`, `MiiLook.java`, `MiiGl.java`,
+`MiiView.java`, `MiiEditor.java` new; `MiiActivity.java` the cards; `MiiStore.java` `hex`), `android/app/src/main/java/dev/peanuts/ui/UiPort.java` new
+(upstream's `Ui.Segmented` and tabs through reflection), the pieces of `android/app/src/main/java/dev/peanuts/users/` the Miis' pages use (`Bottom.java`: a
+page's second half on the bottom screen or below it; `UsersPort.java`, `UserPictures.java`, `UserFace.java`, `FirmwarePictures.java`, `Yaz0.java`,
+`UserImages.java` new), `android/app/src/peanuts/res/drawable/pi_mii.xml`, `pi_flip.xml`, `pi_random.xml` and `pi_undo.xml` new (made with
+`design/peanuts-native/icons/icons.py`), `android/app/src/jvmtest/java/dev/peanuts/mii/MiiPartsJvmTest.java` new, `peanuts/tests/test_mii_parts.py` new,
+`peanuts/tests/test_peanuts_cracked.py` (the first own Mii is counted where the editor saves it).
+
+Tests: `peanuts/tests/test_mii_parts.py` (block-linear order, packed parts, BC4 and BC7 blocks, a synthetic texture and shape file, the colour tables).
+Upstream candidate: no (Peanuts' pages).

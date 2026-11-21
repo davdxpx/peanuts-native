@@ -25,7 +25,8 @@ Banana Native ships several releases a day, so this fork is kept as a **thin ove
    - `android/app/build.gradle` — applicationId / label (`-PnxAppId=<suffix>`: a development build beside the app, with its own data); (2026-11-18) `androidBuildsOf` and its use in `buildsOf`: a profile's `android_builds <version> ...` row names the builds this app builds and plays when not all of the profile's (the launcher reads the others as a version it does not have; the host and the packer still know every build row).
    - `android/app/src/main/AndroidManifest.xml` — new Peanuts-owned activities/services/aliases, each its own marked block (already used for
      `CatalogActivity` and `GameHold`; 2026-11-13 added the `dev.peanuts.launch.LaunchActivity` alias, `peanuts/docs/LAUNCHERS.md`; 2026-11-18 the
-     `dev.peanuts.build.BuildLogProvider` provider, `${applicationId}.buildlog`, read-only: Share build log's bundles).
+     `dev.peanuts.build.BuildLogProvider` provider, `${applicationId}.buildlog`, read-only: Share build log's bundles; 2026-11-21 the Users and Miis
+     activities `dev.peanuts.mii.MiiEditor`, `dev.peanuts.users.PictureActivity` and `dev.peanuts.users.WhoPlaysActivity`, one line each, Rounds 46-48).
    - `android/app/src/main/java/dev/nxnative/android/AppStorage.java` — (2026-11-13) `pack()` prefers an existing pack already in the app's own storage,
      else a build folder's `<title ID>/pack` when the user set one (`PeanutsPrefs.buildPackDir`; Settings › Library › Build folder); (2026-11-13,
      code mods) the class and `pack()` made `public` so `dev.peanuts.build.ModdedBuild`/`Prepare` can ask for a modded variant's own pack folder by
