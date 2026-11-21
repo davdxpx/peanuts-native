@@ -1507,7 +1507,9 @@ playing? turns both questions off. Nothing of it shows with one user.
 | `android/app/src/main/java/dev/nxnative/android/MainActivity.java` | 2 | `onCreate`'s `GameReturn.back` line: when no game comes back, `WhoPlaysActivity.appOpened`; `headerButtons` (a Peanuts block): `ProfileButton` after Settings | `PEANUTS` |
 
 Peanuts' own files, no marker: `dev/peanuts/Screens.java` (`startGame`'s first line asks), `dev/peanuts/users/WhoPlaysActivity.java` and
-`ProfileButton.java` new, `WhoPlays.java` (`atAppStart`, and a start in the app plays as the user playing now), `UsersPage.java` (Switch to, Playing now).
+`ProfileButton.java` new (its menu: Profile and Switch profile, which opens a dialog of every user side by side; a switch shows the app's peanut cracking
+open over the window for a moment, `dev/peanuts/ui/CrackingPeanut.java` new), `WhoPlays.java` (`atAppStart`, and a start in the app plays as the user playing
+now), `UsersPage.java` (Switch to, Playing now).
 
 Tests: `peanuts/tests/test_users_page.py` (`WhoPlays.decide` and `WhoPlays.atAppStart` on the JVM). Upstream candidate: no.
 
