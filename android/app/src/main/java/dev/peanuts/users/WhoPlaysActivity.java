@@ -90,6 +90,7 @@ public final class WhoPlaysActivity extends Activity {
     private List<UsersPort.User> users;
     private final java.util.Map<String, View> cards = new java.util.HashMap<>();
     private Bottom bottom;
+    private dev.nxnative.android.BananaBackgroundView bananas;
 
     @Override protected void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -104,7 +105,8 @@ public final class WhoPlaysActivity extends Activity {
         root.setOrientation(wide ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
         root.setBackgroundColor(PUi.col(this, R.color.bn_bg));
         FrameLayout frame = new FrameLayout(this);
-        frame.addView(new dev.nxnative.android.BananaBackgroundView(this), new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));   // the app's drifting peanuts, as on Home
+        bananas = new dev.nxnative.android.BananaBackgroundView(this);
+        frame.addView(bananas, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));   // the app's drifting peanuts, as on Home
         root.addView(frame, new LinearLayout.LayoutParams(wide ? 0 : ViewGroup.LayoutParams.MATCH_PARENT, wide ? ViewGroup.LayoutParams.MATCH_PARENT : 0, 1));
         FrameLayout inline = new FrameLayout(this);
         root.addView(inline, new LinearLayout.LayoutParams(wide ? PUi.dp(this, 380) : ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -115,8 +117,9 @@ public final class WhoPlaysActivity extends Activity {
     }
 
     @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); out.putString("picked", picked); }
-    @Override protected void onStart() { super.onStart(); bottom.start(); }
-    @Override protected void onStop() { bottom.stop(); super.onStop(); }
+    // the peanuts drift while the question shows (Home's do between its onResume and onPause; a still picture otherwise), one background with the bottom half's
+    @Override protected void onStart() { super.onStart(); bottom.start(); if (bananas != null) bananas.setRunning(true); }
+    @Override protected void onStop() { if (bananas != null) bananas.setRunning(false); bottom.stop(); super.onStop(); }
 
     // ---- The top screen: the users ----
 

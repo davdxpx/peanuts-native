@@ -16,6 +16,7 @@ import java.util.Map;
 
 import dev.nxnative.android.BananaBackgroundView;
 import dev.nxnative.android.R;
+import dev.peanuts.ui.BackgroundFlow;
 import dev.peanuts.ui.PUi;
 
 /**
@@ -31,6 +32,7 @@ public final class Bottom implements DisplayManager.DisplayListener {
     private Panel panel;
     private Builder content;
     private boolean started;
+    private Display[] flowWas;   // the background field before this page's half went onto the second screen (BackgroundFlow.push), null while it is not there
 
     /** Makes the content in the context of the screen it shows on */
     public interface Builder { View build(Context c); }
@@ -81,11 +83,12 @@ public final class Bottom implements DisplayManager.DisplayListener {
         started = false;
         if (dm != null) dm.unregisterDisplayListener(this);
         if (panel != null) { panel.dismiss(); panel = null; }
+        flowOff();
     }
 
     private void place() {
         Display d = started ? second() : null;
-        if (panel != null && (d == null || panel.getDisplay() == null || panel.getDisplay().getDisplayId() != d.getDisplayId())) { panel.dismiss(); panel = null; }
+        if (panel != null && (d == null || panel.getDisplay() == null || panel.getDisplay().getDisplayId() != d.getDisplayId())) { panel.dismiss(); panel = null; flowOff(); }
         if (d != null && content != null) {
             inline.removeAllViews();
             inline.setVisibility(View.GONE);
@@ -93,12 +96,19 @@ public final class Bottom implements DisplayManager.DisplayListener {
                 panel = new Panel(a, d);
                 try { panel.show(); } catch (WindowManager.InvalidDisplayException e) { panel = null; }
             }
-            if (panel != null) { panel.put(content.build(panel.getContext())); return; }
+            if (panel != null) {
+                // both screens one background, as the launcher's own bottom screen makes it: the peanuts leaving the top screen come in at the bottom one
+                if (flowWas == null && a.getDisplay() != null) flowWas = BackgroundFlow.push(a.getDisplay(), d);
+                panel.put(content.build(panel.getContext()));
+                return;
+            }
         }
         inline.removeAllViews();
         if (content != null) inline.addView(content.build(a), new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         inline.setVisibility(content != null ? View.VISIBLE : View.GONE);
     }
+
+    private void flowOff() { if (flowWas != null) { BackgroundFlow.pop(flowWas); flowWas = null; } }
 
     private Display second() { return second(a, dm); }
 
