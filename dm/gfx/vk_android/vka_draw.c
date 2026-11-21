@@ -514,7 +514,7 @@ static void bcrt_flush(void) {   // the shadows' blocks into their textures (aft
     for (int k = 0; k < R.nbc; k++) {
         VkImageCopy rc = bcrt_region(R.bc[k].im, R.bc[k].lv, R.bc[k].l0, R.bc[k].nl, R.bc[k].bw, R.bc[k].bh, 1);
         vk.vkCmdCopyImage(g_cb, R.bc[k].sh->img, VK_IMAGE_LAYOUT_GENERAL, R.bc[k].im->img, VK_IMAGE_LAYOUT_GENERAL, 1, &rc);
-        vka_img_written(R.bc[k].im);
+        vka_img_color_written(R.bc[k].im, R.bc[k].lv);   // PEANUTS(upstream-candidate): the level drawn, so its blocks reach the texture's storage too, as on the Switch, where the view's texels are the storage (vka_tex.c tiled_wb_kind; Tomodachi Life's face paint, #286)
     }
     R.nbc = 0; vka_barrier(g_cb);
 }

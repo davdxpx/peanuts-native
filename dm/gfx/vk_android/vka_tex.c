@@ -2434,14 +2434,19 @@ static int tiled_wb_kind(const vka_img *im) {
     unsigned pf;
     int sparse;
     unsigned flags = im->d.flags;
-    return im->track && im->mem && im->samples == 1 && im->layers == 1
+    // PEANUTS(upstream-candidate): a block-compressed texture a GPU block encoder drew through a shadow (vka_draw.c bcrt_flush): written back too, whether the host follows its storage
+    // or not, since the game may make another texture over those bytes or copy them (Tomodachi Life's face paint, BC3 encoded on the GPU, read back as noise, #286)
+    int bc = im->f.bw == 4 && im->f.bh == 4 && (im->f.bpb == 8 || im->f.bpb == 16);
+    return (im->track || bc) && im->mem && im->samples == 1 && im->layers == 1   // PEANUTS(upstream-candidate): || bc
         && im->d.target == NVN_TEXTURE_TARGET_2D && im->w == im->d.width && im->h == im->d.height
-        && im->f.kind < 3 && im->f.bw == 1 && im->f.bh == 1
+        && im->f.kind < 3 && ((im->f.bw == 1 && im->f.bh == 1) || bc)   // PEANUTS(upstream-candidate): || bc
         && im->f.bpb && !(im->f.bpb & (im->f.bpb - 1))
         && !(flags & (NVN_TEXTURE_FLAGS_LINEAR | NVN_TEXTURE_FLAGS_LINEAR_RENDER_TARGET
                       | NVN_TEXTURE_FLAGS_SPARSE | NVN_TEXTURE_FLAGS_COMPRESSIBLE | NVN_TEXTURE_FLAGS_IMAGE))
         && im->pgen && nvn_pool_live(im->pool, &pf, &sparse) == im->pgen
-        && !sparse && !(pf & (NVN_MEMORY_POOL_FLAGS_CPU_NO_ACCESS | NVN_MEMORY_POOL_FLAGS_VIRTUAL));
+        // PEANUTS(upstream-candidate): a block-compressed texture's pool may be one the CPU has no access to: the storage is still what the GPU reads from again (a new texture
+        // over those bytes, a copy), so it is written back there too (Tomodachi Life keeps each Mii's face paint in a CPU-no-access pool of its own, #286)
+        && !sparse && !(pf & ((bc ? 0 : NVN_MEMORY_POOL_FLAGS_CPU_NO_ACCESS) | NVN_MEMORY_POOL_FLAGS_VIRTUAL));
 }
 
 static VkPipeline g_tiled_wb_pipe;
@@ -2488,17 +2493,26 @@ static int tiled_wb_pipeline(void) {
     return rc == VK_SUCCESS;
 }
 
-static int tiled_wb_record(VkCommandBuffer cb, vka_img *im, uint32_t levels) {
+static int tiled_wb_record(VkCommandBuffer cb, vka_img *im, uint32_t levels) {   // PEANUTS(upstream-candidate): 1 written, 0 not, 2 again at the next submission (its pool is being placed)
     if (!tiled_wb_kind(im) || !tiled_wb_pipeline()) return 0;
     VkDeviceSize align = V.props.limits.minStorageBufferOffsetAlignment;
     VkDeviceSize dst_off;
     VkBuffer dst;
     if (!vka_addr((uintptr_t)im->mem, im->L.size, &dst, &dst_off, NULL) || dst_off % 4) {
+        // PEANUTS(upstream-candidate) begin: a pool becomes placed memory only when the GPU is given an address in it (vka_mem.c), and a texture's storage is read on the CPU, so a
+        // texture only drawn into was never placed: the caller asks for it once g_tmu is free (pool_need takes locks that lead back to it), its parts are joined at the next
+        // submission, and the write-back waits for it once (#286)
+        if (!im->tiled_wb_retry && !vka_addr((uintptr_t)im->mem, im->L.size, NULL, NULL, NULL)) {
+            im->tiled_wb_retry = 1;
+            return 2;
+        }
+        // PEANUTS(upstream-candidate) end
         static _Atomic unsigned misses;
         if (atomic_fetch_add(&misses, 1) < 8)
             VLOG("block-linear texture %ux%u format %#x: no placed storage at %p", im->w, im->h, im->d.format, im->mem);
         return 0;
     }
+    im->tiled_wb_retry = 0;   // PEANUTS(upstream-candidate)
     VkDeviceSize dst_base = dst_off / align * align;
     VkDeviceSize dst_bytes = dst_off - dst_base + im->L.size;
     if (dst_bytes > V.props.limits.maxStorageBufferRange) return 0;
@@ -2519,8 +2533,11 @@ static int tiled_wb_record(VkCommandBuffer cb, vka_img *im, uint32_t levels) {
             || (bytes / 4 + 63) / 64 > V.props.limits.maxComputeWorkGroupCount[0]) return 0;
         uint32_t pitch = (row + 3) & ~3u;
         size = (size + 15) & ~(VkDeviceSize)15;
-        copies[count] = (VkBufferImageCopy){size, pitch / bpb, 0,
-            {VK_IMAGE_ASPECT_COLOR_BIT, lv, 0, 1}, {0, 0, 0}, {row / bpb, rows, 1}};
+        // PEANUTS(upstream-candidate): a block-compressed level is copied in texels (a row of its blocks holds four rows of texels), cut to the level's size where its blocks overhang
+        uint32_t bw = im->f.bw, bh = im->f.bh, lw = im->w >> lv ? im->w >> lv : 1, lh = im->h >> lv ? im->h >> lv : 1;
+        uint32_t ew = bw == 1 || row / bpb * bw < lw ? row / bpb * bw : lw, eh = bh == 1 || rows * bh < lh ? rows * bh : lh;
+        copies[count] = (VkBufferImageCopy){size, pitch / bpb * bw, 0,   // PEANUTS(upstream-candidate): * bw (texels)
+            {VK_IMAGE_ASPECT_COLOR_BIT, lv, 0, 1}, {0, 0, 0}, {ew, eh, 1}};   // PEANUTS(upstream-candidate): ew, eh (texels)
         uint32_t g[] = {size / 4, (dst_off - dst_base + base) / 4, row, pitch / 4, rows,
                         gobs, th, bytes / 4, nvn_gob_switch2};
         memcpy(geometry[count++], g, sizeof g);
@@ -2548,6 +2565,7 @@ static int tiled_wb_record(VkCommandBuffer cb, vka_img *im, uint32_t levels) {
         vk.vkCmdPushConstants(cb, g_tiled_wb_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof geometry[i], geometry[i]);
         vk.vkCmdDispatch(cb, (geometry[i][7] + 63) / 64, 1, 1);
     }
+    // PEANUTS(upstream-candidate): (the caller registers the range as an opaque GPU write once g_tmu is free: vka_tex_writeback)
     static _Atomic unsigned logs;
     unsigned n = atomic_fetch_add(&logs, 1);
     if (n < 16 || !(n & 255))
@@ -2587,13 +2605,24 @@ void vka_img_written_at(vka_img *im, int color_level, const char *file, int line
 }
 void vka_tex_writeback(VkCommandBuffer cb) {
     pthread_mutex_lock(&g_tmu);
-    int any = 0;
+    int any = 0, kept = 0;   // PEANUTS(upstream-candidate): kept, the write-backs that wait for their pool to be placed (tiled_wb_record 2)
+    enum { NPLACE = 16 }; const void *place_at[NPLACE]; uint64_t place_len[NPLACE]; int nplace = 0;   // PEANUTS(upstream-candidate): the storage those ask placed, after the unlock
+    // PEANUTS(upstream-candidate): the storage the block-linear write-backs wrote, registered as opaque GPU writes after the unlock (gw_add takes g_tmu), so that other textures
+    // over those bytes take them again: a GPU write raises no CPU write fault (#286)
+    enum { NWROTE = 64 }; uint64_t wrote_at[NWROTE], wrote_len[NWROTE]; int nwrote = 0;
     for (int i = 0; i < g_nwb; i++) {
         vka_img *im = g_wb[i];
         if (!im) continue;   // PEANUTS: cancelled (wb_cancel_locked); block-linear mips are packed by tiled_wb_record
         im->wb_pending = 0;
         if (im->tiled_wb_levels) {
-            if (tiled_wb_record(cb, im, im->tiled_wb_levels)) any = 0;   // its compute pass wrote guest storage: a later linear copy-back takes its own barrier
+            int r = tiled_wb_record(cb, im, im->tiled_wb_levels);   // PEANUTS(upstream-candidate): r
+            if (r == 2) {   // PEANUTS(upstream-candidate): again at the next submission, its reference kept
+                if (nplace < NPLACE) { place_at[nplace] = im->mem; place_len[nplace++] = im->L.size; }
+                im->wb_pending = 1; g_wb[kept++] = im; continue;
+            }
+            if (r && nwrote < NWROTE) { wrote_at[nwrote] = (uint64_t)(uintptr_t)im->mem; wrote_len[nwrote++] = im->L.size; }   // PEANUTS(upstream-candidate)
+            else if (r) VRED_ONCE("block-linear write-backs: more than %d in one submission: the rest are not announced to the textures over their storage", NWROTE);   // PEANUTS(upstream-candidate)
+            if (r) any = 0;   // its compute pass wrote guest storage: a later linear copy-back takes its own barrier
             else VRED_ONCE("block-linear texture serial %llu %ux%u format %#x: rendered mips %#x not written back into its storage: the CPU reads what it held",
                            (unsigned long long)im->serial, im->w, im->h, im->d.format, im->tiled_wb_levels);
             im->tiled_wb_levels = 0;
@@ -2611,8 +2640,10 @@ void vka_tex_writeback(VkCommandBuffer cb) {
         static _Atomic int n; if (atomic_fetch_add(&n, 1) < 4) VLOG("linear texture serial %llu %ux%u format %#x: the GPU's content copied back into its storage", (unsigned long long)im->serial, im->w, h, im->d.format);
         unref_locked(im);
     }
-    g_nwb = 0;
+    g_nwb = kept;   // PEANUTS(upstream-candidate): kept (0 before)
     pthread_mutex_unlock(&g_tmu);
+    for (int i = 0; i < nwrote; i++) vka_tex_gw_opaque(wrote_at[i], wrote_len[i]);   // PEANUTS(upstream-candidate): (above)
+    for (int i = 0; i < nplace; i++) mtl_pool_need(place_at[i], place_len[i], "a texture the GPU drew, written back into its storage");   // PEANUTS(upstream-candidate): (tiled_wb_record 2)
 }
 int mtl_tex_gpu_owned(uint64_t serial) {   // hle_nvn.c nvn_ft_poll: the GPU has written the image (render target, copy or clear destination)
     pthread_mutex_lock(&g_tmu); smap_ent *e = map_get(serial); int r = e && e->im && (e->im->gpu_owned || (e->im->par && e->im->par->gpu_owned)); pthread_mutex_unlock(&g_tmu); return r;

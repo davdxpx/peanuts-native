@@ -1535,3 +1535,21 @@ files, Round 46).
 Tests: none on a game yet (no game in the table is known to call it); the switch was seen reaching the host. Upstream candidate: maybe (the host side, with a
 front end that writes the files).
 
+### Round 50, block-compressed textures a GPU encoder drew, written back into their storage (2026-11-21, GitHub issue #286)
+
+Tomodachi Life's face paint came back as noise after Done: its editor encodes the paint into a BC3 texture on the GPU through an uncompressed view of its
+blocks, and the replay kept the result in the host's image only. The shadow's flush now marks the level drawn, the block-linear write-back takes
+block-compressed formats whether the host follows the storage or not (in CPU-no-access pools too), and a pool not yet placed is placed while the write-back
+waits one submission. The pool's placing and the opaque-write record run after `g_tmu` is let go.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `dm/gfx/vk_android/vka_tex.c` | 11 | `tiled_wb_kind` (block-compressed formats, CPU-no-access pools for them), `tiled_wb_record` (an unplaced pool: return 2; copies in texels), `vka_tex_writeback` (keeps the write-backs that wait; after the unlock, `vka_tex_gw_opaque` for the bytes written and `mtl_pool_need` for the pools asked for) | `PEANUTS(upstream-candidate)` |
+| `dm/gfx/vk_android/vka_draw.c` | 1 | `bcrt_flush`: `vka_img_color_written` for the level drawn | `PEANUTS(upstream-candidate)` |
+| `dm/gfx/vk_android/vka.h` | 1 | `tiled_wb_retry` | `PEANUTS(upstream-candidate)` |
+| `docs/reference/rendering.md`, `docs/reference/nvn-objects.md`, `dm/games/010051F0207B2000/README.md` | 1 each | the entry, the Android write-back line, the game's line | `PEANUTS(upstream-candidate)`, `PEANUTS` |
+| `docs/agents/symptoms.md` | 1 | regenerated (`docs_symptoms.py`, allow-listed) | `(PEANUTS, Android)` in the symptom |
+| `dm/tools/tests/test_vka_bc_writeback.py` (new) | whole file | the pieces of the fix, read from the production files | `PEANUTS(upstream-candidate)` in its docstring |
+
+Tests: `dm/tools/tests/test_vka_bc_writeback.py`; Tomodachi Life 1.0.4 on an AYN Thor with Turnip T30 (2026-11-21): the face paint no longer turns to
+noise. **Open:** the paint shows on the head only after the editor is opened again (the entry in `docs/reference/rendering.md`). Upstream candidate: yes.

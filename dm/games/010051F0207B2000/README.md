@@ -25,6 +25,10 @@ On the AYN Thor with Turnip Gen8 V39, both settings reached the Mii creator's fa
 
 **`render_cond on` since GitHub issues #196 and #182** <!-- PEANUTS -->: with the conditions ignored, the host ran every conditional clear and draw. In the Mii creator the Mii model stayed empty (an AYN Thor Max with Turnip T30 and Kimchi R8), and in a town save the ground and much of the scene came out black, the Miis' bodies white and the lamp posts dark. With `render_cond on`, on the AYN Thor with Turnip v26.2.0 R5, the creator draws the Mii's head and every face in its grid, and the town from the issue #182 save draws its ground, lit buildings and lamp lights.
 
+## Found on this game <!-- PEANUTS -->
+
+- [Block-compressed textures a GPU encoder drew, read again from their storage on the Vulkan replay](../../../docs/reference/rendering.md#block-compressed-textures-a-gpu-encoder-drew-read-again-from-their-storage-on-the-vulkan-replay) (GitHub issue #286): the face paint turned to noise after Done. Fixed: on an AYN Thor with Turnip T30 (1.0.4, 2026-11-21) the paint stays clean. Open: it shows on the head only after the face paint editor is opened again, and the editor's small preview stays without it while drawing (see the entry). <!-- PEANUTS -->
+
 <!-- PEANUTS begin: picture shapes -->
 ## Picture shapes (Android)
 

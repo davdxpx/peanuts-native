@@ -81,6 +81,8 @@ Banana Native ships several releases a day, so this fork is kept as a **thin ove
      `headerButtons`, `dev.peanuts.users.ProfileButton` after Settings: the user playing now, with Profile and switching. Round 48.
    - `dm/host/hle_account.c` — (2026-11-21, the users' pictures) a marked block before `LoadProfileImage` (`user_image`: `DM_USER_IMAGES/<uid>.jpg`) and one
      line in it; too much for a one-line hook, as `pack_android.py`'s, so block-marked. `peanuts/UPSTREAM-EDITS.md` Round 49.
+   - `dm/gfx/vk_android/vka_tex.c`, `vka_draw.c`, `vka.h` — (2026-11-21, GitHub issue #286) the block-linear write-back of block-compressed textures a GPU
+     encoder drew; a general fix, marked `PEANUTS(upstream-candidate)`, confirmed on Tomodachi Life, to go upstream (rule 4). `peanuts/UPSTREAM-EDITS.md` Round 50.
 3. **Settings go through upstream's own mechanisms**: `env.txt` keys named `PN_*`, `settings.tsv` rows, `DM_CTL` lines. No new settings UI inside upstream classes.
 4. **Never reformat or "fix" upstream files.** A general fix belongs upstream as a PR to Banana Native (its AGENTS.md prefers general changes), then it arrives by rebase.
 5. **Branches:** `upstream/android` is Banana Native; `peanuts` is this overlay, always a linear set of commits on top of a Banana Native tag. History is rewritten on every update (rebase, never merge).
