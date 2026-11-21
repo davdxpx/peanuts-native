@@ -220,3 +220,9 @@ The script fetches, rebases `peanuts` onto the target, then checks that every `P
   Paradise compressed with nsz 5.0.0: the `.nup` of the NSPs, of a solid set, of a block set and of a mixed set are one file (SHA-256 the same, 11.05
   GiB); import 30.8 s from the NSPs, 41.7 s from blocks, 64.3 s from solid; peak memory 321 to 403 MiB. A Build in the test app from the solid set ran
   to Ready in 8 min 4 s; Stop while unpacking left nothing behind. UPSTREAM-EDITS Round 29; HOOKS.md "Compressed dumps".
+- 2026-11-21 (GitHub issue #329, Tomodachi Life: Living the Dream's time stood still): the time service's steady clock is the host's real-time clock, not the
+  monotonic one, which on Android stops in deep sleep and starts again at 0 at every boot under the same source ID. Sleep came out as the user setting the
+  clock forward, and the game shifted every timestamp in its save by it, so no time passed while the phone slept. One reading gives both clocks now; the
+  user clock is that reading plus the custom time's offset, so a custom time is the only user change. New source ID `dmhost-steady-02`: a save from before
+  warns once. `hle_time.c`; `t_peanuts_time` (`make GAME=<id> peanuts-time`). UPSTREAM-EDITS Round 51; `docs/reference/services.md` "The steady clock runs
+  through sleep and restarts".

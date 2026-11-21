@@ -25,6 +25,24 @@ On the AYN Thor with Turnip Gen8 V39, both settings reached the Mii creator's fa
 
 **`render_cond on` since GitHub issues #196 and #182** <!-- PEANUTS -->: with the conditions ignored, the host ran every conditional clear and draw. In the Mii creator the Mii model stayed empty (an AYN Thor Max with Turnip T30 and Kimchi R8), and in a town save the ground and much of the scene came out black, the Miis' bodies white and the lamp posts dark. With `render_cond on`, on the AYN Thor with Turnip v26.2.0 R5, the creator draws the Mii's head and every face in its grid, and the town from the issue #182 save draws its ground, lit buildings and lamp lights.
 
+<!-- PEANUTS begin: time (GitHub issue #329) -->
+## Time and the clock check
+
+**Resolved (GitHub issue #329):** at most starts the game said "Your system time has changed since the last time you played" and "If you start the game as is, the in-game time may change, or the items offered in shops may not change for a little while"; then the fountain gave nothing, the market stayed "Still setting up..." in the afternoon and at night, and no new foods came, for days. The save was started on Eden and played on a phone.
+
+The game keeps two adjustable `ClockSnapshot`s in `Player.sav` and compares the saved one with a new one at start (`main+0x8713a8` on 1.0.4). When it cannot compute the span (status 2), or the user clock moved (status 3), it shifts every timestamp it stores by that change, so the time does not count: on the AYN Thor with the issue's save, +11,051 s (the time since the save) for status 2 and −30,494 s (the reported change) for status 3, in all 269 timestamps of `Player.sav`. It warns when the span is unknown, when the change is more than 2 hours forward, or when it goes back across a day. The host's steady clock stopped while the phone slept, so every sleep came out as the user setting the clock forward, and the game threw that time away: [The steady clock runs through sleep and restarts](../../../docs/reference/services.md#the-steady-clock-runs-through-sleep-and-restarts). A save from before the fix, or from another emulator, warns once at its first start: its snapshots are of another clock.
+
+Time of day (Settings › System, `DM_TIME`) sets the console's clock, which this game treats as the user changing it, as on a Switch: it warns and shifts its times by the change. Leave it on the phone's clock for this game.
+
+On the Thor with the issue's save, the boot crashed in four of eight starts in `nn::fontll::ScalableFontEngine` (`FSS_get_advance`, `map_char`; reads at 0x20 to 0x28; called from `main+0x105a1e8` ← `main+0x273218`), mostly when a warning showed at start: the crash from PR #86 above, still open.
+
+## Found on this game
+
+General host changes first needed here; each applies to every game:
+
+- **The steady clock runs through sleep and restarts:** [The steady clock runs through sleep and restarts](../../../docs/reference/services.md#the-steady-clock-runs-through-sleep-and-restarts).
+<!-- PEANUTS end -->
+
 <!-- PEANUTS begin: picture shapes -->
 ## Picture shapes (Android)
 
