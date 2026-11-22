@@ -45,8 +45,8 @@ class BcWriteBack(unittest.TestCase):
     def test_an_unplaced_pool_is_placed_and_the_write_back_waits_once(self):
         source = TEX.read_text(encoding='utf-8')
         record = body(source, 'static int tiled_wb_record(', '\n}\n')
-        self.assertIn('if (!im->tiled_wb_retry && !vka_addr((uintptr_t)im->mem, im->L.size, NULL, NULL, NULL)) {', record)
-        self.assertIn('return 2;', record)
+        self.assertIn('if (!vka_addr((uintptr_t)im->mem, im->L.size, NULL, NULL, NULL)) {', record)
+        self.assertIn('if (!im->tiled_wb_retry) return 2;', record)
         self.assertIn('im->tiled_wb_retry = 0;', record)   # placed: the next miss may ask again
         self.assertNotIn('mtl_pool_need(', record)   # not under g_tmu: the caller asks once it is let go
         self.assertIn('uint8_t tiled_wb_retry;', HDR.read_text(encoding='utf-8'))
@@ -55,8 +55,30 @@ class BcWriteBack(unittest.TestCase):
         self.assertIn('im->wb_pending = 1; g_wb[kept++] = im; continue;', wb)
         self.assertIn('g_nwb = kept;', wb)
         unlock = wb.index('pthread_mutex_unlock(&g_tmu);')
-        self.assertIn('mtl_pool_need(place_at[i], place_len[i],', wb[unlock:])
+        self.assertIn('mtl_pool_need((const void *)(uintptr_t)place[i].at, place[i].len,', wb[unlock:])
         self.assertNotIn('mtl_pool_need(', wb[:unlock])
+
+    def test_a_texture_whose_pool_was_not_placed_asks_again_later(self):
+        # asked once and still not placed: this write-back is dropped and the mark cleared, so the texture's next write-back asks again; the mark was
+        # cleared only after a write-back that worked, so one failed placement left the texture never asking again
+        record = body(TEX.read_text(encoding='utf-8'), 'static int tiled_wb_record(', '\n}\n')
+        miss = record[record.index('if (!vka_addr((uintptr_t)im->mem, im->L.size, NULL, NULL, NULL)) {'):]
+        miss = miss[:miss.index('return 0;')]
+        self.assertRegex(miss, re.compile(r'if \(!im->tiled_wb_retry\) return 2;\s*im->tiled_wb_retry = 0;'))
+        # the mark is the caller's to set, once it has the pool asked for
+        self.assertNotIn('im->tiled_wb_retry = 1', record)
+
+    def test_every_texture_kept_for_its_pool_gets_the_pool_asked_for(self):
+        # past 16 asks in one submission, the textures kept for a retry were marked asked but their pools never were: the lists are as long as the queue
+        # now, and a texture is marked only where its pool is put on the list
+        wb = body(TEX.read_text(encoding='utf-8'), 'void vka_tex_writeback(VkCommandBuffer cb) {', '\nint mtl_tex_gpu_owned(')
+        self.assertNotIn('NPLACE', wb)
+        self.assertNotIn('NWROTE', wb)
+        self.assertIn('malloc((size_t)g_nwb * sizeof *place)', wb)
+        self.assertIn('malloc((size_t)g_nwb * sizeof *wrote)', wb)
+        self.assertRegex(wb, re.compile(r'if \(place\) \{ place\[nplace\]\.at = [^;]*; place\[nplace\+\+\]\.len = im->L\.size; im->tiled_wb_retry = 1; \}'))
+        self.assertEqual(wb.count('im->tiled_wb_retry = 1'), 1)
+        self.assertIn('free(place); free(wrote);', wb)
 
     def test_the_bytes_written_reach_other_textures(self):
         source = TEX.read_text(encoding='utf-8')
@@ -64,7 +86,7 @@ class BcWriteBack(unittest.TestCase):
         self.assertNotIn('vka_tex_gw_opaque(', record)   # gw_add takes g_tmu, which the caller holds here
         wb = body(source, 'void vka_tex_writeback(VkCommandBuffer cb) {', '\nint mtl_tex_gpu_owned(')
         unlock = wb.index('pthread_mutex_unlock(&g_tmu);')
-        self.assertIn('vka_tex_gw_opaque(wrote_at[i], wrote_len[i]);', wb[unlock:])
+        self.assertIn('vka_tex_gw_opaque(wrote[i].at, wrote[i].len);', wb[unlock:])
 
 
 if __name__ == '__main__':

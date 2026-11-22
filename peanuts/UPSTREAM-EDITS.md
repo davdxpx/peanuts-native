@@ -1544,7 +1544,7 @@ waits one submission. The pool's placing and the opaque-write record run after `
 
 | File | Hunks | Change | Marker |
 |---|---|---|---|
-| `dm/gfx/vk_android/vka_tex.c` | 11 | `tiled_wb_kind` (block-compressed formats, CPU-no-access pools for them), `tiled_wb_record` (an unplaced pool: return 2; copies in texels), `vka_tex_writeback` (keeps the write-backs that wait; after the unlock, `vka_tex_gw_opaque` for the bytes written and `mtl_pool_need` for the pools asked for) | `PEANUTS(upstream-candidate)` |
+| `dm/gfx/vk_android/vka_tex.c` | 11 | `tiled_wb_kind` (block-compressed formats, CPU-no-access pools for them), `tiled_wb_record` (an unplaced pool: return 2 unless the texture was asked for already, then clear the mark; copies in texels), `vka_tex_writeback` (keeps the write-backs that wait and marks them asked; lists as long as the queue; after the unlock, `vka_tex_gw_opaque` for the bytes written and `mtl_pool_need` for the pools asked for) | `PEANUTS(upstream-candidate)` |
 | `dm/gfx/vk_android/vka_draw.c` | 1 | `bcrt_flush`: `vka_img_color_written` for the level drawn | `PEANUTS(upstream-candidate)` |
 | `dm/gfx/vk_android/vka.h` | 1 | `tiled_wb_retry` | `PEANUTS(upstream-candidate)` |
 | `docs/reference/rendering.md`, `docs/reference/nvn-objects.md`, `dm/games/010051F0207B2000/README.md` | 1 each | the entry, the Android write-back line, the game's line | `PEANUTS(upstream-candidate)`, `PEANUTS` |
@@ -1553,6 +1553,11 @@ waits one submission. The pool's placing and the opaque-write record run after `
 
 Tests: `dm/tools/tests/test_vka_bc_writeback.py`; Tomodachi Life 1.0.4 on an AYN Thor with Turnip T30 (2026-11-21): the face paint no longer turns to
 noise. **Open:** the paint shows on the head only after the editor is opened again (the entry in `docs/reference/rendering.md`). Upstream candidate: yes.
+
+Review (igawa6, 2026-11-22): `tiled_wb_retry` was cleared only after a write-back that worked, so one failed placement left a texture never asking again,
+and past 16 asks in one submission the textures kept for a retry were marked but their pools never asked for. The mark is now set by `vka_tex_writeback`
+where it puts the pool on its list, cleared when a write-back that was asked for finds no placed storage, and both lists are as long as the queue (tests:
+`test_a_texture_whose_pool_was_not_placed_asks_again_later`, `test_every_texture_kept_for_its_pool_gets_the_pool_asked_for`).
 
 ### Round 51, Home's first controller focus on the first game, not the build line (2026-11-21)
 
@@ -1564,4 +1569,4 @@ the whole line. The line is plain text on Home now (Settings › About still has
 |---|---|---|---|
 | `android/app/src/main/java/dev/nxnative/android/MainActivity.java` | 0 (the header line, already marked for the rebrand) | `buildHome`'s header goes through `dev.peanuts.ui.Library.homeHeader` | trailing `// PEANUTS: ...` |
 
-Tests: on the AYN Thor. Upstream candidate: no (the header's look is Peanuts').
+Tests: the dual-screen emulator in controller mode. Upstream candidate: no (the header's look is Peanuts').
