@@ -1415,5 +1415,6 @@ Tomodachi Life: Living the Dream 1.0.4 crashed about 3 s into a boot in the SDK'
 | `dm/games/010051F0207B2000/README.md` | 2 | the PR #86 crash resolved; "The boot crash in the font engine" and "Found on this game" | `PEANUTS` |
 | `docs/agents/symptoms.md` | 1 | regenerated (`docs_symptoms.py`, allow-listed) | none |
 | `dm/host/tests/t_peanuts_fontll.c` (new) | whole file | real guest threads on a fake engine: the race straight into it, then through the take-overs; who waits for whom by core and priority; a native wait and an exit; Finalize | `PEANUTS` in its header |
+| `peanuts/games.tsv`, `peanuts/games.json`, `README.md`, `peanuts/docs/README.github.md` | 1 row each | Tomodachi Life's Contributor cell: davdxpx beside intermission88 (`games_catalog.py`, no `--refresh`) | `games.tsv` and `games.json` are Peanuts'; the README tables are inside their `PEANUTS` sections |
 
 Tests: `make GAME=<id> peanuts-fontll` (Linux; with gcc, `CLANG=gcc`): 11 checks pass. A build with exclusion per call only fails 3 of them (the higher-priority thread measured 779 sequences with the other's font; an owner that does not block, and one that exits, were not waited for). Upstream candidate: yes (the Mac host runs a core's threads side by side too).
