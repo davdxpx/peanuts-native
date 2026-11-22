@@ -2097,3 +2097,17 @@ Tears of the Kingdom's Depths caves drew chunks with another chunk's vertices fo
 | `docs/reference/rendering.md`, `docs/agents/symptoms.md` | 1 each | the entry and its symptom line | `<!-- PEANUTS -->` |
 
 Tests: the `t_android_*` suite; on the AYN Thor (Turnip v26.2.0-R5), the owner's Depths cave save: per-frame cave draw count changes 906 → 11 in about 1,300 frames. Upstream candidate: yes (the replay code is upstream's).
+
+### Round 56, Users and Miis: the review's later points (2026-11-22)
+
+igawa6's notes on Round 46 to 49 (PR #321) that were left for later, one change each; `DM_USER_IMAGES` with the other defaults came with 0.1.7 itself
+(3f35b1e4). No upstream file has a hunk; the JVM tests are new files with a `PEANUTS` first line.
+
+- The Mii editor kept its edits only in memory, so a turn of the device, a change to dark mode or the process ending in the background lost them.
+  `dev.peanuts.mii.MiiEditor` keeps the Mii, the Mii as it was, the Undo steps (the newest 100) and the tab in its saved state (`dev.peanuts.mii.MiiEditState`,
+  a CharInfo and a byte a field) and takes them back in `onCreate`; no `configChanges`, so a turn still lays the page out for the new width.
+
+Peanuts' own files, no marker: `android/app/src/main/java/dev/peanuts/mii/MiiEditState.java` new, `MiiEditor.java`,
+`android/app/src/jvmtest/java/dev/peanuts/mii/MiiEditStateJvmTest.java` new, `peanuts/tests/test_mii_editor.py` new.
+
+Tests: `peanuts/tests/test_mii_editor.py`. Upstream candidate: no (Peanuts' pages).
