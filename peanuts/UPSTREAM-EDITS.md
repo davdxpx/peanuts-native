@@ -1414,3 +1414,15 @@ Tomodachi Life: Living the Dream warned at most starts that the system time had 
 | `dm/host/tests/t_peanuts_time.c` (new) | whole file | sleep, restart, sleep during a run, a custom time, an old time point and clocks at other points within the second, on stand-in clocks, a child process per run | `PEANUTS` in its header |
 
 Tests: `make GAME=<id> peanuts-time` (Linux; with gcc, `CLANG=gcc`): 26 checks pass; the same test against the old `hle_time.c` fails 12. Upstream candidate: yes (a Mac's `CLOCK_MONOTONIC` counts sleep but also starts again at a restart).
+
+### Round 53, the steady clock anchored: one real-time reading a run, then the boot-time clock (2026-11-22, the review of PR #336)
+
+Round 51 (PR #336, the steady clock runs through sleep and restarts) made the steady clock the host's `CLOCK_REALTIME`. That clock steps when Android corrects the phone's clock from the network or the carrier, backwards too, and a span between two steady time points of one run could then come out negative, which a Switch never gives. As igawa6 asked in the review: the real-time clock is read once a run, at the first call, and advanced by `CLOCK_BOOTTIME`, which only goes forward and counts deep sleep (Apple: `CLOCK_MONOTONIC`, which counts sleep there). Within a run both clocks are monotonic and count sleep; across runs they carry on through the real time each run starts from, and a correction reaches the game at its next start. (PR #321 also has a "Round 51", Home's first controller focus; the two came the same day.)
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `dm/host/hle_time.c` | 3 | `HOST_SLEEP_CLOCK`, `rt_anchor` and `host_rt_ns` (`pthread_once`); `user_clock` reads `host_rt_ns`; the context comment | `PEANUTS` (begin/end span and per-line) |
+| `dm/host/tests/t_peanuts_time.c` | 7 | the boot-time clock among the stand-ins; case 8: the phone's clock 10 minutes back and 20 minutes forward while a run goes on | Peanuts' own file (Round 51) |
+| `docs/reference/services.md` | 1 | the anchor in "The steady clock runs through sleep and restarts" | inside its `PEANUTS` span |
+
+Tests: `make GAME=<id> peanuts-time` (Linux, gcc): 30 checks pass; the same test against Round 51's `hle_time.c` fails 3, a span of −595 s for the 5 s that passed.

@@ -226,3 +226,6 @@ The script fetches, rebases `peanuts` onto the target, then checks that every `P
   user clock is that reading plus the custom time's offset, so a custom time is the only user change. New source ID `dmhost-steady-02`: a save from before
   warns once. `hle_time.c`; `t_peanuts_time` (`make GAME=<id> peanuts-time`). UPSTREAM-EDITS Round 51; `docs/reference/services.md` "The steady clock runs
   through sleep and restarts".
+- 2026-11-22 (the review of PR #336): the steady and the user clock read the real-time clock once a run and advance it with `CLOCK_BOOTTIME`, so a correction of
+  the phone's clock (network or carrier time) can no longer make a span within a run negative; it reaches the game at its next start. `hle_time.c` `host_rt_ns`;
+  `t_peanuts_time` case 8. UPSTREAM-EDITS Round 53.
