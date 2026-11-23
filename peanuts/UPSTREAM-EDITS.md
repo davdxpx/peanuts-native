@@ -2097,3 +2097,16 @@ Tears of the Kingdom's Depths caves drew chunks with another chunk's vertices fo
 | `docs/reference/rendering.md`, `docs/agents/symptoms.md` | 1 each | the entry and its symptom line | `<!-- PEANUTS -->` |
 
 Tests: the `t_android_*` suite; on the AYN Thor (Turnip v26.2.0-R5), the owner's Depths cave save: per-frame cave draw count changes 906 → 11 in about 1,300 frames. Upstream candidate: yes (the replay code is upstream's).
+
+### Mod menu Part C: cheats for every game, imported from zip, txt or folder (2026-11-23, SPEC-mod-menu.md Package B 1-5)
+
+Only games whose profile had `cheats` rows had cheat rows on their page, and an import was one `.txt` kept in `<files>/cheats/<title ID>/imported/`. Now every game has the rows (`Prefs.cheatsGame`). Their Cheat files sheet works on the game's cheat sources (`dev.peanuts.mods.CheatSources`, `<files>/cheats/<title ID>/sources/`): Import cheat file… takes a `.txt` or a `.zip`, the new Import cheat folder… a folder, in the Atmosphère, Eden / Yuzu or Ryujinx layout or as a bare build file (`dev.peanuts.mods.CheatImport`, read off the UI thread by `CheatPick`); a source is switched off or removed as a whole; Export cheats… writes the sources in upstream's export format, and Import cheats… reads one as before. A start merges the sources that are on (`ModCheats.install` through `CheatSources.merge`). The reader (`dev.peanuts.mods.CheatFile`) knows groups (cheatslips' headings over end / else words, EdiZon's markers), masters, credits, titles and "Restore Code" entries, and gives each cheat a kind from its opcodes (Code, Data, Value, Not supported) and its hold buttons. Upstream's imported files become sources the first time (`CheatSources.migrate`). Part D replaces these rows with the Mods & Cheats page.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `android/app/src/main/java/dev/nxnative/android/Prefs.java` | 1 | `cheatsGame` is true for every game | trailing `// PEANUTS: ...` |
+| `android/app/src/main/java/dev/nxnative/android/CheatsUi.java` | 1 | `rows`: the Cheat files row is `CheatsBridge.filesRow` (the sources; the sheet, its pickers and their results are there) | trailing `// PEANUTS: ...` |
+| `android/app/src/main/java/dev/nxnative/android/CheatsBridge.java` | new | Peanuts-owned, in upstream's package (as `ModCheats.java`): the row, the sheet, request codes 83 to 86 through `LibrarySettings.result` | Peanuts' own file |
+| `android/app/src/main/java/dev/nxnative/android/ModCheats.java` | (Peanuts' own) | `install` merges through `CheatSources`, upstream's imported files moved into sources first; a mod's own toggles are told by key; `\r` in a mod's `.enabled` is dropped | Peanuts' own file |
+
+`CheatsUi.sheet` and `documentResult`'s branches are not changed; nothing opens the old sheet now. Peanuts-owned, new: `dev.peanuts.mods.CheatFile`, `CheatImport`, `CheatSources`, `CheatPick`; one line in `dev.peanuts.ui.LibrarySettings.result`. Tests: `peanuts/tests/test_cheat_loader.py` (`CheatLoaderJvmTest`), `peanuts/tests/test_mod_cheats.py`, `dm/tools/tests/test_android_cheats.py`.
