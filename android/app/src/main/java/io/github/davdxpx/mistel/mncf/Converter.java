@@ -1,0 +1,1386 @@
+package io.github.davdxpx.mistel.mncf;
+
+import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Converts Atmosphère cheat files to .mncf, and .mncf back to Atmosphère for one build (section
+ * 15).
+ *
+ * <p>Every cheat keeps its code as a raw/1 entry. Where the code is plain writes, it also gets
+ * core operations: a write into the main module's code becomes a patch, one into data or a
+ * region a write, a pointer chain a path, a button block hold, a memory condition when, a movz
+ * or fmov a value the player sets (arm64-imm/1). With the code module, patches get expect from
+ * it and a pattern instead of a fixed offset wherever the bytes mean the same at another place.
+ * Several files for builds of the same game become one file with all their builds. This
+ * library has no disassembler, so it writes no asm fields.
+ */
+public final class Converter {
+
+    // The patterns have ASCII semantics, as Python's re.A gives them: \b, \w, \W and \s are
+    // written out, and so is matching ASCII letters in either case, because some regular
+    // expression engines fold the case of all of Unicode under CASE_INSENSITIVE.
+    private static final String WORD = "[A-Za-z0-9_]";
+    private static final String NOT_WORD = "[^A-Za-z0-9_]";
+    private static final String BOUND = "(?:(?<=" + WORD + ")(?!" + WORD + ")|(?<!" + WORD + ")(?=" + WORD + "))";
+    private static final String SPACE_CHARS = " \\t\\n\\r\\f\\x0B";
+    private static final String SPACE = "[" + SPACE_CHARS + "]";
+    private static final String END = "\\z";
+
+    private static final Pattern RESTORE_NAME = Pattern.compile(BOUND + "(" + caseless("restore|restores|original|vanilla")
+            + ")" + BOUND + "|" + BOUND + caseless("off") + NOT_WORD + "*" + END);
+    private static final Pattern CREDIT_NAME = Pattern.compile(caseless("credit|made by|created by|written by"
+            + "|cheats? by|codes? by|thanks|www\\.|https?:|\\.com") + BOUND + "|" + caseless("\\.org") + BOUND + "|"
+            + caseless("\\.net") + BOUND + "|" + caseless("discord|patreon") + "|" + BOUND + caseless("TID") + SPACE
+            + "*=|" + BOUND + caseless("BID") + SPACE + "*=");
+    private static final Pattern LINK = Pattern.compile(caseless("www\\.|https?:|\\.com") + BOUND + "|"
+            + caseless("\\.org") + BOUND + "|" + caseless("\\.net") + BOUND);
+    private static final Pattern AUTHOR = Pattern.compile(BOUND + caseless("by") + SPACE + "+([^\\n]+)|" + BOUND
+            + caseless("credits?") + SPACE + "*[:=]" + SPACE + "*([^\\n]+)");
+    private static final String DECORATION_CHARS = "[" + SPACE_CHARS + "\\-=*~#_.:+<>|]";
+    private static final Pattern DECORATION = Pattern.compile("^" + DECORATION_CHARS + "+|" + DECORATION_CHARS + "+" + END);
+    private static final Pattern NAME_END = Pattern.compile("[,!;|]");
+    private static final Pattern NAME_SPLIT = Pattern.compile(SPACE + "+&" + SPACE + "+|" + SPACE + "+and" + SPACE + "+");
+    private static final Pattern PLATFORM = Pattern.compile("([^\\n]+?)" + SPACE + "*(?:" + SPACE + "(?:"
+            + caseless("on|at|from") + ")" + SPACE + "|@|\\()" + SPACE + "*([^\\n]+?)\\)?");
+    private static final Pattern SITE = Pattern.compile(
+            "(?:https?://)?(?:www\\.)?([A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,})");
+    private static final long[] GROUP_END = {0x20000001L};
+
+    private Converter() {
+    }
+
+    /** A pattern in which each ASCII letter matches in either case; an escaped character stays as it is. */
+    private static String caseless(String pattern) {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < pattern.length(); i++) {
+            char c = pattern.charAt(i);
+            if (c == '\\' && i + 1 < pattern.length()) {
+                b.append(c).append(pattern.charAt(++i));
+            } else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+                b.append('[').append(Character.toLowerCase(c)).append(Character.toUpperCase(c)).append(']');
+            } else {
+                b.append(c);
+            }
+        }
+        return b.toString();
+    }
+
+    /** What to write into a converted file besides the cheats. Immutable. */
+    public static final class Options {
+        private final String gameId;
+        private String platform = "switch";
+        private String gameName;
+        private String name;
+        private String origin;
+        private List<String> authors;
+        private boolean values = true;
+
+        private Options(String gameId) {
+            this.gameId = gameId;
+        }
+
+        private Options copy() {
+            Options o = new Options(gameId);
+            o.platform = platform;
+            o.gameName = gameName;
+            o.name = name;
+            o.origin = origin;
+            o.authors = authors;
+            o.values = values;
+            return o;
+        }
+
+        /** Starts options for a game: its ID on its platform. */
+        public static Options forGame(String gameId) {
+            return new Options(gameId);
+        }
+
+        /** Returns options with another platform; the default is "switch". */
+        public Options platform(String p) {
+            Options o = copy();
+            o.platform = p;
+            return o;
+        }
+
+        /** Returns options with the game's name. */
+        public Options gameName(String n) {
+            Options o = copy();
+            o.gameName = n;
+            return o;
+        }
+
+        /** Returns options with the file's name; the default is "&lt;game name&gt; cheats". */
+        public Options name(String n) {
+            Options o = copy();
+            o.name = n;
+            return o;
+        }
+
+        /** Returns options with where the files came from, such as a ZIP or folder name. */
+        public Options origin(String n) {
+            Options o = copy();
+            o.origin = n;
+            return o;
+        }
+
+        /** Returns options with the authors to name when the files credit nobody. */
+        public Options authors(List<String> names) {
+            Options o = copy();
+            o.authors = names == null ? null : Collections.unmodifiableList(new ArrayList<>(names));
+            return o;
+        }
+
+        /** Returns options that turn movz and fmov patches into values the player sets, or not. The default is on. */
+        public Options values(boolean on) {
+            Options o = copy();
+            o.values = on;
+            return o;
+        }
+    }
+
+    // Mutable state while converting
+
+    private static final class Report {
+        final List<Rep> cheats = new ArrayList<>();
+        final List<String> groups = new ArrayList<>();
+        final List<String> credits = new ArrayList<>();
+        final List<String> warnings = new ArrayList<>();
+    }
+
+    private static final class Rep {
+        String id;
+        final String name;
+        final String build;
+        String outcome;
+        String why = "";
+        int patterns;
+        int fixed;
+        int values;
+        List<String> notes = new ArrayList<>();
+
+        Rep(String id, String name, String build, String outcome) {
+            this.id = id;
+            this.name = name;
+            this.build = build;
+            this.outcome = outcome;
+        }
+
+        CheatReport done() {
+            return new CheatReport(id, name, build, outcome, why, patterns, fixed, values, notes);
+        }
+    }
+
+    private static final class Item {
+        final String name;
+        final boolean master;
+        final String group;
+        final Atmosphere.Entry entry;
+        Atmosphere.Derived derived;
+        Atmosphere.Unclear unclear;
+
+        Item(String name, boolean master, String group, Atmosphere.Entry entry) {
+            this.name = name;
+            this.master = master;
+            this.group = group;
+            this.entry = entry;
+        }
+    }
+
+    private static final class Op {
+        final String kind;
+        final Map<String, Object> table;
+
+        Op(String kind, Map<String, Object> table) {
+            this.kind = kind;
+            this.table = table;
+        }
+    }
+
+    /** One converted cheat of one file, before cheats of several builds are merged. */
+    private static final class CheatState {
+        final Item item;
+        final String key;
+        final Rep rep;
+        String hold;
+        String press;            // buttons of a block that patches without an else branch: run = "action"
+        List<Op> ops = new ArrayList<>();
+        Map<String, Object> values = new LinkedHashMap<>();
+        final Map<String, Object> raw = new LinkedHashMap<>();
+
+        CheatState(Item item, String key, Rep rep) {
+            this.item = item;
+            this.key = key;
+            this.rep = rep;
+            raw.put("syntax", "atmosphere");
+            raw.put("build", key);
+            raw.put("code", item.entry.code());
+        }
+    }
+
+    private static Map<String, Object> table(Object... keysAndValues) {
+        Map<String, Object> t = new LinkedHashMap<>();
+        for (int i = 0; i < keysAndValues.length; i += 2) {
+            t.put((String) keysAndValues[i], keysAndValues[i + 1]);
+        }
+        return t;
+    }
+
+    /** Returns an id from a name: lower-case letters, digits and hyphens, not yet in taken, which it is added to. */
+    static String slug(String name, Set<String> taken) {
+        String base = stripChars(name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-"), "-");
+        if (base.isEmpty()) {
+            base = "cheat";
+        }
+        if (!(base.charAt(0) >= 'a' && base.charAt(0) <= 'z')) {
+            base = "cheat-" + base;
+        }
+        base = base.substring(0, Math.min(48, base.length()));
+        while (base.endsWith("-")) {
+            base = base.substring(0, base.length() - 1);
+        }
+        String out = base;
+        int n = 2;
+        while (taken.contains(out)) {
+            out = base + "-" + n;
+            n++;
+        }
+        taken.add(out);
+        return out;
+    }
+
+    /** Python's str.strip(chars): the text without those characters at both ends. */
+    private static String stripChars(String s, String chars) {
+        int a = 0;
+        int b = s.length();
+        while (a < b && chars.indexOf(s.charAt(a)) >= 0) {
+            a++;
+        }
+        while (b > a && chars.indexOf(s.charAt(b - 1)) >= 0) {
+            b--;
+        }
+        return s.substring(a, b);
+    }
+
+    /**
+     * Returns the people that credit lines name: what follows "by" or "credits:", up to a comma
+     * or the end. A person named with the platform they posted on ("Ann on Some Forum", "Ann @
+     * Some Forum") is written "Ann (Some Forum)".
+     */
+    public static List<String> authorsOf(List<String> credits) {
+        List<String> names = new ArrayList<>();
+        for (String line : credits) {
+            Matcher m = AUTHOR.matcher(line);
+            if (!m.find()) {
+                continue;
+            }
+            String text = m.group(1) != null ? m.group(1) : m.group(2);
+            Matcher cut = NAME_END.matcher(text);
+            text = Py.strip(cut.find() ? text.substring(0, cut.start()) : text);
+            for (String name : NAME_SPLIT.split(text, -1)) {
+                name = stripChars(name, " .");
+                Matcher on = PLATFORM.matcher(name);
+                if (on.matches()) {
+                    name = Py.strip(on.group(1)) + " (" + stripChars(on.group(2), " .()") + ")";
+                }
+                if (!name.isEmpty() && !LINK.matcher(name).lookingAt() && !names.contains(name)) {
+                    names.add(name);
+                }
+            }
+        }
+        return names;
+    }
+
+    /** Returns the website the credit lines name, as a lower-case domain without www, or null. */
+    public static String siteOf(List<String> credits) {
+        for (String line : credits) {
+            Matcher m = SITE.matcher(line);
+            if (m.find()) {
+                return m.group(1).toLowerCase(Locale.ROOT);
+            }
+        }
+        return null;
+    }
+
+    // One file
+
+    private static List<Item> read(Source src, Report report) throws AtmosphereException {
+        List<Item> items = new ArrayList<>();
+        String group = null;
+        for (Atmosphere.Entry e : Atmosphere.parse(src.text())) {
+            long[] words = e.wordsShared();
+            if (words.length == 0 || Atmosphere.isNoop(e)) {
+                if (CREDIT_NAME.matcher(e.name()).find()) {
+                    if (!report.credits.contains(e.name())) {
+                        report.credits.add(e.name());
+                    }
+                } else if (Arrays.equals(words, GROUP_END)) {
+                    group = null;
+                } else if (!e.master()) {
+                    String cleaned = Py.strip(DECORATION.matcher(e.name()).replaceAll("").replace('/', '-'));
+                    group = cleaned.isEmpty() ? null : cleaned;
+                    if (group != null && !report.groups.contains(group)) {
+                        report.groups.add(group);
+                    }
+                }
+                continue;
+            }
+            items.add(new Item(e.name(), e.master(), group, e));
+        }
+        List<Item> mastersFirst = new ArrayList<>(items);
+        Collections.sort(mastersFirst, new Comparator<Item>() {
+            @Override
+            public int compare(Item a, Item b) {
+                return Boolean.compare(!a.master, !b.master);
+            }
+        });
+        Set<Long> written = new HashSet<>();
+        for (Item it : mastersFirst) {
+            Atmosphere.Derived d;
+            try {
+                d = Atmosphere.derive(it.entry);
+            } catch (Atmosphere.Unclear u) {
+                it.unclear = u;
+                written.addAll(Atmosphere.registersWritten(it.entry));
+                continue;
+            }
+            Set<Long> both = new HashSet<>(d.reads);
+            both.retainAll(written);
+            if (!both.isEmpty()) {
+                it.unclear = new Atmosphere.Unclear("it reads a register that an earlier cheat sets");
+            } else {
+                it.derived = d;
+            }
+            written.addAll(d.writes);
+        }
+        return items;
+    }
+
+    private static byte[] slice(byte[] image, long offset, long width) {
+        if (Long.compareUnsigned(offset, image.length) >= 0) {
+            return new byte[0];
+        }
+        long end = Math.min(image.length, offset + width);
+        return Arrays.copyOfRange(image, (int) offset, (int) end);
+    }
+
+    /** The original bytes at a place of the main module: from the module, else from the file's own restore code. */
+    private static byte[] original(CodeModule module, Map<List<Long>, byte[]> originals, long offset, int width) {
+        if (module != null && !module.excluded(offset, width)) {
+            return slice(module.image(), offset, width);
+        }
+        byte[] out = new byte[width];
+        for (int i = 0; i < width; i++) {
+            boolean found = false;
+            for (Map.Entry<List<Long>, byte[]> e : originals.entrySet()) {
+                long off = e.getKey().get(0);
+                long w = e.getKey().get(1);
+                if (off <= offset + i && offset + i < off + w) {
+                    out[i] = e.getValue()[(int) (offset + i - off)];
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                return null;
+            }
+        }
+        return out;
+    }
+
+    private static boolean inCode(CodeModule module, long offset, long width) {
+        String a = module.sectionOf(offset);
+        String b = module.sectionOf(offset + width - 1);
+        return ("code".equals(a) || "rodata".equals(a)) && ("code".equals(b) || "rodata".equals(b));
+    }
+
+    private static boolean isMainPlain(Atmosphere.Store s) {
+        return s.place.region.equals("main") && !s.place.hasPath();
+    }
+
+    /** The entries that only put back original code, and the original bytes the file's code gives. */
+    private static Set<Item> restores(List<Item> items, CodeModule module, Map<List<Long>, byte[]> originals) {
+        Set<Item> restore = Collections.newSetFromMap(new IdentityHashMap<Item, Boolean>());
+        for (Item it : items) {
+            Atmosphere.Derived d = it.derived;
+            if (d == null || d.stores.isEmpty()) {
+                continue;
+            }
+            if (d.released != null) {
+                for (Atmosphere.Store s : d.released) {
+                    if (isMainPlain(s)) {
+                        List<Long> k = Arrays.asList(s.place.offset, (long) s.width);
+                        if (!originals.containsKey(k)) {
+                            originals.put(k, s.data());
+                        }
+                    }
+                }
+            }
+            boolean other = d.keys != 0 || d.condition != null;
+            for (Atmosphere.Store s : d.stores) {
+                other |= !isMainPlain(s);
+            }
+            if (other) {
+                continue;
+            }
+            boolean anyExcluded = false;
+            if (module != null) {
+                for (Atmosphere.Store s : d.stores) {
+                    anyExcluded |= module.excluded(s.place.offset, s.width);
+                }
+            }
+            if (module != null && !anyExcluded) {
+                boolean all = true;
+                for (Atmosphere.Store s : d.stores) {
+                    all &= inCode(module, s.place.offset, s.width)
+                            && Arrays.equals(slice(module.image(), s.place.offset, s.width), s.data());
+                }
+                if (all) {
+                    restore.add(it);
+                }
+                continue;
+            }
+            if (RESTORE_NAME.matcher(it.name).find()) {
+                Set<Long> others = new HashSet<>();
+                for (Item o : items) {
+                    if (o != it) {
+                        others.addAll(Atmosphere.mainOffsets(o.entry));
+                    }
+                }
+                boolean all = true;
+                for (Atmosphere.Store s : d.stores) {
+                    all &= others.contains(s.place.offset);
+                }
+                if (all) {
+                    restore.add(it);
+                    for (Atmosphere.Store s : d.stores) {
+                        originals.put(Arrays.asList(s.place.offset, (long) s.width), s.data());
+                    }
+                }
+            }
+        }
+        return restore;
+    }
+
+    private static Map<String, Object> location(Atmosphere.Place place, String key) {
+        Map<String, Object> offsets = table(key, Values.unsigned(place.offset));
+        Map<String, Object> loc = place.region.equals("main") ? table("module", "main", "offsets", offsets)
+                : table("region", place.region, "offsets", offsets);
+        if (place.hasPath()) {
+            List<Object> path = new ArrayList<>();
+            for (long p : place.path) {
+                path.add(p);
+            }
+            loc.put("path", path);
+        }
+        return loc;
+    }
+
+    private static List<Object[]> mergeRuns(List<Atmosphere.Store> stores) {
+        List<Object[]> runs = new ArrayList<>();
+        for (Atmosphere.Store s : stores) {
+            Object[] last = runs.isEmpty() ? null : runs.get(runs.size() - 1);
+            if (last != null && (Long) last[0] + ((ByteArrayOutputStream) last[1]).size() == s.place.offset) {
+                byte[] data = s.data();
+                ((ByteArrayOutputStream) last[1]).write(data, 0, data.length);
+            } else {
+                ByteArrayOutputStream b = new ByteArrayOutputStream();
+                byte[] data = s.data();
+                b.write(data, 0, data.length);
+                runs.add(new Object[] {s.place.offset, b});
+            }
+        }
+        List<Object[]> out = new ArrayList<>();
+        for (Object[] r : runs) {
+            out.add(new Object[] {r[0], ((ByteArrayOutputStream) r[1]).toByteArray()});
+        }
+        return out;
+    }
+
+    private static double fmovValue(int imm8) {
+        double sign = (imm8 & 0x80) != 0 ? -1.0 : 1.0;
+        int cd = (imm8 >> 4) & 3;
+        int e = (imm8 & 0x40) == 0 ? cd + 1 : cd - 3;
+        return sign * (16 + (imm8 & 15)) / 16 * Math.pow(2.0, e);
+    }
+
+    private static long le32(byte[] data, int at) {
+        return (data[at] & 0xFFL) | (data[at + 1] & 0xFFL) << 8 | (data[at + 2] & 0xFFL) << 16
+                | (data[at + 3] & 0xFFL) << 24;
+    }
+
+    /**
+     * The encode table and the value's type for new bytes that are one movz, a movz and a movk,
+     * or one fmov with an immediate, else null.
+     */
+    private static Object[] encodeOf(byte[] data) {
+        if (data.length != 4 && data.length != 8) {
+            return null;
+        }
+        long w0 = le32(data, 0);
+        if (data.length == 4 && (w0 & 0x7FE00000L) == 0x52800000L) {
+            return new Object[] {table("insn", "movz", "width", (w0 >> 31) != 0 ? 64L : 32L, "rd", w0 & 31,
+                "value", (w0 >> 5) & 0xFFFF), "u16"};
+        }
+        if (data.length == 8) {
+            long w1 = le32(data, 4);
+            if ((w0 & 0x7FE00000L) == 0x52800000L && (w1 & 0x7FE00000L) == 0x72A00000L && w0 >> 31 == w1 >> 31
+                    && (w0 & 31) == (w1 & 31)) {
+                long lo = (w0 >> 5) & 0xFFFF;
+                long hi = (w1 >> 5) & 0xFFFF;
+                return new Object[] {table("insn", "movz-movk", "width", (w0 >> 31) != 0 ? 64L : 32L, "rd", w0 & 31,
+                    "value", hi << 16 | lo), "u32"};
+            }
+            return null;
+        }
+        if ((w0 & 0xFF201FE0L) == 0x1E201000L && ((w0 >> 22) & 3) <= 1) {
+            boolean isDouble = ((w0 >> 22) & 3) == 1;
+            return new Object[] {table("insn", "fmov", "width", isDouble ? 64L : 32L, "rd", w0 & 31,
+                "value", fmovValue((int) ((w0 >> 13) & 0xFF))), isDouble ? "f64" : "f32"};
+        }
+        return null;
+    }
+
+    private static List<CheatState> convertOne(Source src, String key, Report report, boolean values)
+            throws AtmosphereException {
+        CodeModule module = src.module();
+        List<Item> items = read(src, report);
+        Map<List<Long>, byte[]> originals = new LinkedHashMap<>();
+        Set<Item> restore = restores(items, module, originals);
+        List<CheatState> out = new ArrayList<>();
+        for (Item it : items) {
+            Rep rep = new Rep("", it.name, key, CheatReport.RAW);
+            if (restore.contains(it)) {
+                rep.outcome = CheatReport.RESTORE;
+                rep.why = "it only puts back the original code";
+                report.cheats.add(rep);
+                continue;
+            }
+            CheatState c = new CheatState(it, key, rep);
+            if (it.unclear != null) {
+                rep.why = it.unclear.why;
+            } else {
+                try {
+                    core(c, it.derived, module, originals, values);
+                    rep.outcome = rep.patterns > 0 && rep.fixed == 0 ? CheatReport.PATTERN : CheatReport.BUILD;
+                } catch (Atmosphere.Unclear u) {
+                    c.ops = new ArrayList<>();
+                    c.values = new LinkedHashMap<>();
+                    c.hold = null;
+                    c.press = null;
+                    rep.why = u.why;
+                    rep.outcome = CheatReport.RAW;
+                    rep.patterns = 0;
+                    rep.fixed = 0;
+                    rep.values = 0;
+                    rep.notes = new ArrayList<>();
+                }
+            }
+            out.add(c);
+            report.cheats.add(rep);
+        }
+        return out;
+    }
+
+    private static String uType(int width) {
+        return "u" + (8 * width);
+    }
+
+    private static void core(CheatState c, Atmosphere.Derived d, CodeModule module, Map<List<Long>, byte[]> originals,
+            boolean values) throws Atmosphere.Unclear {
+        Rep rep = c.rep;
+        String key = c.key;
+        String buttons = null;
+        if (d.keys != 0) {
+            buttons = Atmosphere.keysToButtons(d.keys);
+            if (buttons == null) {
+                throw new Atmosphere.Unclear("a button mask with bits that have no name");
+            }
+        }
+        List<Atmosphere.Store> code = new ArrayList<>();
+        List<Op> ops = new ArrayList<>();
+        for (Atmosphere.Store s : d.stores) {
+            if (isMainPlain(s)) {
+                if (module == null) {
+                    if (original(null, originals, s.place.offset, s.width) == null) {
+                        throw new Atmosphere.Unclear(
+                                "a write into the main module: without the module, code and data look alike");
+                    }
+                    code.add(s);
+                } else if (inCode(module, s.place.offset, s.width)) {
+                    code.add(s);
+                } else if (module.sectionOf(s.place.offset) == null) {
+                    throw new Atmosphere.Unclear("a write outside the main module");
+                } else {
+                    ops.add(new Op("write", table("at", location(s.place, key), "type", uType(s.width),
+                            "value", Values.unsigned(s.value))));
+                    rep.fixed++;
+                }
+            } else {
+                ops.add(new Op("write", table("at", location(s.place, key), "type", uType(s.width),
+                        "value", Values.unsigned(s.value))));
+                rep.fixed++;
+            }
+        }
+        if (d.released != null) {
+            for (Atmosphere.Store s : d.released) {
+                if (!isMainPlain(s)) {
+                    throw new Atmosphere.Unclear("it writes data when the buttons are released");
+                }
+                byte[] o = original(module, originals, s.place.offset, s.width);
+                if (o == null || !Arrays.equals(o, s.data())) {
+                    throw new Atmosphere.Unclear("the release branch writes other bytes than the original code");
+                }
+            }
+        }
+        List<Map<String, Object>> patches = new ArrayList<>();
+        for (Object[] run : mergeRuns(code)) {
+            long off = (Long) run[0];
+            byte[] data = (byte[]) run[1];
+            byte[] expect = original(module, originals, off, data.length);
+            if (expect == null) {
+                throw new Atmosphere.Unclear("no original bytes for every byte it writes");
+            }
+            if (Arrays.equals(expect, data)) {
+                rep.notes.add(String.format("main+0x%X already holds those bytes; the patch stays, as the source writes them",
+                        off));
+            }
+            patches.add(patch(c, off, data, expect, module, values));
+        }
+        if (patches.isEmpty() && ops.isEmpty()) {
+            throw new Atmosphere.Unclear("it writes only what is already there");
+        }
+        if (buttons != null) {
+            if (d.released == null && !patches.isEmpty()) {
+                // Atmosphère patches at the press and leaves the patch when the buttons are let go: an action.
+                if (!ops.isEmpty()) {
+                    throw new Atmosphere.Unclear("a button block without an else branch that patches code and writes data");
+                }
+                c.press = buttons;
+            } else {
+                c.hold = buttons;
+            }
+        }
+        List<Op> all = new ArrayList<>();
+        for (Map<String, Object> p : patches) {
+            all.add(new Op("patch", p));
+        }
+        all.addAll(ops);
+        c.ops = all;
+        if (d.condition != null) {
+            Atmosphere.Cond cond = d.condition;
+            if (cond.place.region.equals("main") && module != null && inCode(module, cond.place.offset, cond.width)) {
+                throw new Atmosphere.Unclear("a condition on the code itself");
+            }
+            c.ops.add(0, new Op("when", table("at", location(cond.place, key), "type", uType(cond.width),
+                    "op", cond.op, "value", Values.unsigned(cond.value))));
+        }
+    }
+
+    private static Map<String, Object> patch(CheatState c, long off, byte[] data, byte[] expect, CodeModule module,
+            boolean values) {
+        Rep rep = c.rep;
+        Map<String, Object> loc = null;
+        if (module != null) {
+            if (module.excluded(off, data.length)) {
+                rep.notes.add(String.format("main+0x%X: the module's bytes there are not its own, so no pattern", off));
+            } else if (Arm64.relativeOutside(data, off, data.length)) {
+                rep.notes.add(String.format("main+0x%X: the new code branches or refers outside itself, so it fits this "
+                        + "build only", off));
+            } else if (module.textSize() != null && off >= module.textSize() && "code".equals(module.sectionOf(off))) {
+                rep.notes.add(String.format("main+0x%X: code written after the end of the code, kept for this build", off));
+            } else {
+                Patterns.Found p = Patterns.make(module, off, Math.min(4, data.length));
+                if (p == null) {
+                    rep.notes.add(String.format("main+0x%X: no unique pattern of up to 64 bytes", off));
+                } else {
+                    loc = p.location("main");
+                    if (!Arm64.movingBytes(module.image(), (int) off, (int) (off + expect.length)).isEmpty()) {
+                        rep.notes.add(String.format("main+0x%X: the original code refers to another place, so `expect` "
+                                + "fits this build only", off));
+                    }
+                }
+            }
+        }
+        if (loc == null) {
+            loc = table("module", "main", "offsets", table(c.key, Values.unsigned(off)));
+            rep.fixed++;
+        } else {
+            rep.patterns++;
+        }
+        Map<String, Object> t = table("at", loc, "expect", Values.hexBytes(expect));
+        Object[] encoded = values ? encodeOf(data) : null;
+        if (encoded != null) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> enc = (Map<String, Object>) encoded[0];
+            String vid = !c.values.containsKey("value") ? "value" : "value-" + (c.values.size() + 1);
+            c.values.put(vid, table("type", encoded[1], "default", enc.get("value")));
+            Map<String, Object> e = new LinkedHashMap<>(enc);
+            e.put("value", "$" + vid);
+            t.put("encode", e);
+            rep.values++;
+        } else {
+            t.put("bytes", Values.hexBytes(data));
+        }
+        return t;
+    }
+
+    // Several files
+
+    /** The operations without the offsets of their build: what must agree for two builds' cheats to be one. */
+    private static List<String> shape(List<Op> ops) {
+        List<String> out = new ArrayList<>();
+        for (Op op : ops) {
+            Map<String, Object> t = new LinkedHashMap<>(op.table);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> at = t.containsKey("at") ? new LinkedHashMap<>((Map<String, Object>) t.get("at"))
+                    : new LinkedHashMap<String, Object>();
+            if (at.containsKey("offsets")) {
+                at.put("offsets", null);
+            }
+            t.put("at", at);
+            t.remove("asm");
+            List<String> keys = new ArrayList<>(t.keySet());
+            Collections.sort(keys);
+            List<Object> items = new ArrayList<>();
+            for (String k : keys) {
+                items.add(Arrays.asList(k, t.get(k)));
+            }
+            out.add(op.kind + " " + Py.repr(items));
+        }
+        return out;
+    }
+
+    private static boolean mergeable(CheatState a, CheatState b) {
+        return java.util.Objects.equals(a.hold, b.hold) && java.util.Objects.equals(a.press, b.press)
+                && sameValues(a.values, b.values) && shape(a.ops).equals(shape(b.ops));
+    }
+
+    /** Python's == for the value tables: numbers compare by value. */
+    private static boolean sameValues(Object a, Object b) {
+        if (a instanceof Map && b instanceof Map) {
+            Map<?, ?> x = (Map<?, ?>) a;
+            Map<?, ?> y = (Map<?, ?>) b;
+            if (!x.keySet().equals(y.keySet())) {
+                return false;
+            }
+            for (Object k : x.keySet()) {
+                if (!sameValues(x.get(k), y.get(k))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (a instanceof Number && b instanceof Number) {
+            return Values.same(a, b);
+        }
+        return java.util.Objects.equals(a, b);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void mergeInto(CheatState a, CheatState b) {
+        for (int i = 0; i < Math.min(a.ops.size(), b.ops.size()); i++) {
+            Object at = a.ops.get(i).table.get("at");
+            if (at instanceof Map && ((Map<String, Object>) at).containsKey("offsets")) {
+                Map<String, Object> offsets = (Map<String, Object>) ((Map<String, Object>) at).get("offsets");
+                Map<String, Object> other = (Map<String, Object>) ((Map<String, Object>) b.ops.get(i).table.get("at"))
+                        .get("offsets");
+                offsets.putAll(other);
+            }
+        }
+    }
+
+    /** Returns a conversion of one Atmosphère cheat file. */
+    public static Conversion fromAtmosphere(Source source, Options options) throws ConvertException {
+        return fromAtmosphere(Collections.singletonList(source), options);
+    }
+
+    /**
+     * Returns a conversion of one or more Atmosphère cheat files, each for one build of the same
+     * game.
+     *
+     * @throws ConvertException with the code "atmosphere" when a file cannot be read, or none
+     *     holds a cheat with code ({@link AtmosphereException}), or "source" when two files name
+     *     the same build
+     */
+    public static Conversion fromAtmosphere(List<Source> sources, Options options) throws ConvertException {
+        Report report = new Report();
+        Map<String, Object> builds = new LinkedHashMap<>();
+        List<List<CheatState>> perSource = new ArrayList<>();
+        for (Source src : sources) {
+            String bid = src.buildId().toUpperCase(Locale.ROOT);
+            String key = nonEmpty(src.buildKey()) ? src.buildKey() : nonEmpty(src.version()) ? src.version() : bid;
+            if (builds.containsKey(key)) {
+                throw new ConvertException("two files name the build " + Py.repr(key));
+            }
+            CodeModule m = src.module();
+            String shortId = m == null ? null : m.shortId();
+            if (shortId != null && !(shortId.startsWith(bid.substring(0, Math.min(16, bid.length())))
+                    || bid.startsWith(shortId))) {
+                report.warnings.add("the module of build " + key + " is " + shortId + ", its cheat file " + bid);
+            }
+            Map<String, Object> build = new LinkedHashMap<>();
+            if (nonEmpty(src.version()) && !src.version().equals(key)) {
+                build.put("version", src.version());
+            }
+            build.put("modules", table("main", bid));
+            builds.put(key, build);
+            perSource.add(convertOne(src, key, report, options.values));
+        }
+
+        // Cheats of several builds with the same name become one where they do the same; masters
+        // first, so that a cheat is only one cheat across builds whose masters are one cheat too.
+        List<List<CheatState>> merged = new ArrayList<>();
+        Map<String, List<CheatState>> masterOf = new HashMap<>();
+        for (boolean wantMaster : new boolean[] {true, false}) {
+            Map<String, List<List<CheatState>>> byName = new HashMap<>();
+            for (List<CheatState> cheats : perSource) {
+                for (CheatState c : cheats) {
+                    if (c.item.master != wantMaster) {
+                        continue;
+                    }
+                    List<CheatState> target = null;
+                    List<List<CheatState>> named = byName.get(c.item.name);
+                    for (List<CheatState> g : named == null ? Collections.<List<CheatState>>emptyList() : named) {
+                        boolean keyTaken = false;
+                        for (CheatState x : g) {
+                            keyTaken |= x.key.equals(c.key);
+                        }
+                        if (!keyTaken && mergeable(g.get(0), c)
+                                && (wantMaster || masterOf.get(g.get(0).key) == masterOf.get(c.key))) {
+                            target = g;
+                            break;
+                        }
+                    }
+                    if (target == null) {
+                        target = new ArrayList<>();
+                        target.add(c);
+                        merged.add(target);
+                        if (named == null) {
+                            named = new ArrayList<>();
+                            byName.put(c.item.name, named);
+                        }
+                        named.add(target);
+                    } else {
+                        target.add(c);
+                    }
+                    if (wantMaster) {
+                        masterOf.put(c.key, target);
+                    }
+                }
+            }
+        }
+        final Map<CheatState, Integer> order = new IdentityHashMap<>();
+        for (List<CheatState> cheats : perSource) {
+            for (CheatState c : cheats) {
+                order.put(c, order.size());
+            }
+        }
+        Collections.sort(merged, new Comparator<List<CheatState>>() {
+            @Override
+            public int compare(List<CheatState> a, List<CheatState> b) {
+                return Integer.compare(first(a), first(b));
+            }
+
+            private int first(List<CheatState> g) {
+                int min = Integer.MAX_VALUE;
+                for (CheatState c : g) {
+                    min = Math.min(min, order.get(c));
+                }
+                return min;
+            }
+        });
+
+        Set<String> taken = new HashSet<>();
+        Map<List<CheatState>, String> ids = new IdentityHashMap<>();
+        for (List<CheatState> g : merged) {
+            ids.put(g, slug(g.get(0).item.name, taken));
+            for (CheatState c : g) {
+                c.rep.id = ids.get(g);
+            }
+        }
+        List<Object> cheats = new ArrayList<>();
+        for (List<CheatState> g : merged) {
+            CheatState first = g.get(0);
+            for (CheatState c : g.subList(1, g.size())) {
+                mergeInto(first, c);
+            }
+            Map<String, Object> t = table("id", ids.get(g), "name", first.item.name);
+            if (first.item.group != null && !first.item.group.isEmpty()) {
+                t.put("group", first.item.group);
+            }
+            if (first.item.master) {
+                t.put("master", true);
+            } else if (masterOf.get(first.key) != null) {
+                t.put("requires", new ArrayList<Object>(Collections.singletonList(ids.get(masterOf.get(first.key)))));
+            }
+            if (first.press != null && !first.press.isEmpty()) {
+                t.put("run", "action");
+                t.put("press", first.press);
+            }
+            if (first.hold != null && !first.hold.isEmpty()) {
+                t.put("hold", first.hold);
+            }
+            if (!first.values.isEmpty()) {
+                t.put("values", new LinkedHashMap<>(first.values));
+            }
+            for (Op op : first.ops) {
+                if (!t.containsKey(op.kind)) {
+                    t.put(op.kind, new ArrayList<Object>());
+                }
+                @SuppressWarnings("unchecked")
+                List<Object> list = (List<Object>) t.get(op.kind);
+                list.add(op.table);
+            }
+            List<Object> raw = new ArrayList<>();
+            for (CheatState c : g) {
+                raw.add(c.raw);
+            }
+            t.put("raw", raw);
+            cheats.add(t);
+        }
+        if (cheats.isEmpty()) {
+            throw new AtmosphereException("the file has no cheat with code");
+        }
+
+        Map<String, Object> doc = new LinkedHashMap<>();
+        doc.put("format", "mncf/1");
+        doc.put("name", nonEmpty(options.name) ? options.name
+                : nonEmpty(options.gameName) ? options.gameName + " cheats" : "Converted cheats");
+        List<String> found = authorsOf(report.credits);
+        if (!found.isEmpty() || (options.authors != null && !options.authors.isEmpty())) {
+            doc.put("authors", new ArrayList<Object>(!found.isEmpty() ? found : options.authors));
+        }
+        if (!report.credits.isEmpty()) {
+            doc.put("about", "Credits in the source: " + String.join("; ", report.credits));
+        }
+        Map<String, Object> origin = table("format", "atmosphere");
+        if (nonEmpty(options.origin)) {
+            origin.put("name", options.origin);
+        }
+        String site = siteOf(report.credits);
+        if (site != null && !site.isEmpty()) {
+            origin.put("site", site);
+        }
+        doc.put("origin", origin);
+        List<Object> exts = new ArrayList<>();
+        exts.add("raw/1");
+        for (Object c : cheats) {
+            if (((Map<?, ?>) c).containsKey("values")) {
+                exts.add("arm64-imm/1");
+                break;
+            }
+        }
+        doc.put("extensions", table("optional", exts));
+        Map<String, Object> game = table("platform", options.platform, "id", options.gameId.toUpperCase(Locale.ROOT));
+        if (nonEmpty(options.gameName)) {
+            game.put("name", options.gameName);
+        }
+        doc.put("game", game);
+        doc.put("builds", builds);
+        doc.put("cheat", cheats);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> frozen = (Map<String, Object>) Values.freeze(doc);
+        List<CheatReport> reports = new ArrayList<>();
+        for (Rep r : report.cheats) {
+            reports.add(r.done());
+        }
+        return new Conversion(frozen, Writer.dumps(frozen),
+                new ConversionReport(reports, report.groups, report.credits, report.warnings));
+    }
+
+    private static boolean nonEmpty(String s) {
+        return s != null && !s.isEmpty();
+    }
+
+    // Back to Atmosphere
+
+    /** An Atmosphère cheat file made from a loaded file for one build, and what went into it. Immutable. */
+    public static final class Export {
+        private final String fileName;
+        private final String text;
+        private final Map<String, String> written;
+        private final Map<String, String> skipped;
+
+        Export(String fileName, String text, Map<String, String> written, Map<String, String> skipped) {
+            this.fileName = fileName;
+            this.text = text;
+            this.written = Collections.unmodifiableMap(new LinkedHashMap<>(written));
+            this.skipped = Collections.unmodifiableMap(new LinkedHashMap<>(skipped));
+        }
+
+        /** Returns the file name cheat files use: the build ID of the main module and ".txt". */
+        public String fileName() {
+            return fileName;
+        }
+
+        /** Returns the text of the cheat file. */
+        public String text() {
+            return text;
+        }
+
+        /** Returns the cheats written, by id: "raw" for their own raw code, "core" for code made from their operations. */
+        public Map<String, String> written() {
+            return written;
+        }
+
+        /** Returns the cheats left out, by id, with why. */
+        public Map<String, String> skipped() {
+            return skipped;
+        }
+    }
+
+    /**
+     * Returns the cheats of a loaded file as an Atmosphère cheat file for one build. Each cheat
+     * uses its raw code for the build when it has one and prefer is "raw"; otherwise code made
+     * from its operations, where they can be said in Atmosphère code.
+     *
+     * @param module the main module of the build, for operations that find their place by a
+     *     pattern; may be null
+     * @param prefer "raw" or "core"
+     * @throws IllegalArgumentException when the file has no such build, or the build names no main module
+     */
+    public static Export toAtmosphere(MncfFile f, String buildKey, CodeModule module, String prefer) {
+        Build build = f.builds().get(buildKey);
+        if (build == null) {
+            throw new IllegalArgumentException("the file has no build " + Py.repr(buildKey));
+        }
+        String mainId = build.modules().get("main");
+        if (mainId == null) {
+            throw new IllegalArgumentException("build " + Py.repr(buildKey) + " names no main module");
+        }
+        Map<String, String> written = new LinkedHashMap<>();
+        Map<String, String> skipped = new LinkedHashMap<>();
+        List<Atmosphere.Out> entries = new ArrayList<>();
+        String group = null;
+        List<Cheat> cheats = new ArrayList<>(f.cheats());
+        Collections.sort(cheats, new Comparator<Cheat>() {
+            @Override
+            public int compare(Cheat a, Cheat b) {
+                return Boolean.compare(!a.isMaster(), !b.isMaster());
+            }
+        });
+        for (Cheat c : cheats) {
+            if (c.problem() != null) {
+                skipped.put(c.id(), c.problem());
+                continue;
+            }
+            Model.Raw raw = null;
+            for (Model.Raw r : c.raw()) {
+                if (r.build.equals(buildKey) && r.syntax.equals("atmosphere")) {
+                    raw = r;
+                    break;
+                }
+            }
+            List<String> rawLines = null;
+            if (raw != null) {
+                rawLines = new ArrayList<>();
+                for (String line : Py.splitLines(Py.strip(raw.code))) {
+                    if (!Py.strip(line).isEmpty()) {
+                        rawLines.add(Py.strip(line));
+                    }
+                }
+            }
+            List<String> lines;
+            String how;
+            if (raw != null && "raw".equals(prefer)) {
+                lines = rawLines;
+                how = "raw";
+            } else {
+                try {
+                    lines = Atmosphere.formatWords(coreWords(c, buildKey, module));
+                    how = "core";
+                } catch (Atmosphere.Unclear u) {
+                    if (raw == null) {
+                        skipped.put(c.id(), u.why);
+                        continue;
+                    }
+                    lines = rawLines;
+                    how = "raw";
+                }
+            }
+            if (!java.util.Objects.equals(c.group(), group) && !c.isMaster()) {
+                group = c.group();
+                if (group != null && !group.isEmpty()) {
+                    entries.add(new Atmosphere.Out(group, false, Collections.<String>emptyList()));
+                }
+            }
+            entries.add(new Atmosphere.Out(c.name(), c.isMaster(), lines));
+            written.put(c.id(), how);
+        }
+        String name = mainId.substring(0, Math.min(16, mainId.length())).toUpperCase(Locale.ROOT) + ".txt";
+        return new Export(name, Atmosphere.writeFile(entries), written, skipped);
+    }
+
+    private static long base(Model.Location loc, String buildKey, CodeModule module) throws Atmosphere.Unclear {
+        if (loc.kind.equals("module") || loc.kind.equals("region")) {
+            return loc.offset;
+        }
+        if (loc.kind.equals("module-builds") || loc.kind.equals("region-builds")) {
+            if (!loc.offsets.containsKey(buildKey)) {
+                throw new Atmosphere.Unclear("a location without an offset for this build");
+            }
+            return loc.offsets.get(buildKey);
+        }
+        if (loc.kind.equals("pattern")) {
+            if (module == null) {
+                throw new Atmosphere.Unclear("a pattern, and no module to search");
+            }
+            List<Long> found = Evaluator.findAll(module.toModuleWithoutId(), loc.find, loc.section, 2);
+            if (found.size() != 1) {
+                throw new Atmosphere.Unclear("a pattern that does not match exactly once in the module");
+            }
+            return found.get(0) + loc.offset;
+        }
+        throw new Atmosphere.Unclear("an absolute address");
+    }
+
+    private static Atmosphere.Place place(Model.Location loc, String buildKey, CodeModule module) throws Atmosphere.Unclear {
+        if (loc.module != null && !loc.module.equals("main")) {
+            throw new Atmosphere.Unclear("a module other than main");
+        }
+        String region = loc.module != null ? "main" : loc.region;
+        if (Atmosphere.regionCode(region) < 0) {
+            throw new Atmosphere.Unclear("the region " + (region == null ? "None" : region));
+        }
+        long[] path = loc.hasPath() ? loc.path.clone() : null;
+        return new Atmosphere.Place(region, base(loc, buildKey, module), path);
+    }
+
+    private static List<Atmosphere.Store> stores(Atmosphere.Place place, byte[] data) {
+        List<Atmosphere.Store> out = new ArrayList<>();
+        int i = 0;
+        while (i < data.length) {
+            int left = data.length - i;
+            int width = left >= 4 ? 4 : left >= 2 ? 2 : 1;
+            long v = 0;
+            for (int k = 0; k < width; k++) {
+                v |= (data[i + k] & 0xFFL) << (8 * k);
+            }
+            out.add(new Atmosphere.Store(place.plus(i), width, v));
+            i += width;
+        }
+        return out;
+    }
+
+    private static Object defaultOf(Cheat c, Object v) {
+        return v instanceof Model.ValueRef ? c.values().get(((Model.ValueRef) v).name).defaultValue() : v;
+    }
+
+    private static List<Long> coreWords(Cheat c, String buildKey, CodeModule module) throws Atmosphere.Unclear {
+        if (!c.run().equals("on") && !c.run().equals("action")) {
+            throw new Atmosphere.Unclear("run = \"" + c.run() + "\" has no Atmosph\u00E8re form");
+        }
+        if (c.toggle() != null) {
+            throw new Atmosphere.Unclear("toggle buttons have no Atmosph\u00E8re form");
+        }
+        List<Atmosphere.Store> stores = new ArrayList<>();
+        List<Atmosphere.Store> restores = new ArrayList<>();
+        List<Model.Condition> conds = new ArrayList<>();
+        for (Model.Op op : c.ops()) {
+            if (op instanceof Model.Patch) {
+                Model.Patch p = (Model.Patch) op;
+                Atmosphere.Place place = place(p.at, buildKey, module);
+                byte[] data;
+                if (p.encode != null) {
+                    data = Encode.arm64Imm(p.encode.insn, p.encode.width, p.encode.rd, defaultOf(c, p.encode.value));
+                    if (data == null) {
+                        throw new Atmosphere.Unclear("a value its instruction cannot hold");
+                    }
+                } else {
+                    data = p.bytes;
+                }
+                stores.addAll(stores(place, data));
+                restores.addAll(stores(place, p.expect));
+            } else if (op instanceof Model.Write) {
+                Model.Write w = (Model.Write) op;
+                Atmosphere.Place place = place(w.at, buildKey, module);
+                Object v = defaultOf(c, w.value);
+                if (v instanceof Boolean) {
+                    v = ((Boolean) v) ? 1L : 0L;
+                }
+                byte[] data;
+                if (w.type.equals("bytes")) {
+                    data = (byte[]) w.value;
+                } else {
+                    if (!Values.fits(w.type, v)) {
+                        throw new Atmosphere.Unclear("a value its write cannot hold");
+                    }
+                    data = Values.encode(w.type, v, false);
+                }
+                stores.addAll(stores(place, data));
+            } else if (op instanceof Model.Override) {
+                Model.Override o = (Model.Override) op;
+                if (o.expect == null) {
+                    throw new Atmosphere.Unclear("an override without expect");
+                }
+                Object v = defaultOf(c, o.value);
+                long bits = v == null ? 0 : Values.bits(v);
+                byte[] stub = Encode.arm64Stub(o.action, bits);
+                if (stub.length > o.expect.length) {
+                    throw new Atmosphere.Unclear("an override whose stub is longer than expect");
+                }
+                Atmosphere.Place place = place(o.function, buildKey, module);
+                stores.addAll(stores(place, stub));
+                restores.addAll(stores(place, Arrays.copyOf(o.expect, stub.length)));
+            } else if (op instanceof Model.Condition) {
+                conds.add((Model.Condition) op);
+            } else if (op instanceof Model.Read) {
+                throw new Atmosphere.Unclear("a monitor has no Atmosph\u00E8re form");
+            }
+        }
+        if (conds.size() > 1 || (!conds.isEmpty() && (!c.match().equals("all") || !c.trigger().equals("while")
+                || c.interval() != 1))) {
+            throw new Atmosphere.Unclear("conditions that Atmosph\u00E8re cannot say");
+        }
+        List<Long> body = new ArrayList<>();
+        for (Atmosphere.Store s : stores) {
+            body.addAll(Atmosphere.storeWords(s.place, s.width, s.value));
+        }
+        if (!conds.isEmpty()) {
+            Model.Condition cond = conds.get(0);
+            Atmosphere.Place place = place(cond.at, buildKey, module);
+            Object value = defaultOf(c, cond.value);
+            if (place.hasPath() || !Arrays.asList("u8", "u16", "u32", "u64").contains(cond.type)
+                    || !Atmosphere.isConditionOp(cond.op) || !Values.isInt(value)) {
+                throw new Atmosphere.Unclear("a condition that Atmosph\u00E8re cannot say");
+            }
+            List<Long> words = Atmosphere.conditionWords(place, Integer.parseInt(cond.type.substring(1)) / 8, cond.op,
+                    Values.bits(value));
+            words.addAll(body);
+            words.add(0x20000000L);
+            body = words;
+        }
+        List<Long> words;
+        if (c.run().equals("action")) {
+            boolean writes = false;
+            for (Model.Op op : c.ops()) {
+                writes |= op instanceof Model.Write;
+            }
+            if (c.hold() != null || writes) {
+                throw new Atmosphere.Unclear("an action with writes or hold has no Atmosph\u00E8re form");
+            }
+            words = new ArrayList<>();
+            words.add(0x80000000L | Atmosphere.keyMask(c.press()));
+            words.addAll(body);
+            words.add(0x20000000L);
+        } else if (c.hold() != null) {
+            words = new ArrayList<>();
+            words.add(0x80000000L | Atmosphere.keyMask(c.hold()));
+            words.addAll(body);
+            if (!restores.isEmpty()) {
+                words.add(0x21000000L);
+                for (Atmosphere.Store s : restores) {
+                    words.addAll(Atmosphere.storeWords(s.place, s.width, s.value));
+                }
+            }
+            words.add(0x20000000L);
+        } else {
+            words = body;
+        }
+        if (words.isEmpty()) {
+            throw new Atmosphere.Unclear("nothing to write");
+        }
+        return words;
+    }
+
+    /** The names of an original file's entries, sorted by how a regenerated file has their code. Immutable. */
+    public static final class Comparison {
+        private final List<String> same;
+        private final List<String> differ;
+        private final List<String> missing;
+
+        Comparison(List<String> same, List<String> differ, List<String> missing) {
+            this.same = Collections.unmodifiableList(new ArrayList<>(same));
+            this.differ = Collections.unmodifiableList(new ArrayList<>(differ));
+            this.missing = Collections.unmodifiableList(new ArrayList<>(missing));
+        }
+
+        /** Returns the entries whose code the other file has the same. */
+        public List<String> same() {
+            return same;
+        }
+
+        /** Returns the entries whose code the other file has otherwise. */
+        public List<String> differ() {
+            return differ;
+        }
+
+        /** Returns the entries the other file lacks. */
+        public List<String> missing() {
+            return missing;
+        }
+    }
+
+    /**
+     * Compares the entries with code of two Atmosphère cheat files, by name. Code is the same
+     * when its words are; with effects, also when it writes the same bytes at the same places
+     * under the same buttons and condition, and puts the same back on release.
+     */
+    public static Comparison compare(String original, String regenerated, boolean effects) throws AtmosphereException {
+        Map<List<Object>, Atmosphere.Entry> a = entryTable(original);
+        Map<List<Object>, Atmosphere.Entry> b = entryTable(regenerated);
+        List<String> same = new ArrayList<>();
+        List<String> differ = new ArrayList<>();
+        List<String> missing = new ArrayList<>();
+        for (Map.Entry<List<Object>, Atmosphere.Entry> e : a.entrySet()) {
+            Atmosphere.Entry other = b.get(e.getKey());
+            String name = (String) e.getKey().get(0);
+            if (other == null) {
+                missing.add(name);
+            } else if (Arrays.equals(other.wordsShared(), e.getValue().wordsShared())) {
+                same.add(name);
+            } else {
+                List<Object> mine = effects ? effect(e.getValue()) : null;
+                List<Object> theirs = effects ? effect(other) : null;
+                if (effects && theirs != null && theirs.equals(mine)) {
+                    same.add(name);
+                } else {
+                    differ.add(name);
+                }
+            }
+        }
+        return new Comparison(same, differ, missing);
+    }
+
+    private static Map<List<Object>, Atmosphere.Entry> entryTable(String text) throws AtmosphereException {
+        Map<List<Object>, Atmosphere.Entry> out = new LinkedHashMap<>();
+        for (Atmosphere.Entry e : Atmosphere.parse(text)) {
+            if (e.wordsShared().length > 0 && !Atmosphere.isNoop(e)) {
+                out.put(Arrays.<Object>asList(e.name(), e.master()), e);
+            }
+        }
+        return out;
+    }
+
+    private static List<Object> effect(Atmosphere.Entry entry) {
+        Atmosphere.Derived d;
+        try {
+            d = Atmosphere.derive(entry);
+        } catch (Atmosphere.Unclear u) {
+            return null;
+        }
+        Map<Atmosphere.Place, Integer> written = new HashMap<>();
+        for (Atmosphere.Store s : d.stores) {
+            byte[] data = s.data();
+            for (int i = 0; i < data.length; i++) {
+                written.put(s.place.plus(i), data[i] & 0xFF);
+            }
+        }
+        Object cond = d.condition == null ? null : d.condition.key();
+        return Arrays.<Object>asList(d.keys, cond, d.released != null, written);
+    }
+}
