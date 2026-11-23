@@ -116,6 +116,7 @@ public final class BottomScreen {
 
     /** MainActivity.buildHome (PEANUTS hook) */
     public static void home(Activity a, Runnable settings) {
+        dev.peanuts.mods.CheatsPage.left();   // Home shows: a game's Mods & Cheats is closed
         watch(a);
         openSettings = settings;
         explain = null;

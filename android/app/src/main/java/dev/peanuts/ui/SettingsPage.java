@@ -67,6 +67,7 @@ public final class SettingsPage {
 
     /** MainActivity.buildSettings' last line (PEANUTS hook): its rows into the sections, and the section that was showing */
     public static void lay(Activity a, LinearLayout content) {
+        dev.peanuts.mods.CheatsPage.left();   // Settings shows: a game's Mods & Cheats is closed
         owner = a;
         pane = content;
         tablet = a.getResources().getConfiguration().smallestScreenWidthDp >= WIDE_DP;
@@ -124,6 +125,7 @@ public final class SettingsPage {
      * and from the tiles, false: Back goes on as it did (Advanced closes, Settings goes back to Home)
      */
     public static boolean onBack(Activity a) {
+        if (dev.peanuts.mods.CheatsPage.onBack(a)) return true;   // a game's Mods & Cheats: back to the game's page
         if (!tablet || atHub || a != owner || pane == null || !pane.isAttachedToWindow()) return false;
         toHub();
         return true;
