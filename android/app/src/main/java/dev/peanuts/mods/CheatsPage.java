@@ -41,7 +41,8 @@ import dev.peanuts.ui.PUi;
  *     chips. A switch keeps the toggle for the game's next start (CheatsBridge.on: the toggles the launcher writes into &lt;build&gt;.enabled) and acts at once in a
  *     running game through the in-game panel. A tap on a source opens its sheet: on or off as a whole, other versions, remove.</li>
  * <li>Mods: today's Mods section (dev.peanuts.settings.ModsSection), each mod with "Next start" or "Needs a build".</li>
- * <li>Add: a file (.zip, .txt, .mncf, .mncp) or a folder (CheatImportUi); a mod goes to the mod import. Export: the player's sources as .mncf or .mncp.</li>
+ * <li>Add: a file (.zip, .txt, .mncf, .mncp) or a folder (CheatImportUi); a mod goes to the mod import. Export, beside Add on the Cheats tab while there are
+ *     sources: the player's sources as .mncf or .mncp.</li>
  * </ul>
  * Each source is an .mncf file (Mistel Native Cheat Format) made ready for the game's build (MncfBuild): a cheat that cannot work here is listed, off, with
  * the reason in the player's words (MncfWords); a source signed by a key Peanuts trusts says who signed it, an unsigned one is as any other. A source not made
@@ -294,6 +295,17 @@ public final class CheatsPage {
         android.widget.Button add = PUi.button(a, "Add", PUi.Kind.PRIMARY, Feel.button(v -> CheatImportUi.add(a, g.titleId)));
         android.graphics.drawable.Drawable plus = Icons.get(a, "add", Icons.Ink.ON_BANANA);
         if (plus != null) { plus.setBounds(0, 0, PUi.dp(a, 20), PUi.dp(a, 20)); add.setCompoundDrawables(plus, null, null, null); add.setCompoundDrawablePadding(PUi.dp(a, 6)); add.setPadding(PUi.dp(a, 12), 0, PUi.dp(a, 16), 0); }
+        // Export beside Add, the other way a cheat file goes: the player's sources as .mncf (one) or .mncp (several), with what is on and the numbers set
+        int sources = 0;
+        for (CheatSources.Source s : m.sources) if (s.file().isFile()) sources++;
+        int exportable = sources;
+        android.widget.Button export = !tab.equals(CHEATS) || sources == 0 ? null
+                : PUi.button(a, "Export", PUi.Kind.TONAL, Feel.button(v -> CheatImportUi.export(a, g, exportable)));
+        if (export != null) {
+            export.setContentDescription(sources == 1 ? "Export the cheats as an .mncf file" : "Export the cheats as an .mncp pack of " + sources + " files");
+            android.graphics.drawable.Drawable out = Icons.get(a, "pack_out", Icons.Ink.NORMAL);
+            if (out != null) { out.setBounds(0, 0, PUi.dp(a, 20), PUi.dp(a, 20)); export.setCompoundDrawables(out, null, null, null); export.setCompoundDrawablePadding(PUi.dp(a, 6)); export.setPadding(PUi.dp(a, 12), 0, PUi.dp(a, 16), 0); }
+        }
 
         LinearLayout head = PUi.row(a);
         head.setMinimumHeight(PUi.dp(a, 56));
@@ -311,14 +323,20 @@ public final class CheatsPage {
         head.addView(titles, PUi.weight());
         LinearLayout top = new LinearLayout(a);   // the page's top, kept at the top while the rest scrolls (stick)
         top.setOrientation(LinearLayout.VERTICAL);
-        if (!own) {   // the area's bar: Cheats | Mods, then Add
+        LinearLayout.LayoutParams el = PUi.wrap();
+        el.leftMargin = PUi.dp(a, 10);
+        if (!own) {   // the area's bar: Cheats | Mods, then Export and Add
             LinearLayout bar = PUi.row(a);
             bar.addView(seg, new LinearLayout.LayoutParams(PUi.dp(a, 240), ViewGroup.LayoutParams.WRAP_CONTENT));
             bar.addView(PUi.spacer(a));
-            bar.addView(add, PUi.wrap());
+            if (export != null) bar.addView(export, PUi.wrap());
+            LinearLayout.LayoutParams al = PUi.wrap();
+            al.leftMargin = export != null ? PUi.dp(a, 10) : 0;
+            bar.addView(add, al);
             top.addView(bar);
         } else if (wide) {
             head.addView(seg, new LinearLayout.LayoutParams(PUi.dp(a, 240), ViewGroup.LayoutParams.WRAP_CONTENT));
+            if (export != null) head.addView(export, el);
             LinearLayout.LayoutParams al = PUi.wrap();
             al.leftMargin = PUi.dp(a, 10);
             head.addView(add, al);
@@ -327,6 +345,7 @@ public final class CheatsPage {
             top.addView(head);
             LinearLayout bar = PUi.row(a);
             bar.addView(seg, PUi.weight());
+            if (export != null) bar.addView(export, el);
             LinearLayout.LayoutParams al = PUi.wrap();
             al.leftMargin = PUi.dp(a, 10);
             bar.addView(add, al);
@@ -437,21 +456,10 @@ public final class CheatsPage {
         for (CheatSources.Source s : m.sources) any |= source(a, content, m, m.block(s.id), s, s.name);
         for (CheatSources.Block b : blocks) if (b.id.startsWith("mod:")) any |= source(a, content, m, b, null, b.name);
         prepare(a, m);
-        if (MncfExport.any(m.folder)) {
-            int n = 0;
-            for (CheatSources.Source s : m.sources) if (s.file().isFile()) n++;
-            LinearLayout card = PUi.add(content, PUi.listCard(a), 16);
-            int sources = n;
-            PUi.Setting ex = new PUi.Setting(a, "", "Export cheats", Feel.row(v -> CheatImportUi.export(a, g, sources)))
-                    .value(n == 1 ? "As one .mncf file, with the cheats you turned on and the numbers you set" : "As one .mncp pack of " + n + " files, with the cheats you turned on and the numbers you set").chevron(a);
-            rowLook(ex.view, "folder");
-            explainOnFocus(ex.view, () -> BottomScreen.explain(a, null));
-            card.addView(ex.view);
-        }
         if (!any) {
             LinearLayout card = PUi.add(content, PUi.listCard(a), 12);
             PUi.Setting none = new PUi.Setting(a, "", "No cheats yet", Feel.row(v -> CheatImportUi.add(a, g.titleId)))
-                    .value("Add a zip, a text file or a folder with cheats for " + m.versionWords() + " (build " + shortBuild(m.build) + "). Peanuts never downloads any.");
+                    .value("Add a Mistel cheat file (.mncf), or a zip, a text file or a folder with cheats for " + m.versionWords() + " (build " + shortBuild(m.build) + "). Peanuts never downloads any.");
             rowLook(none.view, "folder");
             explainOnFocus(none.view, () -> BottomScreen.explain(a, null));
             card.addView(none.view);
@@ -483,7 +491,7 @@ public final class CheatsPage {
         if (b != null && b.pending) { card.addView(cardLine(a, "Looking up its cheats in " + m.versionWords() + ".")); return true; }
         if (b != null && b.error != null) { card.addView(cardLine(a, "Its file cannot be read: it is damaged or of a newer kind. Remove it, or add a newer copy.")); return true; }
         if (p != null && !p.credits.isEmpty()) card.addView(cardLine(a, "Credit: " + CheatFile.credit(p)));
-        if (p != null && p.unsupported() > 0) card.addView(cardLine(a, p.unsupported() + " more " + (p.unsupported() == 1 ? "is" : "are") + " not supported here: listed, and off."));
+        if (p != null && p.unsupported() > 0) card.addView(cardLine(a, p.unsupported() + " more " + (p.unsupported() == 1 ? "is" : "are") + (p.mncf != null ? " not possible here: listed with the reason, and off." : " not supported here: listed, and off.")));
         if (p != null && !p.masters.isEmpty() && enabled) {
             List<String> ms = new ArrayList<>();
             for (CheatFile.Cheat c : p.masters) ms.add(c.name);

@@ -140,7 +140,7 @@ final class ModCheats {
         return install(shipped, folder, build, on, modCheatDirs, notes, new MncfConvert.Known(folder.getName(), null, null, null, null, null), new MncfBuild.Game(folder.getName(), build, null, null));
     }
 
-    /** The same, k what a conversion of an earlier file knows (CheatsBridge.known), g the game for the .mncf sources (its pack: the game's own main) */
+    /** The same; known: what a conversion of an earlier file knows (CheatsBridge.known), g: the game for the .mncf sources (its pack: the game's own main) */
     static List<Cheats.Entry> install(File shipped, File folder, String build, Set<String> on, List<File> modCheatDirs, List<String> notes, MncfConvert.Known known, MncfBuild.Game g) throws IOException {
         List<ModFile> mods = of(modCheatDirs, build, notes);
         List<CheatSources.Source> moved = CheatSources.migrate(folder, System.currentTimeMillis(), known);

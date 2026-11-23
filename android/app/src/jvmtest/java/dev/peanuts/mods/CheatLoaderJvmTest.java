@@ -716,6 +716,13 @@ public final class CheatLoaderJvmTest {
         CheatImport.Found inZip = CheatImport.read(CheatImport.fromZip(new ByteArrayInputStream(zo.toByteArray()), paths), paths, TID, BUILDS, "hand.zip");
         check(inZip.mncf.size() == 1 && !inZip.pack, "an .mncf in a zip");
         check(MncfExport.fileName("A/B: C?", false).equals("A B C cheats.mncf"), MncfExport.fileName("A/B: C?", false));
+
+        // What a file brings, for the Add dialog: counted from the file itself
+        MncfFacts hf = MncfFacts.of(io.github.davdxpx.mistel.mncf.Mncf.load(u(HAND)));
+        check(hf.cheats == 6 && hf.checked == 3 && hf.patterns == 3 && hf.values == 1 && hf.described == 1 && hf.rawOnly == 0 && hf.versions.isEmpty() && hf.signer == null,
+                "the hand-made file: " + hf.cheats + " " + hf.checked + " " + hf.patterns + " " + hf.values + " " + hf.described);
+        MncfFacts sf = MncfFacts.of(load(CheatSources.find(folder, "site").file()));
+        check(sf.versions.equals(List.of("1.0.0")) && "1.0.0".equals(sf.versionWords()) && sf.rawOnly > 0 && sf.checked > 0, "a converted file: " + sf.versions + " raw " + sf.rawOnly);
     }
 
     // ---- A real file, when one is given (never in the repository) ----

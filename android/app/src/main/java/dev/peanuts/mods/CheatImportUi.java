@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.net.Uri;
+import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -134,14 +135,17 @@ public final class CheatImportUi {
             List<String[]> lines = new ArrayList<>();
             lines.add(new String[] {"check", CheatsPage.count(n, "cheat") + " for your version",
                     "Build " + CheatsPage.shortBuild(build) + ", the one your game was built from." + (f.groups() > 0 ? " " + CheatsPage.count(f.groups(), "group") + "." : "")});
+            lines.add(new String[] {"lock", "Checked before every write", "Each cheat that changes the game's code names the code it expects there, taken from your game. Peanuts compares it before it writes."});
+            lines.add(new String[] {"update", "Ready for game updates", "Its places are found again by the code around them, so the cheats keep working after an update."});
             if (f.unsupported() > 0) lines.add(new String[] {"info", f.unsupported() + " more " + (f.unsupported() == 1 ? "is" : "are") + " not supported",
                     "They use a part of the cheat format Peanuts does not run. They are listed and stay off."});
             if (f.restores()) lines.add(new String[] {"info", "Restore Code is left out", "Peanuts puts the original code back by itself when you turn a cheat off."});
             if (!f.otherVersion.isEmpty()) lines.add(new String[] {"info", CheatsPage.count(f.otherVersion.size(), "file") + " for another version",
                     "Kept with them: they work when the game is that version."});
             if (!folder && CheatSources.FROM_ZIP.equals(from)) lines.add(new String[] {"info", "No mods in this zip", "Mods go in the same way: a zip with romfs or exefs folders."});
-            dialog(a, "Add cheats", "From " + what + " for " + g.name + (version != null ? " " + version : "") + ".", lines,
-                    "Cancel", null, "Add " + CheatsPage.count(n, "cheat"), () -> take(a, f, from, n));
+            View card = formatCard(a, "update", "Becomes a Mistel cheat file", "Atmosphère cheats from " + what + ". Peanuts keeps them as one .mncf for every version of the game.", null);
+            dialog(a, "Add cheats", card, null, lines,
+                    "Cancel", null, "Add " + CheatsPage.count(n, "cheat"), () -> take(a, f, from, n, display != null ? display : what));
             return;
         }
         if (!f.otherVersion.isEmpty()) {
@@ -153,7 +157,7 @@ public final class CheatImportUi {
                     "Your game: " + yours + ", build " + CheatsPage.shortBuild(build) + ". None of the " + CheatsPage.count(n, "cheat") + " would hit the right places."});
             lines.add(new String[] {"info", "Look for cheats for " + yours, "The file has to be named " + build + ".txt or start with that build."});
             dialog(a, "These cheats are for another version", "Cheats only work on the exact build they were made for.", lines,
-                    "Keep them anyway", () -> take(a, f, from, 0), "OK", null);
+                    "Keep them anyway", () -> take(a, f, from, 0, display != null ? display : what), "OK", null);
             return;
         }
         if (!f.otherGame.isEmpty() || !f.mncfOtherGame.isEmpty()) {
@@ -182,35 +186,82 @@ public final class CheatImportUi {
         List<String> had = new ArrayList<>();
         for (CheatImport.MncfHit h : f.mncf) { CheatSources.Source same = CheatSources.sameMncf(folderOf, h.data); if (same != null) had.add(same.name); else fresh.add(h); }
         if (fresh.isEmpty()) { message(a, "Added already", String.join(", ", had) + (had.size() == 1 ? " has" : " have") + " the same cheats. Nothing was added."); return; }
-        int n = 0;
+        List<io.github.davdxpx.mistel.mncf.MncfFile> files = new ArrayList<>();
         boolean ours = false;
-        List<String> versions = new ArrayList<>();
+        List<String> authors = new ArrayList<>();
         for (CheatImport.MncfHit h : fresh) {
-            n += h.cheats();
+            files.add(h.file);
             if (MncfBuild.builds(h.file).contains(build)) ours = true;
-            for (io.github.davdxpx.mistel.mncf.Build b : h.file.builds().values()) if (!versions.contains(b.version())) versions.add(b.version());
+            for (String x : h.file.authors()) if (!authors.contains(x)) authors.add(x);
         }
-        List<String[]> lines = new ArrayList<>();
-        lines.add(new String[] {"check", CheatsPage.count(n, "cheat") + (fresh.size() > 1 ? " in " + fresh.size() + " files" : ""),
-                ours ? "Made for " + yours + " among others." : versions.isEmpty() ? "It names no version: the cheats that find their place in the game's code work on any." : "Made for " + String.join(", ", versions) + ". The cheats that find their place in the game's code can work on " + yours + " too."});
-        for (CheatImport.MncfHit h : fresh) {
-            io.github.davdxpx.mistel.mncf.SignatureResult sig = h.file.signature();   // only a verified file gets a line; an unsigned one is as any other
-            if (io.github.davdxpx.mistel.mncf.SignatureResult.VERIFIED.equals(sig.result()) && !sig.signers().isEmpty())
-                lines.add(new String[] {"check", "Signed by " + sig.signers().get(0), "Its file is as " + sig.signers().get(0) + " made it."});
-        }
-        lines.add(new String[] {"info", "Checked for your version next", "Peanuts looks up each cheat's place in your game and lists the ones that cannot work with the reason."});
+        MncfFacts x = MncfFacts.of(files);
+        int n = x.cheats;
+        String by = authors.isEmpty() ? "" : " by " + String.join(", ", authors);
+        View card = formatCard(a, "check", "Mistel cheat file", (fresh.size() == 1 ? fresh.get(0).name() + ".mncf" : fresh.size() + " files of a pack") + by, x.signer);
+        List<String[]> lines = facts(x, yours, ours);
+        lines.add(new String[] {"search", "Looked up in your game next", "Peanuts finds each cheat's place in " + yours + " and lists the ones that cannot work, with the reason."});
         if (!had.isEmpty()) lines.add(new String[] {"info", "Added already: " + String.join(", ", had), "Those are not added again."});
-        int cheats = n;
-        dialog(a, "Add cheats", "From " + what + " for " + g.name + ".", lines, "Cancel", null, "Add " + CheatsPage.count(n, "cheat"), () -> takeMncf(a, fresh, from, cheats));
+        dialog(a, "Add cheats", card, null, lines, "Cancel", null, "Add " + CheatsPage.count(n, "cheat"), () -> takeMncf(a, fresh, from, n));
+    }
+
+    /** What an .mncf brings, as the dialog's lines (only what it has): its cheats and versions, the checks, the updates, the numbers, the words */
+    static List<String[]> facts(MncfFacts x, String yours, boolean ours) {
+        List<String[]> lines = new ArrayList<>();
+        String v = x.versionWords();
+        lines.add(new String[] {"check", CheatsPage.count(x.cheats, "cheat"), ours ? (x.versions.size() > 1 ? "Made for " + v + ", " + yours + " among them." : "Made for " + yours + ", your version.")
+                : v == null ? "It names no version: the cheats that find their place in the game's code work on any." : "Made for " + v + ". The cheats that find their place in the game's code can work on " + yours + " too."});
+        if (x.checked > 0) lines.add(checked(x.checked, x.cheats));
+        if (x.patterns > 0) lines.add(updates(x.patterns));
+        if (x.values > 0) lines.add(new String[] {"scale", CheatsPage.count(x.values, "number") + " you can set", "In the game's Mods tab, within the range the file gives."});
+        if (x.described > 0) lines.add(new String[] {"info", x.described == x.cheats ? (x.cheats == 1 ? "It says what it does" : "Each says what it does") : x.described == 1 ? "1 says what it does" : x.described + " say what they do",
+                "Shown on the cheat and on the second screen."});
+        return lines;
+    }
+
+    static String[] checked(int checked, int cheats) {
+        String who = checked == cheats ? (cheats == 1 ? "It changes" : "Each changes") : checked == 1 ? "1 of them changes" : checked + " of them change";
+        return new String[] {"lock", "Checked before every write", who + " the game's code only where the code it expects is, so nothing is written into the wrong place."};
+    }
+
+    static String[] updates(int patterns) {
+        return new String[] {"update", "Ready for game updates", (patterns == 1 ? "1 cheat finds its place by the code around it, so it keeps" : patterns + " cheats find their place by the code around it, so they keep")
+                + " working after an update."};
+    }
+
+    /**
+     * The card at the top of the Add dialog and the sheet after it: the Mistel cheat file, what it is called and who made it, and who signed it when a key
+     * Peanuts trusts did (an unsigned file gets no mark: it is as any other)
+     */
+    static View formatCard(Activity a, String icon, String title, String sub, String signer) {
+        LinearLayout card = PUi.row(a);
+        card.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        card.setPadding(PUi.dp(a, 14), PUi.dp(a, 12), PUi.dp(a, 14), PUi.dp(a, 12));
+        card.setBackground(PUi.round(PUi.col(a, R.color.bn_tint), PUi.dp(a, 16), 0, 0));
+        TextView tile = PUi.text(a, "", 12, R.color.bn_on_banana, 400);
+        tile.setBackground(PUi.round(PUi.col(a, R.color.bn_banana), PUi.dp(a, 13), 0, 0));
+        card.addView(tile, new LinearLayout.LayoutParams(PUi.dp(a, 44), PUi.dp(a, 44)));
+        android.graphics.drawable.Drawable mark = Icons.get(a, icon, Icons.Ink.ON_BANANA);   // on the banana tile: Icons.tile draws in the row tile's colours
+        if (mark != null) tile.setForeground(new android.graphics.drawable.InsetDrawable(mark, PUi.dp(a, 10)));
+        LinearLayout col = new LinearLayout(a);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding(PUi.dp(a, 14), 0, PUi.dp(a, 8), 0);
+        TextView t = PUi.text(a, title, 17, R.color.bn_text, 800);
+        col.addView(t);
+        TextView s = PUi.small(a, sub);
+        s.setMaxLines(3);
+        s.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        col.addView(s);
+        card.addView(col, PUi.weight());
+        if (signer != null) card.addView(CheatsPage.chip(a, "Signed by " + signer, true), PUi.wrap());
+        return card;
     }
 
     /** The pick's sources added (one per Eden or Ryujinx set, else one), each made one .mncf, on; n: the game's cheats, for the line after */
-    private static void take(Activity a, CheatImport.Found f, String from, int n) {
+    private static void take(Activity a, CheatImport.Found f, String from, int n, String origin) {
         CheatsPage.Game g = CheatsPage.shown();
         if (g == null) return;
         File folder = CheatsBridge.folder(a, g.titleId);
-        String origin = f.name;
-        added(a, g, n, () -> {
+        added(a, g, n, true, () -> {
             List<CheatSources.Source> out = new ArrayList<>();
             long now = System.currentTimeMillis();
             MncfConvert.Known k = CheatsBridge.known(a, g.titleId, g.name, g.packDir);
@@ -224,7 +275,7 @@ public final class CheatImportUi {
         CheatsPage.Game g = CheatsPage.shown();
         if (g == null) return;
         File folder = CheatsBridge.folder(a, g.titleId);
-        added(a, g, n, () -> {
+        added(a, g, n, false, () -> {
             List<CheatSources.Source> out = new ArrayList<>();
             long now = System.currentTimeMillis();
             for (CheatImport.MncfHit h : files) out.add(CheatSources.addMncf(folder, h.name(), from, h.data, now++));
@@ -232,27 +283,64 @@ public final class CheatImportUi {
         });
     }
 
+    /** What adding sources gave: the cheats it switched on (the file's defaults) and what the new files bring */
+    private static final class Added {
+        final java.util.Set<String> on = new java.util.LinkedHashSet<>();
+        MncfFacts facts;
+        String version;
+        int work, refused;   // the new sources' cheats that work on this version, and the ones that cannot (listed with the reason)
+        String named;        // the new files as the card names them: "Example cheats.mncf by Example Team"
+    }
+
     /**
-     * Sources added off the UI thread (add: makes them; a conversion reads the game's main), then made ready for the game's build, and their cheats that are on
-     * by default (an export's: the ones that were on) switched on; then the line after and the page again. A failure leaves what was added before it
+     * Sources added off the UI thread (add: makes them; a conversion reads the game's main, so the wait says it looks up the cheats there), then made ready for
+     * the game's build, and their cheats that are on by default (an export's: the ones that were on) switched on; then a sheet with what the new Mistel cheat
+     * files bring (converted: what the conversion made of them), and the page again. A failure leaves what was added before it
      */
-    private static void added(Activity a, CheatsPage.Game g, int n, java.util.concurrent.Callable<List<CheatSources.Source>> add) {
-        CheatPick.work(a, "Add cheats", () -> {
+    private static void added(Activity a, CheatsPage.Game g, int n, boolean converted, java.util.concurrent.Callable<List<CheatSources.Source>> add) {
+        CheatPick.work(a, "Add cheats", converted ? "Finding each cheat's place in your game's code." : null, () -> {
             List<CheatSources.Source> made = add.call();
+            Added out = new Added();
             String build = CheatsBridge.builds(g.titleId, g.packDir).stream().findFirst().orElse(null);
-            java.util.Set<String> on = new java.util.LinkedHashSet<>();
+            out.version = build == null ? null : CheatsBridge.version(g.titleId, build);
             if (build != null) {
                 CheatSources.Merged m = CheatsBridge.merged(a, g.titleId, g.gameDir, g.packDir, build, CheatsBridge.textEnd(g.packDir), true);
                 java.util.Set<String> ids = new java.util.HashSet<>();
                 for (CheatSources.Source s : made) ids.add(s.id);
-                for (CheatSources.Row r : m.rows) if (ids.contains(r.block.id) && r.cheat.mncf != null && r.cheat.mncf.isDefault && r.cheat.switchable()) on.add(r.key);
+                for (CheatSources.Row r : m.rows) if (ids.contains(r.block.id) && r.cheat.mncf != null && r.cheat.mncf.isDefault && r.cheat.switchable()) out.on.add(r.key);
+                for (CheatSources.Block b : m.blocks) if (ids.contains(b.id)) for (CheatFile.Cheat c : b.parsed.cheats) { if (c.switchable()) out.work++; else out.refused++; }
             }
-            return on;
-        }, on -> {
-            if (!on.isEmpty()) { java.util.Set<String> all = CheatsBridge.on(a, g.titleId); all.addAll(on); CheatsBridge.on(a, g.titleId, all); }
+            List<io.github.davdxpx.mistel.mncf.MncfFile> files = new ArrayList<>();
+            List<String> authors = new ArrayList<>();
+            for (CheatSources.Source s : made) {
+                try { files.add(io.github.davdxpx.mistel.mncf.Mncf.load(java.nio.file.Files.readAllBytes(s.file().toPath()))); } catch (IOException | io.github.davdxpx.mistel.mncf.MncfException ignored) { }
+            }
+            for (io.github.davdxpx.mistel.mncf.MncfFile f : files) for (String x : f.authors()) if (!authors.contains(x)) authors.add(x);
+            out.facts = MncfFacts.of(files);
+            out.named = (made.size() == 1 ? made.get(0).name + ".mncf" : made.size() + " files") + (authors.isEmpty() ? "" : " by " + String.join(", ", authors));
+            return out;
+        }, out -> {
+            if (!out.on.isEmpty()) { java.util.Set<String> all = CheatsBridge.on(a, g.titleId); all.addAll(out.on); CheatsBridge.on(a, g.titleId, all); }
             Feel.accepted(a);
-            Toast.makeText(a, n > 0 ? "Added " + CheatsPage.count(n, "cheat") + "." + (on.isEmpty() ? " Turn on the ones you want." : " " + CheatsPage.count(on.size(), "cheat") + " on, as the file has them.") : "Kept for another version.", Toast.LENGTH_LONG).show();
             CheatsPage.rebuild();
+            if (n == 0) { Toast.makeText(a, "Kept for another version.", Toast.LENGTH_LONG).show(); return; }
+            String yours = out.version != null ? out.version : "your version";
+            MncfFacts x = out.facts;
+            List<String[]> lines = new ArrayList<>();
+            int all = out.work + out.refused;
+            lines.add(new String[] {"check", out.refused == 0 ? (all == 1 ? "It works on " + yours : "All " + all + " work on " + yours) : out.work + " of " + all + " work on " + yours,
+                    "Each was looked up in your game's code."});
+            if (out.refused > 0) lines.add(new String[] {"info", out.refused == 1 ? "1 cannot work here" : out.refused + " cannot work here", "Listed with the reason, and off."});
+            if (x.checked > 0) lines.add(checked(x.checked, x.cheats));
+            if (x.patterns > 0) lines.add(updates(x.patterns));
+            if (x.values > 0) lines.add(new String[] {"scale", CheatsPage.count(x.values, "number") + " you can set", "In the game's Mods tab, within the range the file gives."});
+            if (converted && x.rawOnly > 0) lines.add(new String[] {"layers", x.rawOnly == 1 ? "1 kept as its own code" : x.rawOnly + " kept as their own code",
+                    "Code that does more than change places Peanuts can name runs as it came, on " + yours + "."});
+            lines.add(new String[] {"controller", out.on.isEmpty() ? "Turn on the ones you want" : (out.on.size() == 1 ? "1 is on" : out.on.size() + " are on") + ", as the file has them",
+                    "Here or in the game's Mods tab. A cheat switches at once in a running game."});
+            View card = formatCard(a, converted ? "update" : "check", converted ? "Now a Mistel cheat file" : "Mistel cheat file",
+                    converted ? "One .mncf for every version of " + g.name + ": " + out.named : out.named, x.signer);
+            dialog(a, "Cheats added", card, null, lines, null, null, "Done", null);
         }, e -> {
             Feel.refused(a);
             android.util.Log.w("peanuts", "cheats: adding a source: " + e);
@@ -271,11 +359,19 @@ public final class CheatImportUi {
 
     /** A dialog with a lead and lines of an icon, a heading and a line under it (icon: check, info, warning) */
     private static void dialog(Activity a, String title, String lead, List<String[]> lines, String negative, Runnable onNegative, String positive, Runnable onPositive) {
+        dialog(a, title, null, lead, lines, negative, onNegative, positive, onPositive);
+    }
+
+    /** The same with a card above the lead (formatCard); lead null: none */
+    private static void dialog(Activity a, String title, View card, String lead, List<String[]> lines, String negative, Runnable onNegative, String positive, Runnable onPositive) {
         LinearLayout box = new LinearLayout(a);
         box.setOrientation(LinearLayout.VERTICAL);
-        TextView l = PUi.body(a, lead);
-        l.setLineSpacing(0, 1.15f);
-        box.addView(l);
+        if (card != null) box.addView(card);
+        if (lead != null) {
+            TextView l = PUi.body(a, lead);
+            l.setLineSpacing(0, 1.15f);
+            PUi.add(box, l, card != null ? 14 : 0);
+        }
         for (String[] line : lines) {
             LinearLayout r = PUi.row(a);
             r.setGravity(android.view.Gravity.TOP);

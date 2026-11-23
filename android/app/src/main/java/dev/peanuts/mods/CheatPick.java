@@ -99,12 +99,22 @@ public final class CheatPick {
      * A job off the UI thread with a spinner in a dialog meanwhile, as a pick is read (converting cheats reads the game's own main: seconds for a large game);
      * done or failed then runs on the main thread, unless the activity is gone by then
      */
-    public static <T> void work(Activity a, String title, java.util.concurrent.Callable<T> job, Consumer<T> done, Consumer<Exception> failed) {
+    public static <T> void work(Activity a, String title, java.util.concurrent.Callable<T> job, Consumer<T> done, Consumer<Exception> failed) { work(a, title, null, job, done, failed); }
+
+    /** The same with a line under the spinner that says what is being done (not "Loading": the spinner shows that), null for none */
+    public static <T> void work(Activity a, String title, String doing, java.util.concurrent.Callable<T> job, Consumer<T> done, Consumer<Exception> failed) {
         LinearLayout box = new LinearLayout(a);
+        box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER);
         int p = Math.round(18 * a.getResources().getDisplayMetrics().density);
-        box.setPadding(0, p, 0, p);
+        box.setPadding(p, p, p, p);
         box.addView(new ProgressBar(a));
+        if (doing != null) {
+            android.widget.TextView t = dev.peanuts.ui.PUi.small(a, doing);
+            t.setGravity(Gravity.CENTER);
+            t.setPadding(0, p / 2, 0, 0);
+            box.addView(t);
+        }
         AlertDialog wait = new AlertDialog.Builder(a).setTitle(title).setView(box).setCancelable(false).create();
         wait.show();
         new Thread(() -> {

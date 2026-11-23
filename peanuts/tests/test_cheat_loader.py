@@ -17,7 +17,7 @@ MODS = APP / 'main/java/dev/peanuts/mods'
 LAUNCHER = APP / 'main/java/dev/nxnative/android'
 TEST = APP / 'jvmtest/java/dev/peanuts/mods/CheatLoaderJvmTest.java'
 CORE = [MODS / 'CheatFile.java', MODS / 'CheatImport.java', MODS / 'CheatSources.java', MODS / 'CheatStatus.java', MODS / 'CheatValues.java',
-        MODS / 'MncfBuild.java', MODS / 'MncfConvert.java', MODS / 'MncfExport.java', MODS / 'MncfMain.java', MODS / 'MncfWords.java']
+        MODS / 'MncfBuild.java', MODS / 'MncfConvert.java', MODS / 'MncfExport.java', MODS / 'MncfFacts.java', MODS / 'MncfMain.java', MODS / 'MncfWords.java']
 MISTEL = APP / 'main/java/io/github/davdxpx/mistel'   # Mistel's MIT library for .mncf, copied unchanged (test_mncf_vendor.py)
 
 
