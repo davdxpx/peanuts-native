@@ -1510,6 +1510,23 @@ Peanuts' own files, no marker: `android/app/src/main/java/dev/peanuts/` (`build/
 Tests: `peanuts/tests/test_build_queue.py` (the JVM test: order, the file, a cut-off run, a failure that does not stop the queue, removing, Cancel all, the same
 game twice, the batch's places, a pause, a damaged file; and the wiring). Upstream candidate: no (Banana Native has no build service of its own).
 
+### Round 63, the build queue's watchdog: the review of #555 (2026-11-24, issue #348)
+
+A game that crashes, hangs or fills the storage never holds the queue's next one (`dev.peanuts.build.BuildWatch`). A packer job that hangs (no change and no
+CPU time used by the `:pack` processes for 30 minutes, or no change for 3 hours) has its processes ended and is kept as paused, and so is a job whose packer
+ended and did not come back, or stalled: a packer Android starts later runs nothing behind the next game's back. The job says why with two pause reasons of
+the watchdog's, `hung` and `ended`; upstream's `Job.reasonText` gets their words, so its panel and notification do not show the bare reason:
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `android/app/src/ondevice/java/dev/nxnative/android/Job.java` | 1 | `reasonText`: `"hung"` and `"ended"` | trailing `// PEANUTS: ...` |
+
+Peanuts' own files, no marker: `android/app/src/main/java/dev/peanuts/build/` (`BuildWatch`, `Prepare`, `BuildService`), `ui/Library`,
+`android/app/src/jvmtest/java/dev/peanuts/build/BuildWatchJvmTest.java`, `peanuts/tests/test_build_queue.py`.
+
+Tests: `peanuts/tests/test_build_queue.py` (`BuildWatchJvmTest`: the watch over time, CPU time, a packer bound again, the order of a stop, `/proc` read from a
+copy, the import's watch, a tombstone's crashed thread). Upstream candidate: no.
+
 ### Round 29, compressed game files: .nsz and .xcz (2026-11-19, issue #149)
 
 The importer builds a game from NSP and XCI files compressed with nsz: an `.ncz` entry is an NCA stored as zstd with the keys and counters of its

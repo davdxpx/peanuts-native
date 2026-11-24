@@ -637,6 +637,8 @@ final class Job {
             case "timeout": return "Android's daily limit for background work: open the app and tap Resume";
             case "refused": return "Android did not let it start in the background: open the app and tap Resume";
             case "apk": return "the app was updated with other shader tools: the shaders are translated again";
+            case "hung": return "no progress, so it was stopped: tap Resume to go on";   // PEANUTS: the build queue's watchdog (dev.peanuts.build.BuildWatch, Prepare.HUNG)
+            case "ended": return "its process ended and was not started again: tap Resume to go on";   // PEANUTS: the same (Prepare.ENDED)
             default: return r.isEmpty() ? "stopped" : r;
         }
     }

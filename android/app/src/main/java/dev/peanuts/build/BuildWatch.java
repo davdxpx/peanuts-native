@@ -1,29 +1,63 @@
 package dev.peanuts.build;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
+
 /**
- * The build's watchdog rules (issue #348: a game that fails, crashes or hangs never holds the queue's next game). No Android class here: BuildWatchJvmTest
- * drives it. The service and Prepare ask it; what it decides:
+ * The build's watchdog (issue #348: a game that fails, crashes or hangs never holds the queue's next game). No Android class here: BuildWatchJvmTest drives
+ * it. Prepare (a build and a build with mods, and the other game's job a build waits for) and the service's import ask it; what it decides:
  * <ul>
- * <li><b>a hang</b>: the packer runs the job (its process bound and its worker alive) and job.json has not changed for {@link #HANG_MS}. Every step's tool
- *     says how far it got at least every few seconds (progress and stage lines, PackService's Tail), and a heat or battery pause is a state of its own, so
- *     half an hour without a change is a tool that hangs. The same for the import (its progress callbacks) and for another game's job the build waits for;</li>
- * <li><b>a packer that ended</b>: its process went (a native crash, Android ending it for memory) and did not come back within {@link #PACKER_BACK_MS}.
- *     Android starts a crashed service again within seconds, but not a second time when it crashed twice within a minute: the build would wait for a job
- *     nothing runs;</li>
+ * <li><b>a hang</b>: the packer runs the job (its worker alive), job.json has not changed for {@link #HANG_MS}, and the packer's processes used no CPU time
+ *     in that time ({@link Watch}). A tool says how far it got every few seconds (progress and stage lines, PackService's Tail), but some steps say nothing
+ *     for minutes while they work (the rewriter's load, the library's hash check): they use CPU time, so they are no hang. No change at all for
+ *     {@link #BUSY_HANG_MS} is a hang even with CPU time (a tool that spins). A heat or battery pause is a state of its own, never a hang. The clock is
+ *     uptime: it stops in deep sleep, so a phone that slept after the wake locks ended is no hang when it wakes;</li>
+ * <li><b>a packer that ended</b>: its process went (a native crash, Android ending it for memory) and the job has not changed since for
+ *     {@link #PACKER_BACK_MS}. Android starts a crashed service again within seconds, but not a second time when it crashed twice within a minute; a service
+ *     the bind makes again runs no job. A packer that is not running the job and has not changed it for {@link #STALL_MS} has stalled;</li>
+ * <li>each of these keeps the job as paused ({@link #end}), so a packer Android starts later runs nothing behind the next game's back;</li>
+ * <li><b>an import that hangs</b> ({@link ImportWatch}): no progress for the hang time and it is asked to stop; not back after {@link #GIVE_UP_MS} and it is
+ *     given up;</li>
  * <li><b>a run the app's process did not live through</b>: what ended it, from Android's record (ApplicationExitInfo), for the build log and the card. A native
- *     crash while the game files were imported is the importer's, on those files: that game stops at once, so the queue goes on with the next game after the
- *     first crash (two within a minute and Android starts the app's service no more until the app is opened).</li>
+ *     crash in the import's thread is the importer's, on those files ({@link #crashThread}): that game stops at once, so the queue goes on after the first
+ *     crash (two within a minute and Android starts the app's service no more until the app is opened).</li>
  * </ul>
  */
 final class BuildWatch {
-    /** No change of a running job (or of an import) for this long: it hangs */
+    /** No change of a running job (or of an import) and no CPU time used for this long: it hangs */
     static final long HANG_MS = 30 * 60 * 1000L;
-    /** The packer's process ended and is not back for this long: it is not coming back for this run */
+    /** No change of a running job for this long is a hang even while the packer uses CPU time (a tool that spins): no step is quiet for anywhere near it */
+    static final long BUSY_HANG_MS = 3 * 60 * 60 * 1000L;
+    /** The packer's process ended and the job has not changed for this long: it is not coming back for this run */
     static final long PACKER_BACK_MS = 5 * 60 * 1000L;
+    /** A change seen this soon after the packer's process went is still its own: its last message and its last save are read in the poll after it went */
+    static final long GONE_GRACE_MS = 15_000;
+    /** The packer is not running the job and it has not changed for this long: stalled */
+    static final long STALL_MS = 10 * 60 * 1000L;
+    /** An import asked to stop for a hang that has not returned this long after: given up */
+    static final long GIVE_UP_MS = 2 * 60 * 1000L;
+    /** Below this share of one core the packer's processes are idle (its service's messages every few seconds use a little) */
+    static final double IDLE_SHARE = 0.01;
+    /** What {@link Watch#verdict} finds */
+    static final int NONE = 0, GONE = 1, HANG = 2, STALL = 3;
     /** ApplicationExitInfo.REASON_* (the values Android documents), mirrored so this class needs no Android */
     static final int SIGNALED = 2, LOW_MEMORY = 3, CRASH = 4, CRASH_NATIVE = 5, ANR = 6;
     /** The test file of a build with the fake engine (-PnxPackEngine=fake): the hang time in seconds, so a test on a phone need not wait half an hour */
     static final String TEST_FILE = "test-hang-seconds";
+    /** The name of the thread the import's native calls run on (BuildService.stepImport). Linux gives a thread's name to the threads it starts, so the
+     *  importer's own threads have it too (the kernel keeps 15 characters) */
+    static final String IMPORT_THREAD = "peanuts-import";
 
     private BuildWatch() {}
 
@@ -38,14 +72,204 @@ final class BuildWatch {
         }
     }
 
-    /** Whether something that should change hangs: running (the packer's worker alive, an import that runs) and unchanged for hangMs */
-    static boolean hangs(long now, long lastChange, boolean running, long hangMs) {
-        return running && lastChange > 0 && now - lastChange > hangMs;
+    /** The busy hang time for a hang time: BUSY_HANG_MS, or six times a test time */
+    static long busyMs(long hangMs) { return hangMs >= HANG_MS ? BUSY_HANG_MS : 6 * hangMs; }
+
+    /**
+     * One job's watch, on the build's thread. Every time is uptime in ms (SystemClock.uptimeMillis). The build calls {@link #changed} at each change of the
+     * job (and at a heat or battery pause), {@link #cpu} when {@link #cpuDue}, and {@link #verdict} once a second
+     */
+    static final class Watch {
+        final long hangMs, busyMs, backMs, stallMs;
+        private long changedAt, cpuAt, cpuReadAt, cpuTicks = -1;
+
+        Watch(long now, long hangMs) { this(now, hangMs, busyMs(hangMs), PACKER_BACK_MS, STALL_MS); }
+
+        Watch(long now, long hangMs, long busyMs, long backMs, long stallMs) {
+            this.hangMs = hangMs;
+            this.busyMs = busyMs;
+            this.backMs = backMs;
+            this.stallMs = stallMs;
+            changedAt = cpuAt = cpuReadAt = now;
+        }
+
+        /** The job changed (job.json or the packer's message), or a heat or battery pause holds it (no hang) */
+        void changed(long now) {
+            changedAt = Math.max(changedAt, now);
+            cpuAt = Math.max(cpuAt, now);
+        }
+
+        /** Whether a CPU reading is due: every 15 s, or every quarter of a shorter hang time */
+        boolean cpuDue(long now) { return now - cpuReadAt >= Math.min(15_000, hangMs / 4); }
+
+        /**
+         * The packer's processes' CPU time so far ({@link #cpuTicks}, at ticksPerSecond; -1 when none can be read, and then the rule is the job's changes
+         * alone). More than IDLE_SHARE of one core since the last reading is work. Fewer ticks than before is another process (Android started it again):
+         * counted from here
+         */
+        void cpu(long now, long ticks, long ticksPerSecond) {
+            long dt = now - cpuReadAt;
+            cpuReadAt = now;
+            if (ticks < 0 || ticksPerSecond <= 0) return;
+            if (cpuTicks >= 0 && ticks > cpuTicks && dt > 0 && (ticks - cpuTicks) * 1000.0 / ticksPerSecond > IDLE_SHARE * dt) cpuAt = now;
+            cpuTicks = ticks;
+        }
+
+        /**
+         * What the watch finds now: running, the packer says its worker runs the job; goneAt, when its process went (0: it did not). The time of a process
+         * that went is kept when Android binds a new one: a new one runs no job, and a job that goes on changes. A change within GONE_GRACE_MS of it is the
+         * old process's last word, read a poll later (found on a Thor: two crashes within a minute fell to the stall rule after 10 minutes)
+         */
+        int verdict(long now, boolean running, long goneAt) {
+            if (goneAt > 0 && !running && changedAt <= goneAt + GONE_GRACE_MS && now - goneAt > backMs) return GONE;
+            if (running && now - changedAt > hangMs && (now - cpuAt > hangMs || now - changedAt > busyMs)) return HANG;
+            if (!running && now - changedAt > stallMs) return STALL;
+            return NONE;
+        }
+
+        /** How long the job has not changed */
+        long quietMs(long now) { return now - changedAt; }
+
+        /** Whether the packer used CPU time within the hang time (a hang found by the busy hang time) */
+        boolean busy(long now) { return now - cpuAt <= hangMs; }
     }
 
-    /** Whether the packer's process ended at goneAt (0: it did not) and has not come back: nothing changed since, and backMs have passed */
-    static boolean packerGone(long now, long goneAt, long lastChange, long backMs) {
-        return goneAt > 0 && lastChange <= goneAt && now - goneAt > backMs;
+    /** A packer the watchdog stops, as {@link #end} needs it */
+    interface Packer {
+        /** job.json kept as paused, with the watchdog's reason */
+        void pause();
+        /** its processes ended */
+        void kill();
+        /** whether none of its processes is left */
+        boolean gone();
+    }
+
+    /**
+     * Stops a packer and keeps its job as paused: paused first (a packer Android starts again in between finds nothing to run), then its processes ended
+     * (kill false: there is none to end), then, once they are gone or waitMs have passed, paused again, since the packer may have saved "running" between
+     * the first save and its end
+     */
+    static void end(Packer p, boolean kill, LongSupplier clock, long waitMs, Runnable nap) {
+        p.pause();
+        if (!kill) return;
+        p.kill();
+        long by = clock.getAsLong() + waitMs;
+        while (!p.gone() && clock.getAsLong() < by) nap.run();
+        p.pause();
+    }
+
+    /** The processes named name, in proc (/proc): an app's process, and the processes it forked, which keep its command line */
+    static List<Integer> pids(File proc, String name) {
+        List<Integer> out = new ArrayList<>();
+        String[] kids = proc.list();
+        if (kids == null) return out;
+        for (String k : kids) {
+            if (k.isEmpty() || k.charAt(0) < '0' || k.charAt(0) > '9') continue;
+            int pid;
+            try { pid = Integer.parseInt(k); } catch (NumberFormatException e) { continue; }
+            if (name.equals(cmdline(new File(proc, k + "/cmdline")))) out.add(pid);
+        }
+        return out;
+    }
+
+    private static String cmdline(File f) {
+        try {
+            byte[] b = Files.readAllBytes(f.toPath());
+            int n = 0;
+            while (n < b.length && b[n] != 0) n++;
+            return new String(b, 0, n, StandardCharsets.UTF_8);
+        } catch (IOException | RuntimeException e) {
+            return "";
+        }
+    }
+
+    /**
+     * The CPU time the processes named name used so far, in clock ticks: each one's user and system time and its waited-for children's (a forked worker's
+     * time moves to its parent when it ends). -1 when none can be read
+     */
+    static long cpuTicks(File proc, String name) {
+        long sum = 0;
+        boolean any = false;
+        for (int pid : pids(proc, name)) {
+            long t = statTicks(new File(proc, pid + "/stat"));
+            if (t >= 0) { sum += t; any = true; }
+        }
+        return any ? sum : -1;
+    }
+
+    /** proc/&lt;pid&gt;/stat's utime, stime, cutime and cstime (fields 14 to 17), -1 when it cannot be read. The command in parentheses may hold spaces,
+     *  so the count starts after its last ')': the state is field 3 */
+    static long statTicks(File stat) {
+        try {
+            String s = new String(Files.readAllBytes(stat.toPath()), StandardCharsets.UTF_8);
+            int close = s.lastIndexOf(')');
+            if (close < 0) return -1;
+            String[] f = s.substring(close + 1).trim().split("\\s+");
+            if (f.length < 15) return -1;
+            return Long.parseLong(f[11]) + Long.parseLong(f[12]) + Long.parseLong(f[13]) + Long.parseLong(f[14]);
+        } catch (IOException | RuntimeException e) {
+            return -1;
+        }
+    }
+
+    /**
+     * The import's watch (BuildService.stepImport), on a thread of its own. No progress ({@link #heard}) for hangMs: the import is asked to stop (cancel) and
+     * counts as hung. Not returned ({@link #done}) and no progress for giveUpMs after that, since a native call that never looks at the stop or a syscall
+     * that never returns keeps it: it is given up (giveUp, which ends the app's process; Android starts the queue again with the next game)
+     */
+    static final class ImportWatch implements Runnable {
+        private final LongSupplier clock;
+        private final long hangMs, giveUpMs;
+        private final Runnable cancel, giveUp;
+        private final AtomicLong heard;
+        private final AtomicBoolean hung = new AtomicBoolean();
+        private boolean done, givenUp;   // guarded by this
+
+        ImportWatch(LongSupplier clock, long hangMs, long giveUpMs, Runnable cancel, Runnable giveUp) {
+            this.clock = clock;
+            this.hangMs = hangMs;
+            this.giveUpMs = giveUpMs;
+            this.cancel = cancel;
+            this.giveUp = giveUp;
+            heard = new AtomicLong(clock.getAsLong());
+        }
+
+        /** The import got further (its progress, or a step done) */
+        void heard() { heard.set(clock.getAsLong()); }
+
+        /** Whether it was asked to stop for a hang */
+        boolean hung() { return hung.get(); }
+
+        /** The import returned: the watch ends. False when it was given up already (the app's process ends) */
+        synchronized boolean done() {
+            done = true;
+            notifyAll();
+            return !givenUp;
+        }
+
+        @Override public void run() {
+            long hungAt = 0, nap = Math.max(10, Math.min(15_000, Math.min(hangMs, giveUpMs) / 4));
+            while (true) {
+                long now = clock.getAsLong();
+                if (hungAt == 0 && now - heard.get() > hangMs) {
+                    hung.set(true);
+                    hungAt = now;
+                    cancel.run();
+                } else if (hungAt > 0 && now - Math.max(hungAt, heard.get()) > giveUpMs) {   // an import that still gets further after the stop is not given up yet
+                    synchronized (this) {
+                        if (done) return;
+                        givenUp = true;
+                    }
+                    giveUp.run();
+                    return;
+                }
+                synchronized (this) {
+                    if (done) return;
+                    try { wait(nap); } catch (InterruptedException e) { return; }
+                    if (done) return;
+                }
+            }
+        }
     }
 
     /** A process's end in the player's words ("it crashed"), "" when Android's record says nothing a player can use */
@@ -66,8 +290,123 @@ final class BuildWatch {
         return false;
     }
 
-    /** Whether a game whose run ended with the app's process stops at once instead of running again: a native crash while its files were imported */
-    static boolean stopsAtOnce(int reason, String step) {
-        return reason == CRASH_NATIVE && "import".equals(step);
+    /**
+     * Whether a game whose run ended with the app's process stops at once instead of running again: a native crash while its files were imported, in the
+     * import's thread (thread: the crashed thread's name, {@link #crashThread}; null when the record has none, and then the step decides). A crash in
+     * another thread is not the importer's: the game runs again, as after any other end
+     */
+    static boolean stopsAtOnce(int reason, String step, String thread) {
+        return reason == CRASH_NATIVE && "import".equals(step) && (thread == null || thread.startsWith(IMPORT_THREAD));
+    }
+
+    /**
+     * The name of the thread that crashed, from a native crash's tombstone (ApplicationExitInfo.getTraceInputStream for REASON_CRASH_NATIVE: a protobuf of
+     * debuggerd's tombstone.proto): its tid (field 6) and the threads map (field 16: entries of key 1 and value 2, a Thread with id 1 and name 2). null when
+     * it cannot be read
+     */
+    static String crashThread(InputStream in, int max) {
+        if (in == null) return null;
+        try (InputStream s = in) {
+            ByteArrayOutputStream b = new ByteArrayOutputStream();
+            byte[] buf = new byte[64 * 1024];
+            for (int n; (n = s.read(buf)) > 0; ) {
+                if (b.size() + n > max) return null;
+                b.write(buf, 0, n);
+            }
+            return crashThread(b.toByteArray());
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    static String crashThread(byte[] tombstone) {
+        try {
+            Proto p = new Proto(tombstone, 0, tombstone.length);
+            long tid = -1;
+            Map<Long, String> names = new HashMap<>();
+            while (p.more()) {
+                long key = p.varint();
+                int field = (int) (key >>> 3), type = (int) (key & 7);
+                if (field == 6 && type == 0) tid = p.varint();
+                else if (field == 16 && type == 2) {
+                    Proto e = p.sub();
+                    long id = -1;
+                    String name = null;
+                    while (e.more()) {
+                        long k = e.varint();
+                        int f = (int) (k >>> 3), t = (int) (k & 7);
+                        if (f == 1 && t == 0) id = e.varint();
+                        else if (f == 2 && t == 2) {
+                            Proto th = e.sub();
+                            while (th.more()) {
+                                long tk = th.varint();
+                                int tf = (int) (tk >>> 3), tt = (int) (tk & 7);
+                                if (tf == 1 && tt == 0) { long v = th.varint(); if (id < 0) id = v; }
+                                else if (tf == 2 && tt == 2) name = th.string();
+                                else th.skip(tt);
+                            }
+                        } else e.skip(t);
+                    }
+                    if (id >= 0 && name != null) names.put(id, name);
+                } else p.skip(type);
+            }
+            return tid < 0 ? null : names.get(tid);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** The protobuf wire format, as far as crashThread reads it */
+    private static final class Proto {
+        private final byte[] b;
+        private final int end;
+        private int i;
+
+        Proto(byte[] b, int from, int to) { this.b = b; this.i = from; this.end = to; }
+
+        boolean more() { return i < end; }
+
+        long varint() {
+            long v = 0;
+            for (int shift = 0; shift < 64; shift += 7) {
+                need(1);
+                int x = b[i++] & 0xff;
+                v |= (long) (x & 0x7f) << shift;
+                if (x < 0x80) return v;
+            }
+            throw new IllegalArgumentException("a varint longer than 10 bytes");
+        }
+
+        private int len() {
+            long n = varint();
+            if (n < 0 || n > end - i) throw new IllegalArgumentException("a length past the end");
+            return (int) n;
+        }
+
+        Proto sub() {
+            int n = len();
+            Proto p = new Proto(b, i, i + n);
+            i += n;
+            return p;
+        }
+
+        String string() {
+            int n = len();
+            String s = new String(b, i, n, StandardCharsets.UTF_8);
+            i += n;
+            return s;
+        }
+
+        void skip(int type) {
+            switch (type) {
+                case 0: varint(); break;
+                case 1: need(8); i += 8; break;
+                case 2: { int n = len(); i += n; break; }   // not i += len(): Java reads i before len() moves it past the length
+                case 5: need(4); i += 4; break;
+                default: throw new IllegalArgumentException("wire type " + type);
+            }
+        }
+
+        private void need(int n) { if (end - i < n) throw new IllegalArgumentException("cut short"); }
     }
 }

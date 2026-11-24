@@ -394,15 +394,20 @@ public final class BuildService extends Service {
         String place = q.placeText(it);
         main.post(() -> { if (worker != null) nm.notify(NOTE, note(it, 0, "Starting")); });
         int cutReason = cutEnd == null ? 0 : cutEnd.getReason();
+        String cutThread = cutReason == BuildWatch.CRASH_NATIVE ? crashThread(cutEnd) : null;   // the thread that crashed, from its tombstone
         if (cut) BuildLogShare.line(this, it.titleId(), "queue: the last run of " + name + " ended with the app's process in its " + (cutStep.isEmpty() ? "first" : cutStep) + " step ("
                 + (cutEnd == null ? "Android has no record of why" : BuildLogBundle.reason(cutReason) + ", status " + cutEnd.getStatus() + (cutEnd.getDescription() == null ? "" : ", " + cutEnd.getDescription()))
-                + "); start " + it.tries + " of " + BuildQueue.MAX_TRIES);
+                + (cutThread == null ? "" : ", in the thread " + cutThread) + "); start " + it.tries + " of " + BuildQueue.MAX_TRIES);
         String[] end;
-        if (cut && BuildWatch.stopsAtOnce(cutReason, cutStep)) {
-            // the importer crashed on these files: a run again would crash the same way, and a second crash within a minute ends Android's restarts of this
-            // service, so the queue would wait until the app is opened. The game stops; the queue goes on with the next one
+        if (cut && BuildWatch.stopsAtOnce(cutReason, cutStep, cutThread)) {
+            // the importer crashed on these files (in the import's thread, or the tombstone does not say): a run again would crash the same way, and a second
+            // crash within a minute ends Android's restarts of this service, so the queue would wait until the app is opened. The game stops, what the import
+            // wrote is deleted, and the queue goes on with the next one. A crash in another thread runs the game again, as after any other end
+            File part = importPart(it.request);
+            if (part != null && part.isFile()) { BuildLogShare.line(this, it.titleId(), "queue: deleting what the import wrote: " + part); part.delete(); }
+            if (part != null) deleteUnpacked(part);
             BuildLogShare.line(this, it.titleId(), "queue: the importer crashed on these game files: " + name + " stops, the queue goes on with the next game");
-            end = new String[] {"The app crashed while importing " + name + "'s game files, so the queue went on without it.", BuildListener.OTHER};
+            end = new String[] {"The app crashed while importing " + name + "'s game files, so the queue went on without it. What the import wrote was deleted.", BuildListener.OTHER};
         } else end = run(it.request, place);
         boolean ok = "".equals(end[1]);
         String code = ok ? "" : end[1], message = end[0];
@@ -441,6 +446,22 @@ public final class BuildService extends Service {
         return null;
     }
 
+    /** The name of the thread a native crash happened in, from its tombstone (Android 12+ keeps it with the record); null when it has none */
+    private static String crashThread(android.app.ApplicationExitInfo e) {
+        if (e == null) return null;
+        try { return BuildWatch.crashThread(e.getTraceInputStream(), 32 << 20); }
+        catch (IOException | RuntimeException x) { return null; }
+    }
+
+    /** Where the import of r writes its .part (stepImport's tmp: beside the .nup it makes), null when r imports nothing */
+    private File importPart(BuildRequest r) {
+        if (r == null || !r.needsImport()) return null;
+        File buildGameDir = destination(r), replace = r.replaceNup;
+        File out = replace != null ? replace.getAbsoluteFile() : buildGameDir != null ? new File(buildGameDir, r.fileName() + ".nup")
+                : r.gameDir == null ? null : new File(new File(r.gameDir, r.fileName()), r.fileName() + ".nup");
+        return out == null ? null : new File(out.getParentFile(), out.getName() + ".part");
+    }
+
     /** The hang time (BuildWatch): half an hour, or with the fake engine the test file's seconds (files/test-hang-seconds) */
     static long hangMs(Context c) {
         boolean fake = "fake".equals(dev.nxnative.android.BuildConfig.NX_PACK_ENGINE);
@@ -449,8 +470,8 @@ public final class BuildService extends Service {
         return BuildWatch.hangMs(fake, t);
     }
 
-    /** "30 minutes", or a test time's seconds */
-    static String minutes(long ms) { return ms >= 120_000 ? ms / 60_000 + " minutes" : ms / 1000 + " seconds"; }
+    /** "30 minutes", "3 hours", or a test time's seconds */
+    static String minutes(long ms) { return ms >= 2 * 3_600_000 ? ms / 3_600_000 + " hours" : ms >= 120_000 ? ms / 60_000 + " minutes" : ms / 1000 + " seconds"; }
 
     /** One line in logcat and in the game's build log */
     private void log(String s) {
@@ -591,8 +612,11 @@ public final class BuildService extends Service {
             Log.w(TAG, "build " + name + ": " + message);
         } catch (RuntimeException | Error e) {   // an Error too (OutOfMemoryError, a missing native method): uncaught it ended the app's process, and the queue went on only after Android started the service again
             message = "Build failed: " + e;
-            Log.e(TAG, "build " + name, e);
-            BuildLogShare.line(this, logId, "crash in the build service:\n" + Log.getStackTraceString(e).trim());
+            try {   // an OutOfMemoryError's stack trace as text needs memory too: its name only, and nothing in the log throws again
+                boolean oom = e instanceof OutOfMemoryError;
+                Log.e(TAG, "build " + name + (oom ? ": " + e : ""), oom ? null : e);
+                BuildLogShare.line(this, logId, "crash in the build service:\n" + (oom ? e.toString() : Log.getStackTraceString(e).trim()));
+            } catch (Throwable t) { /* the log is lost, the game's end is not */ }
         }
         logEnd(ok, code, message);
         return new String[] {message, ok ? "" : code};
@@ -638,11 +662,55 @@ public final class BuildService extends Service {
         // The sizes come from the probe (the keys first): the .nup's from the titles' own records, which a compressed file's length is not, and what
         // unpacking a solid .nsz needs beside it while it imports (issue #149); a file the probe cannot size counts with its length, as before
         progress("import", 0, "Loading keys");
+        // the watchdog (BuildWatch.ImportWatch), from the keys on: an import whose progress stands still for the hang time is asked to stop, and one that does
+        // not return after that is given up (giveUpImport), so the queue's next game is not held behind it. The native calls run on a thread of the import's
+        // name, which a native crash's tombstone names (BuildWatch.stopsAtOnce)
+        Importer.cancel(false);   // a Stop meant for an earlier import does not stop this one; a Stop for this one from here on does (then cancelled is true), and so does the watchdog's
+        final long hangMs = hangMs(this);
+        final BuildWatch.ImportWatch iw = new BuildWatch.ImportWatch(SystemClock::uptimeMillis, hangMs, Math.min(BuildWatch.GIVE_UP_MS, hangMs), () -> Importer.cancel(true),
+                () -> giveUpImport(r, hangMs));
+        Thread watch = new Thread(iw, "peanuts-import-watch");
+        watch.setDaemon(true);
+        watch.start();
+        Thread self = Thread.currentThread();
+        String selfName = self.getName();
+        self.setName(BuildWatch.IMPORT_THREAD);
+        try {
+            return importNup(r, inputs, keys, dir, out, again, importDest, packVolume, iw, hangMs);
+        } finally {
+            self.setName(selfName);
+            iw.done();
+            watch.interrupt();   // never left to stop a later import
+        }
+    }
+
+    /**
+     * An import that hangs and did not return when asked to stop (BuildWatch.ImportWatch, on its thread): a native call that never looks at the stop, or a
+     * syscall that never returns, and nothing in the process can end it. What it wrote is deleted, the game is marked as stopped in the queue's file, and the
+     * app's process ends: Android starts the service again (sticky), and the queue goes on with the next game
+     */
+    private void giveUpImport(BuildRequest r, long hangMs) {
+        String msg = "The import of " + name + " made no progress for " + minutes(hangMs) + " and did not stop, so the app ended it and the queue went on.";
+        log("import: no progress for " + minutes(hangMs) + ", and no return " + minutes(Math.min(BuildWatch.GIVE_UP_MS, hangMs)) + " after it was asked to stop: " + name
+                + " is marked as stopped and the app's process ends, so the queue goes on when Android starts it again");
+        File part = importPart(r);
+        if (part != null) { part.delete(); deleteUnpacked(part); }
+        int gid = id;
+        if (gid != 0) BuildPipeline.queue(this).finish(gid, false, BuildListener.OTHER, msg, System.currentTimeMillis());
+        logEnd(false, BuildListener.OTHER, msg);
+        android.os.Process.killProcess(android.os.Process.myPid());
+    }
+
+    /** stepImport's import itself, under its watchdog (iw) */
+    private File importNup(BuildRequest r, List<File> inputs, File keys, File dir, File out, boolean again, File importDest, File packVolume, BuildWatch.ImportWatch iw, long hangMs)
+            throws IOException {
         long[] sized;
         try {
             if (Importer.keys(keys) != 0) throw new IOException("Keys: " + Importer.lastError());
             log("import: keys loaded");
+            iw.heard();
             sized = Importer.sizes(inputs, r.titleId);
+            iw.heard();
         } catch (ReflectiveOperationException e) {
             throw new IOException("The importer does not match this build of the app (" + e.getMessage() + ").");
         }
@@ -694,42 +762,26 @@ public final class BuildService extends Service {
                     : " Nothing was replaced: the game is as it was.";
             final long[] last = {0};
             final String[] lastStep = {""};
-            Importer.cancel(false);   // a Stop meant for an earlier import does not stop this one; a Stop for this one from here on does (then cancelled is true)
             if (cancelled) throw new BuildListener.Failure("Build cancelled." + kept, BuildListener.CANCELLED);
-            // the watchdog (BuildWatch): an import whose progress stands still for the hang time is stopped, so the queue's next game is not held behind it
-            final java.util.concurrent.atomic.AtomicLong heard = new java.util.concurrent.atomic.AtomicLong(SystemClock.elapsedRealtime());   // the watch thread reads what the import's thread writes
-            final java.util.concurrent.atomic.AtomicBoolean hung = new java.util.concurrent.atomic.AtomicBoolean();
-            final long hangMs = hangMs(this);
-            Thread watch = new Thread(() -> {
-                while (true) {
-                    if (BuildWatch.hangs(SystemClock.elapsedRealtime(), heard.get(), true, hangMs)) { hung.set(true); Importer.cancel(true); return; }
-                    try { Thread.sleep(Math.min(15_000, hangMs / 4)); } catch (InterruptedException e) { return; }   // the import ended
-                }
-            }, "peanuts-import-watch");
-            watch.setDaemon(true);
-            watch.start();
-            int rc;
-            try {
-                rc = Importer.writeNup(tmp, inputs, r.titleId, (step, done, total) -> {
-                    heard.set(SystemClock.elapsedRealtime());
-                    long now = System.currentTimeMillis();
-                    boolean newStep = !step.equals(lastStep[0]) && (step.startsWith("unpack/") || step.startsWith("check/"));
-                    if (newStep) log("import: " + Compressed.stepText(step, 0, 0).toLowerCase(Locale.ROOT));
-                    lastStep[0] = step;
-                    if (now - last[0] < 250 && done < total && !newStep) return;
-                    last[0] = now;
-                    progress("import", Compressed.percent(step, done, total, unpackBytes + checkBytes, nupBytes, IMPORT_END), Compressed.stepText(step, done, total));
-                });
-            } finally {
-                watch.interrupt();   // never left to stop a later import
-            }
+            int rc = Importer.writeNup(tmp, inputs, r.titleId, (step, done, total) -> {
+                iw.heard();
+                long now = System.currentTimeMillis();
+                boolean newStep = !step.equals(lastStep[0]) && (step.startsWith("unpack/") || step.startsWith("check/"));
+                if (newStep) log("import: " + Compressed.stepText(step, 0, 0).toLowerCase(Locale.ROOT));
+                lastStep[0] = step;
+                if (now - last[0] < 250 && done < total && !newStep) return;
+                last[0] = now;
+                progress("import", Compressed.percent(step, done, total, unpackBytes + checkBytes, nupBytes, IMPORT_END), Compressed.stepText(step, done, total));
+            });
             if (cancelled) { tmp.delete(); deleteUnpacked(tmp); throw new BuildListener.Failure("Build cancelled." + kept, BuildListener.CANCELLED); }
-            if (hung.get()) {
+            // the watchdog asked it to stop, and it did (an import that finished meanwhile is kept): Retry, since a stopped import starts over and what it
+            // wrote is deleted (STALLED's Resume would say it goes on from there)
+            if (iw.hung() && rc != 0) {
                 tmp.delete();
                 deleteUnpacked(tmp);
                 log("import: no progress for " + minutes(hangMs) + ": stopped (the importer returned " + rc + ": " + Importer.lastError() + ")");
                 throw new BuildListener.Failure("The import of " + name + " made no progress for " + minutes(hangMs) + ", so it was stopped and the queue went on." + (again ? kept : " What it had written was deleted."),
-                        BuildListener.STALLED);
+                        BuildListener.OTHER);
             }
             if (rc != 0) { tmp.delete();
                 deleteUnpacked(tmp);
