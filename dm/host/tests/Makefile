@@ -806,4 +806,12 @@ peanuts-audren-svc: $(B)/t_peanuts_audren_svc
 peanuts-host: peanuts-audren-svc
 $(B)/t_peanuts_audren_svc: t_peanuts_audren_svc.c ../hle_audren_svc.c ../hle_sf.c ../hle.h ../dm.h $(GAME_H) | $(B)
 	$(CLANG) -O1 -g -Wall -Wno-unused-function -fsanitize=address,undefined $(PN_ASIF) -D_GNU_SOURCE -I.. $(GINC) -o $@ t_peanuts_audren_svc.c -lpthread -lm
+# t_peanuts_swhot: Smoother next start's file of the pipelines a game's runs used (dm/peanuts/peanuts_swhot.h, vka_pso.c sw_*): the set, the file's check, the save's
+# merge (this run first, the runs before by age, aged out, at most PN_SW_MAX) and the prewarm's order (the runs' records first, mesh records in front)
+.PHONY: peanuts-swhot
+peanuts-swhot: $(B)/t_peanuts_swhot
+	$(B)/t_peanuts_swhot
+peanuts-host: peanuts-swhot
+$(B)/t_peanuts_swhot: t_peanuts_swhot.c ../../peanuts/peanuts_swhot.h | $(B)
+	$(CLANG) -std=c11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -o $@ t_peanuts_swhot.c
 # PEANUTS end
