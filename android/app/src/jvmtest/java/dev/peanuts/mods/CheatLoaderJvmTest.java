@@ -615,7 +615,8 @@ public final class CheatLoaderJvmTest {
         check(by.get("count").reason == null && by.get("count").lines.equals(List.of("04000000 00002000 528000A0")) && by.get("count").value != null, "a value in the instruction: " + by.get("count").lines + " " + by.get("count").reason);
         check(by.get("other").reason == null && by.get("other").lines.equals(List.of("04100000 00000100 00000001")), "a write into the heap: " + by.get("other").lines);
         check("capability-missing:display".equals(by.get("view").reason), "a monitor: Peanuts has no display yet: " + by.get("view").reason);
-        check("runtime:run-once".equals(by.get("once").reason), "run once: not in Atmosphère code: " + by.get("once").reason);
+        check("runtime:unsupported:run.once".equals(by.get("once").reason), "run once: a part of the core Atmosphère code cannot say (section 11.1): " + by.get("once").reason);
+        check(MncfWords.reason(by.get("once").reason, by.get("once")).equals("It runs once when you turn it on, which Peanuts cannot do yet."), MncfWords.reason(by.get("once").reason, null));
         check("pattern-not-found".equals(by.get("gone").reason), by.get("gone").reason);
         check(new File(s.dir, "build/" + B + ".mncf").isFile() && new File(s.dir, "build/" + B + ".tsv").isFile(), "kept for the build");
         String pinned = new String(Files.readAllBytes(new File(s.dir, "build/" + B + ".mncf").toPath()), StandardCharsets.UTF_8);

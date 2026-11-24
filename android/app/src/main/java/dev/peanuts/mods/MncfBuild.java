@@ -27,7 +27,6 @@ import io.github.davdxpx.mistel.mncf.Mncf;
 import io.github.davdxpx.mistel.mncf.MncfException;
 import io.github.davdxpx.mistel.mncf.MncfFile;
 import io.github.davdxpx.mistel.mncf.Module;
-import io.github.davdxpx.mistel.mncf.ResolvedOp;
 import io.github.davdxpx.mistel.mncf.Runtime;
 import io.github.davdxpx.mistel.mncf.SignatureResult;
 import io.github.davdxpx.mistel.mncf.TrustList;
@@ -44,11 +43,11 @@ import io.github.davdxpx.mistel.mncf.ValueSpec;
  *     file, an .mncf itself, is kept with its states beside the source (build/&lt;BID&gt;.mncf and .tsv), so a later start or the in-game tab reads it without
  *     searching main again (section 6.3 allows it: a runtime MAY keep the result for later runs of the same build).</li>
  * <li>Mistel's evaluator gives each cheat its state and reason for this runtime: guest reads and writes, code bytes, buttons; no display (monitors) and no
- *     code hooks (overrides become a stub patch). A cheat whose code a patch or an override would change at a place Peanuts' rewriter changed is refused with
- *     runtime:rewritten (section 11.3).</li>
+ *     code hooks (overrides become a stub patch). The parts of the core Atmosphère code cannot say ({@link #UNSUPPORTED}: toggle buttons, run once or for a
+ *     time, several conditions, ...) are refused with runtime:unsupported:&lt;part&gt; until Peanuts runs Mistel's pass engine itself, and a patch or a stub
+ *     over a place Peanuts' rewriter changed with runtime:rewritten (section 11.3).</li>
  * <li>The cheats that can run become Atmosphère code (Mistel's Converter.toAtmosphere): their raw code for this build where the evaluator uses it, else code
- *     made from their operations. What Atmosphère cannot say (toggle buttons, run once or for a time, several conditions, ...) is refused with a runtime: reason
- *     until Peanuts runs Mistel's pass engine itself.</li>
+ *     made from their operations.</li>
  * </ol>
  */
 public final class MncfBuild {
@@ -212,7 +211,7 @@ public final class MncfBuild {
         } catch (MncfException e) {   // the pinned file is the library's own writing of a file it read: not expected
             return new Ready("pinned:" + e.code(), f, sig.result(), signer, fileKey, Collections.<Cheat>emptyList(), null, null, Collections.<String, Boolean>emptyMap());
         }
-        Runtime rt = runtime(g, module);
+        Runtime rt = runtime(g, module, changed);
         Evaluation ev = Evaluator.evaluate(p, rt);
         boolean bad = SignatureResult.INVALID.equals(sig.result()) || SignatureResult.REVOKED.equals(sig.result());
         Map<String, String> reasons = new LinkedHashMap<>();
@@ -221,7 +220,6 @@ public final class MncfBuild {
             CheatResult r = ev.cheat(c.id());
             String why = bad ? "signature" : r == null ? "invalid" : CheatResult.REFUSED.equals(r.state()) ? r.reason() : null;
             if (main == null && ("pattern-not-found".equals(why) || "expect-mismatch".equals(why) || "outside".equals(why))) why = "runtime:no-main";   // no pack yet: nothing to search or compare
-            if (why == null && r != null && "core".equals(r.uses()) && rewrites(r, changed)) why = "runtime:rewritten";
             reasons.put(c.id(), why);
             raw.put(c.id(), r != null && "raw".equals(r.uses()));
         }
@@ -247,26 +245,27 @@ public final class MncfBuild {
         return new Ready(null, f, sig.result(), signer, fileKey, Collections.unmodifiableList(cheats), pinned, key, raw);
     }
 
-    /** The runtime the evaluator checks the cheats against: Peanuts' cheat engine on the Switch, the game that runs, its main (with its image for patterns) */
-    static Runtime runtime(Game g, Module main) {
-        Runtime.Builder b = Runtime.builder("switch").module("main", main).capabilities(CAPABILITIES).extensions(Mncf.KNOWN_EXTENSIONS).rawSyntaxes("atmosphere");
+    /**
+     * The parts of the core (section 11.1, Mncf.FEATURES) Peanuts' cheat engine does not have yet, because the host runs Atmosphère code and these have no
+     * Atmosphère form: a cheat that uses one is refused with runtime:unsupported:&lt;part&gt; until Peanuts runs Mistel's pass engine itself. A single condition,
+     * hold and press buttons and an override with its expect do have one (a memory condition, a key block, a stub patch). Monitors are refused for the display
+     * capability Peanuts does not offer (capability-missing:display), so run.monitor is not listed
+     */
+    static final List<String> UNSUPPORTED = Collections.unmodifiableList(java.util.Arrays.asList("run.once", "run.timed", "toggle", "when.many", "match.any",
+            "trigger.enter", "interval"));
+
+    /**
+     * The runtime the evaluator checks the cheats against: Peanuts' cheat engine on the Switch, the game that runs, its main (with its image for patterns), the
+     * parts it lacks, and the runs of main its rewriter changed (a patch or a stub over one is refused with runtime:rewritten, section 11.3)
+     */
+    static Runtime runtime(Game g, Module main, List<CodeModule.Run> changed) {
+        Runtime.Builder b = Runtime.builder("switch").module("main", main).capabilities(CAPABILITIES).extensions(Mncf.KNOWN_EXTENSIONS).rawSyntaxes("atmosphere")
+                .unsupported(UNSUPPORTED);
         if (g.titleId != null) b.gameId(g.titleId);
         long base = 1L << 40;
         for (String r : new String[] {"heap", "alias", "aslr"}) { b.region(r, base, REGION_SIZE); base += REGION_SIZE << 1; }
+        for (CodeModule.Run run : changed) b.rewritten("main", run.offset(), run.length());
         return b.build();
-    }
-
-    /** Whether a cheat's code operations (patches, overrides' stubs) touch a word the rewriter changed */
-    static boolean rewrites(CheatResult r, List<CodeModule.Run> changed) {
-        if (changed.isEmpty()) return false;
-        for (ResolvedOp op : r.ops()) {
-            if (!"patch".equals(op.kind()) && !"override".equals(op.kind())) continue;
-            if (!"main".equals(op.module()) || op.offset() == null) continue;
-            byte[] b = op.bytes() != null ? op.bytes() : op.expect();
-            long len = b == null ? 4 : Math.max(1, b.length), at = op.offset();
-            for (CodeModule.Run run : changed) if (at < run.offset() + run.length() && run.offset() < at + len) return true;
-        }
-        return false;
     }
 
     /** A cheat's one whole-number value the player sets: one value, an integer type, no choices and no flags (those wait for their own controls) */
@@ -278,15 +277,20 @@ public final class MncfBuild {
         return v;
     }
 
-    /** The reason of a cheat Atmosphère code cannot say (Converter.toAtmosphere's words): runtime:&lt;why&gt; */
+    /**
+     * The reason of a cheat the evaluator lets run but Atmosphère code cannot say (Converter.toAtmosphere's words): runtime:unsupported:&lt;part&gt; for a part
+     * of the core that has no Atmosphère form in this shape (a condition on a pointer path, an action that also writes or holds), else runtime:&lt;why&gt;
+     */
     static String runtimeReason(String why) {
         String w = why == null ? "" : why.toLowerCase(Locale.ROOT);
-        if (w.contains("run = \"once\"")) return "runtime:run-once";
-        if (w.contains("run = \"timed\"")) return "runtime:run-timed";
-        if (w.contains("toggle")) return "runtime:toggle";
-        if (w.contains("monitor")) return "runtime:monitor";
-        if (w.contains("condition")) return "runtime:conditions";
-        if (w.contains("an action")) return "runtime:action";
+        if (w.contains("run = \"once\"")) return "runtime:unsupported:run.once";
+        if (w.contains("run = \"timed\"")) return "runtime:unsupported:run.timed";
+        if (w.contains("toggle")) return "runtime:unsupported:toggle";
+        if (w.contains("monitor")) return "capability-missing:display";
+        if (w.contains("conditions")) return "runtime:unsupported:when.many";
+        if (w.contains("condition")) return "runtime:unsupported:when";
+        if (w.contains("an action")) return "runtime:unsupported:run.action";
+        if (w.contains("override")) return "runtime:unsupported:override";
         if (w.contains("module other than main")) return "runtime:module";
         if (w.contains("region")) return "runtime:region";
         if (w.contains("absolute address")) return "runtime:address";
@@ -408,9 +412,10 @@ public final class MncfBuild {
     }
 
     /**
-     * The Atmosphère code of the cheats in want (id → whether it runs its raw code) for the build key, the values set (cheat.value → number) written in as the
-     * values' defaults; by the cheat's index. The cheats are named by their index and lose their groups for the converter, so each entry is found again by its
-     * name whatever the cheat's own name holds. skipped gets the ones Atmosphère code cannot say, with why
+     * The Atmosphère code of the cheats in want (id → whether it runs its raw code) for the build key, with the values set (cheat.value → number: the player's
+     * values, checked as the reader checks them; one a cheat cannot take leaves that cheat to its raw code for the build, or out); by the cheat's index. The
+     * cheats are named by their index and lose their groups for the converter, so each entry is found again by its name whatever the cheat's own name holds.
+     * skipped gets the ones Atmosphère code cannot say, with why
      */
     @SuppressWarnings("unchecked")
     static Map<Integer, List<String>> lower(String pinned, String key, Map<String, Object> values, Map<String, Boolean> want, Map<String, String> skipped) throws MncfException {
@@ -420,21 +425,18 @@ public final class MncfBuild {
         int i = 0;
         for (Object o : cheats) {
             Map<String, Object> c = (Map<String, Object>) o;
-            String id = String.valueOf(c.get("id"));
             c.put("name", "n" + i++);
             c.remove("group");
-            Object vs = c.get("values");
-            if (vs instanceof Map) for (Map.Entry<String, Object> v : ((Map<String, Object>) vs).entrySet()) {
-                Object set = values.get(id + "." + v.getKey());
-                if (set != null && v.getValue() instanceof Map) ((Map<String, Object>) v.getValue()).put("default", set);
-            }
         }
         doc.remove("preset");   // a preset names values; the converter needs none of them
         doc.remove("i18n");
         MncfFile d = Mncf.load(io.github.davdxpx.mistel.mncf.Writer.dumps(doc).getBytes(StandardCharsets.UTF_8));
+        io.github.davdxpx.mistel.mncf.Choices.Builder cb = io.github.davdxpx.mistel.mncf.Choices.builder();
+        for (Map.Entry<String, Object> v : values.entrySet()) cb.value(v.getKey(), v.getValue());
+        io.github.davdxpx.mistel.mncf.Choices chosen = cb.build();
         Map<Integer, List<String>> out = new HashMap<>();
         boolean anyRaw = want.containsValue(Boolean.TRUE), anyCore = want.containsValue(Boolean.FALSE) || want.containsValue(null);
-        Converter.Export raw = anyRaw ? Converter.toAtmosphere(d, key, null, "raw") : null, core = anyCore ? Converter.toAtmosphere(d, key, null, "core") : null;
+        Converter.Export raw = anyRaw ? Converter.toAtmosphere(d, key, null, "raw", chosen) : null, core = anyCore ? Converter.toAtmosphere(d, key, null, "core", chosen) : null;
         Map<String, List<String>> rawLines = entries(raw), coreLines = entries(core);
         for (io.github.davdxpx.mistel.mncf.Cheat c : d.cheats()) {
             if (!want.containsKey(c.id())) continue;

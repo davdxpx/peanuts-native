@@ -208,8 +208,63 @@ public final class Evaluator {
         return rt.capabilities().contains("code-bytes") && op.expect != null && Encode.hasStub(arch);
     }
 
+    /** Returns the parts of the core in {@link Mncf#FEATURES} that a cheat uses, in that order. */
+    public static List<String> uses(Cheat c) {
+        int conditions = 0;
+        boolean override = false;
+        for (Model.Op op : c.ops()) {
+            if (op instanceof Model.Condition) {
+                conditions++;
+            }
+            override |= op instanceof Model.Override;
+        }
+        Set<String> used = new HashSet<>();
+        if (!"on".equals(c.run())) {
+            used.add("run." + c.run());
+        }
+        if (c.hold() != null) {
+            used.add("hold");
+        }
+        if (c.toggle() != null) {
+            used.add("toggle");
+        }
+        if (c.press() != null) {
+            used.add("press");
+        }
+        if (conditions > 0) {
+            used.add("when");
+            if (conditions > 1) {
+                used.add("when.many");
+            }
+            if ("any".equals(c.match())) {
+                used.add("match.any");
+            }
+            if ("enter".equals(c.trigger())) {
+                used.add("trigger.enter");
+            }
+            if (c.interval() != 1) {
+                used.add("interval");
+            }
+        }
+        if (override) {
+            used.add("override");
+        }
+        List<String> out = new ArrayList<>();
+        for (String k : Mncf.FEATURES) {
+            if (used.contains(k)) {
+                out.add(k);
+            }
+        }
+        return out;
+    }
+
     private static Result cheat(MncfFile f, Cheat c, Runtime rt, String build, String arch, Choices choices,
             Map<SearchKey, List<Long>> cache) {
+        for (String k : uses(c)) {
+            if (rt.unsupported().contains(k)) {
+                return refused(c.id(), "runtime:unsupported:" + k);
+            }
+        }
         List<String> buttonCaps = c.hold() != null || c.toggle() != null || c.press() != null
                 ? Collections.singletonList("buttons") : Collections.<String>emptyList();
         List<String> caps = new ArrayList<>();
@@ -326,6 +381,18 @@ public final class Evaluator {
             throw new Refused("value-out-of-range");
         }
         return v;
+    }
+
+    /**
+     * The value the player chose, or the default, as {@link #value} gives it; null when the
+     * chosen value is not one the player can choose.
+     */
+    static Object chosenValue(Cheat c, Model.ValueRef ref, Choices choices) {
+        try {
+            return value(c, ref, choices);
+        } catch (Refused r) {
+            return null;
+        }
     }
 
     /**
@@ -474,6 +541,7 @@ public final class Evaluator {
                 data = p.bytes;
             }
             if (!target.hasPath()) {
+                checkRewritten(rt, target.base, p.expect.length);
                 checkExpect(rt, target.base, p.expect, data);
             }
             Plan out = new Plan("patch", index, op, Collections.singletonList(target));
@@ -527,6 +595,7 @@ public final class Evaluator {
                     throw new Refused(o.value instanceof Model.ValueRef ? "value-out-of-range" : "invalid:override.expect");
                 }
                 if (!target.hasPath()) {
+                    checkRewritten(rt, target.base, stub.length);
                     checkExpect(rt, target.base, o.expect, null);
                 }
             }
@@ -814,6 +883,13 @@ public final class Evaluator {
             }
         }
         return true;
+    }
+
+    /** Refuses a change over code the runtime rewrote for its own reasons (section 11.3). */
+    private static void checkRewritten(Runtime rt, Place place, int length) throws Refused {
+        if (place.module != null && rt.wasRewritten(place.module, place.offset, length)) {
+            throw new Refused("runtime:rewritten");
+        }
     }
 
     private static void checkExpect(Runtime rt, Place place, byte[] expect, byte[] data) throws Refused {

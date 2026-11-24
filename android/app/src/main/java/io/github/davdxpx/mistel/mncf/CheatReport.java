@@ -15,6 +15,8 @@ public final class CheatReport {
     public static final String RAW = "raw";
     /** The entry only puts back the original code, so it became no cheat. */
     public static final String RESTORE = "restore";
+    /** The entry's code mixes words with other text, so it became no cheat; {@link #why()} names the lines. */
+    public static final String UNREADABLE = "unreadable";
 
     private final String id;
     private final String name;

@@ -62,13 +62,11 @@ public final class MncfConvert {
         List<Source> sources = new ArrayList<>();
         CodeModule main = null;
         boolean mainAsked = false;
-        java.util.Set<String> names = new java.util.HashSet<>();   // two builds of one version name: the later is named by its build ID
-        List<String> notes = new ArrayList<>();
         for (Map.Entry<String, String> e : byBuild.entrySet()) {
             String bid = e.getKey().toUpperCase(Locale.ROOT);
-            Source.Builder b = Source.builder(bid, clean(CheatSources.body(e.getValue()), notes));
+            Source.Builder b = Source.builder(bid, CheatSources.body(e.getValue()));   // lines that are not code, EdiZon's sections: Mistel's converter reads them
             String v = k.versions.get(bid);
-            if (v != null && !v.isEmpty() && names.add(v)) b.version(v);
+            if (v != null && !v.isEmpty()) b.version(v);   // two builds of one version name: the converter names them by their build IDs
             if (k.build != null && k.build.equals(bid) && k.main != null) {
                 if (!mainAsked) { mainAsked = true; main = k.main.main(); }
                 if (main != null && sameBuild(main, bid)) b.module(main);
@@ -79,54 +77,7 @@ public final class MncfConvert {
         if (k.gameName != null && !k.gameName.isEmpty()) o = o.gameName(k.gameName);
         if (origin != null && !origin.trim().isEmpty()) o = o.origin(origin.trim());
         if (k.author != null) o = o.authors(Collections.singletonList(k.author));
-        String text = Converter.fromAtmosphere(sources, o).text();
-        return notes.isEmpty() ? text : withNotes(text, notes);
-    }
-
-    /**
-     * An Atmosphère file as the host reads it (dm/host/hle_cheats.c, CheatFile.parse): its entries' headers and code lines; any other line (a note, a link, a
-     * line of thanks) is not code, and Mistel's stricter reader would refuse the whole file for it, so it goes to notes (the file's about keeps it) instead
-     */
-    static String clean(String text, List<String> notes) {
-        StringBuilder sb = new StringBuilder();
-        boolean named = false;
-        for (String line : text.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1)) {
-            String t = line.replace("﻿", "").trim();
-            if (t.isEmpty()) { sb.append('\n'); continue; }
-            String[] h = CheatFile.header(t);
-            String[] sec = new String[1];
-            int mark = h == null || !h[0].equals("[") ? 0 : CheatFile.marker(h[1], sec);
-            if (mark != 0) {   // EdiZon's [--SectionStart:X--] / [--SectionEnd:X--]: Atmosphère's own heading over 20000000, and its closing twin over 20000001
-                named = true;
-                sb.append('[').append(sec[0]).append("]\n").append(mark == 1 ? "20000000" : "20000001").append('\n');
-            } else if (h != null) {
-                named = true;
-                sb.append(h[0]).append(h[1]).append(h[0].equals("[") ? "]" : "}");
-                if (CheatFile.codeLine(h[2])) sb.append(' ').append(h[2].trim());
-                else if (!h[2].trim().isEmpty() && !notes.contains(h[2].trim())) notes.add(h[2].trim());
-                sb.append('\n');
-            } else if (named && CheatFile.codeLine(t)) {
-                sb.append(t).append('\n');
-            } else if (!notes.contains(t)) {
-                notes.add(t);
-            }
-        }
-        return sb.toString();
-    }
-
-    /** The converted text with the lines that were not code added to its about, as they were */
-    @SuppressWarnings("unchecked")
-    static String withNotes(String text, List<String> notes) {
-        try {
-            io.github.davdxpx.mistel.mncf.MncfFile f = io.github.davdxpx.mistel.mncf.Mncf.load(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            Map<String, Object> doc = MncfBuild.copy(f.doc());
-            Object about = doc.get("about");
-            String add = String.join("\n", notes);
-            doc.put("about", about instanceof String && !((String) about).isEmpty() ? about + "\n" + add : add);
-            return io.github.davdxpx.mistel.mncf.Writer.dumps(doc);
-        } catch (io.github.davdxpx.mistel.mncf.MncfException | RuntimeException e) {
-            return text;   // the converter's own text: kept as it is
-        }
+        return Converter.fromAtmosphere(sources, o).text();
     }
 
     /** Whether the main read from the pack is of this build (the pack names its build ID; a pack of another version has another main) */

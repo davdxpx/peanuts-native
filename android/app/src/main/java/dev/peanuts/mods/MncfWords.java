@@ -39,21 +39,36 @@ public final class MncfWords {
 
     private static String named(String id) { return id.isEmpty() ? "" : " (" + id + ")"; }
 
-    /** Peanuts' own reasons (MncfBuild.runtimeReason and runtime:rewritten) */
+    /** The runtime's reasons: runtime:unsupported:&lt;part&gt; and runtime:rewritten (section 11.1, 11.3), and Peanuts' own (MncfBuild.runtimeReason) */
     static String runtime(String why) {
-        switch (why.toLowerCase(Locale.ROOT)) {
+        String w = why.toLowerCase(Locale.ROOT);
+        if (w.startsWith("unsupported:")) return unsupported(w.substring("unsupported:".length()));
+        switch (w) {
             case "rewritten": return "Peanuts rewrote this place of the game's code while building it, so this cheat cannot change it.";
             case "no-main": return "Its place is found once the game is built.";
-            case "run-once": return "It runs once when you turn it on, which Peanuts cannot do yet.";
-            case "run-timed": return "It runs for a set time, which Peanuts cannot do yet.";
-            case "toggle": return "It is switched with a button combination, which Peanuts cannot do yet.";
-            case "monitor": return "It shows values from the game, which Peanuts cannot do yet.";
-            case "conditions": return "It waits for the game to be in a certain state, in a way Peanuts cannot do yet.";
-            case "action": return "It runs each time you press its buttons, in a way Peanuts cannot do yet.";
             case "module": return "It changes a part of the game other than its main code, which Peanuts cannot do yet.";
             case "region": return "It writes a part of the game's memory Peanuts cannot reach yet.";
             case "address": return "It writes a fixed address, which the Switch does not have.";
             default: return "Peanuts cannot run it yet.";
+        }
+    }
+
+    /** A part of the core Peanuts' cheat engine does not have yet (Mncf.FEATURES' keys) */
+    static String unsupported(String part) {
+        switch (part) {
+            case "run.once": return "It runs once when you turn it on, which Peanuts cannot do yet.";
+            case "run.action": return "It runs each time you press its buttons, in a way Peanuts cannot do yet.";
+            case "run.timed": return "It runs for a set time, which Peanuts cannot do yet.";
+            case "run.monitor": return "It shows values from the game, which Peanuts cannot do yet.";
+            case "hold": return "It runs while you hold its buttons, in a way Peanuts cannot do yet.";
+            case "toggle": return "It is switched with a button combination, which Peanuts cannot do yet.";
+            case "press": return "It runs when you press its buttons, in a way Peanuts cannot do yet.";
+            case "when": return "It waits for the game to be in a certain state, in a way Peanuts cannot do yet.";
+            case "when.many": case "match.any": return "It waits for several things in the game at once, which Peanuts cannot do yet.";
+            case "trigger.enter": return "It runs at the moment the game gets to a certain state, which Peanuts cannot do yet.";
+            case "interval": return "It checks the game only now and then, which Peanuts cannot do yet.";
+            case "override": return "It changes a function in a way Peanuts cannot do yet.";
+            default: return "It uses a part of the cheat format Peanuts cannot run yet.";
         }
     }
 }

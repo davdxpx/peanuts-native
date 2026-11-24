@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -29,6 +30,8 @@ public final class Runtime {
     private final Set<String> rawSyntaxes;
     private final String build;
     private final Set<String> held;
+    private final Set<String> unsupported;
+    private final Map<String, List<long[]>> rewritten;
 
     private Runtime(Builder b) {
         platform = b.platform;
@@ -42,6 +45,12 @@ public final class Runtime {
         rawSyntaxes = Collections.unmodifiableSet(new LinkedHashSet<>(b.rawSyntaxes));
         build = b.build;
         held = Collections.unmodifiableSet(new LinkedHashSet<>(b.held));
+        unsupported = Collections.unmodifiableSet(new LinkedHashSet<>(b.unsupported));
+        Map<String, List<long[]>> runs = new LinkedHashMap<>();
+        for (Map.Entry<String, List<long[]>> e : b.rewritten.entrySet()) {
+            runs.put(e.getKey(), Collections.unmodifiableList(new ArrayList<>(e.getValue())));
+        }
+        rewritten = Collections.unmodifiableMap(runs);
     }
 
     /**
@@ -65,6 +74,8 @@ public final class Runtime {
         private Collection<String> rawSyntaxes = Collections.singletonList("atmosphere");
         private String build;
         private Collection<String> held = Collections.emptyList();
+        private Collection<String> unsupported = Collections.emptyList();
+        private final Map<String, List<long[]>> rewritten = new LinkedHashMap<>();
 
         private Builder(String platform) {
             this.platform = platform;
@@ -153,6 +164,35 @@ public final class Runtime {
             return held(Arrays.asList(buttons));
         }
 
+        /**
+         * Sets the parts of the core the runtime does not have yet, out of {@link Mncf#FEATURES}.
+         * A cheat that uses one is refused with "runtime:unsupported:" and the part.
+         */
+        public Builder unsupported(Collection<String> features) {
+            this.unsupported = new ArrayList<>(features);
+            return this;
+        }
+
+        /** Sets the parts of the core the runtime does not have yet, out of {@link Mncf#FEATURES}. */
+        public Builder unsupported(String... features) {
+            return unsupported(Arrays.asList(features));
+        }
+
+        /**
+         * Adds a run of code that the runtime rewrote for its own reasons, as an offset and a
+         * length in bytes in a module, both read as unsigned. A patch or a stub over it is refused
+         * with "runtime:rewritten".
+         */
+        public Builder rewritten(String module, long offset, long length) {
+            List<long[]> runs = rewritten.get(module);
+            if (runs == null) {
+                runs = new ArrayList<>();
+                rewritten.put(module, runs);
+            }
+            runs.add(new long[] {offset, length});
+            return this;
+        }
+
         /** Returns the runtime. */
         public Runtime build() {
             return new Runtime(this);
@@ -230,6 +270,34 @@ public final class Runtime {
     /** Returns the buttons held now. */
     public Set<String> held() {
         return held;
+    }
+
+    /** Returns the parts of the core the runtime does not have yet. */
+    public Set<String> unsupported() {
+        return unsupported;
+    }
+
+    /**
+     * Whether the runtime rewrote any byte of a module from an offset on for a length, all read
+     * as unsigned.
+     */
+    public boolean wasRewritten(String module, long offset, long length) {
+        List<long[]> runs = rewritten.get(module);
+        if (runs == null) {
+            return false;
+        }
+        for (long[] r : runs) {
+            if (below(r[0], offset, length) && below(offset, r[0], r[1])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether a is less than b plus c, all unsigned, without overflow. */
+    private static boolean below(long a, long b, long c) {
+        long sum = b + c;
+        return Long.compareUnsigned(sum, b) < 0 || Long.compareUnsigned(a, sum) < 0;
     }
 
     long[] regionOrNull(String name) {

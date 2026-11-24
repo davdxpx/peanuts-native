@@ -80,13 +80,19 @@ public final class Atmosphere {
         private final int line;
         private final List<String> lines;
         private final long[] words;
+        private final List<String> broken;
 
         Entry(String name, boolean master, int line, List<String> lines, long[] words) {
+            this(name, master, line, lines, words, Collections.<String>emptyList());
+        }
+
+        Entry(String name, boolean master, int line, List<String> lines, long[] words, List<String> broken) {
             this.name = name;
             this.master = master;
             this.line = line;
             this.lines = Collections.unmodifiableList(new ArrayList<>(lines));
             this.words = words.clone();
+            this.broken = Collections.unmodifiableList(new ArrayList<>(broken));
         }
 
         /** Returns the name between the brackets, without spaces at its ends. */
@@ -118,12 +124,57 @@ public final class Atmosphere {
             return words;
         }
 
+        /**
+         * Returns the lines that mix code words with other text, when the file was read with
+         * notes; the entry's code cannot be read then. Empty otherwise.
+         */
+        public List<String> broken() {
+            return broken;
+        }
+
         /** Returns the code lines, each followed by a line feed, or empty text when there is no code. */
         public String code() {
             if (lines.isEmpty()) {
                 return "";
             }
             return String.join("\n", lines) + "\n";
+        }
+    }
+
+    /** A line of a cheat file that is neither a name nor code, read leniently. */
+    public static final class Note {
+        private final int line;
+        private final String text;
+
+        /** Makes a note of a line, by its number counted from 1 and its text. */
+        public Note(int line, String text) {
+            this.line = line;
+            this.text = text;
+        }
+
+        /** Returns the number of the line, counted from 1. */
+        public int line() {
+            return line;
+        }
+
+        /** Returns the text of the line, without spaces at its ends and without a name before it. */
+        public String text() {
+            return text;
+        }
+
+        @java.lang.Override
+        public boolean equals(Object o) {
+            return o instanceof Note && ((Note) o).line == line && ((Note) o).text.equals(text);
+        }
+
+        @java.lang.Override
+        public int hashCode() {
+            return line * 31 + text.hashCode();
+        }
+
+        @java.lang.Override
+        public String toString() {
+            return "(" + line + ", " + Py.repr(text) + ")";
         }
     }
 
@@ -134,6 +185,20 @@ public final class Atmosphere {
      *     hexadecimal digits, or code before the first name
      */
     public static List<Entry> parse(String text) throws AtmosphereException {
+        return parse(text, null);
+    }
+
+    /**
+     * Returns the entries of an Atmosphère cheat file. Strictly, with null as notes, as
+     * Atmosphère reads a file, any line that is neither a name nor code is an error. With a list
+     * as notes, a line without any code word, or any line before the first name, goes into it
+     * instead, and a line that mixes code words with other text goes into its entry's
+     * {@link Entry#broken}.
+     *
+     * @throws AtmosphereException for a name without its closing bracket, and strictly also for a
+     *     word that is not 8 hexadecimal digits or code before the first name
+     */
+    public static List<Entry> parse(String text, List<Note> notes) throws AtmosphereException {
         int from = 0;
         while (from < text.length() && text.charAt(from) == '\uFEFF') {
             from++;
@@ -152,19 +217,37 @@ public final class Atmosphere {
                         throw new AtmosphereException("line " + n + ": the name has no closing " + close);
                     }
                     current = new Object[] {Py.strip(line.substring(1, end)), c == '{', n, new ArrayList<String>(),
-                        new ArrayList<Long>()};
+                        new ArrayList<Long>(), new ArrayList<String>()};
                     drafts.add(current);
                     line = Py.strip(line.substring(end + 1));
                     continue;
                 }
                 List<String> tokens = Py.splitSpace(line);
+                List<String> bad = new ArrayList<>();
                 for (String tok : tokens) {
                     if (!Py.matches(WORD, tok)) {
-                        throw new AtmosphereException("line " + n + ": " + Py.repr(tok)
-                                + " is not a word of 8 hexadecimal digits");
+                        bad.add(tok);
                     }
                 }
+                if (!bad.isEmpty() && notes != null) {
+                    if (bad.size() == tokens.size() || current == null) {
+                        notes.add(new Note(n, line));
+                    } else {
+                        broken(current).add(line);
+                    }
+                    line = "";
+                    continue;
+                }
+                if (!bad.isEmpty()) {
+                    throw new AtmosphereException("line " + n + ": " + Py.repr(bad.get(0))
+                            + " is not a word of 8 hexadecimal digits");
+                }
                 if (current == null) {
+                    if (notes != null) {
+                        notes.add(new Note(n, line));
+                        line = "";
+                        continue;
+                    }
                     throw new AtmosphereException("line " + n + ": code before the first name");
                 }
                 lines(current).add(line);
@@ -181,7 +264,7 @@ public final class Atmosphere {
             for (int i = 0; i < w.length; i++) {
                 w[i] = ws.get(i);
             }
-            entries.add(new Entry((String) d[0], (Boolean) d[1], (Integer) d[2], lines(d), w));
+            entries.add(new Entry((String) d[0], (Boolean) d[1], (Integer) d[2], lines(d), w, broken(d)));
         }
         return entries;
     }
@@ -194,6 +277,11 @@ public final class Atmosphere {
     @SuppressWarnings("unchecked")
     private static List<Long> words(Object[] draft) {
         return (List<Long>) draft[4];
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> broken(Object[] draft) {
+        return (List<String>) draft[5];
     }
 
     // Opcodes

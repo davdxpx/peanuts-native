@@ -31,6 +31,14 @@ public final class Mncf {
     public static final List<String> CAPABILITIES =
             Values.list("guest-read", "guest-write", "code-bytes", "code-hook", "buttons", "display");
 
+    /**
+     * The parts of the core a runtime may not have yet (section 11.1), in the order they are
+     * checked. {@link Runtime.Builder#unsupported} takes them.
+     */
+    public static final List<String> FEATURES = Values.list("run.once", "run.action", "run.timed",
+            "run.monitor", "hold", "toggle", "press", "when", "when.many", "match.any", "trigger.enter",
+            "interval", "override");
+
     private Mncf() {
     }
 
