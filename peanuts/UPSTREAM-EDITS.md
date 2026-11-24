@@ -2824,3 +2824,16 @@ Peanuts-owned: `dm/peanuts/peanuts_amiibo.c`, `dev.peanuts.amiibo` (`AmiiboDb`, 
 `peanuts/tests/test_amiibo.py` (`AmiiboJvmTest`: the table, dumps made in the test, imports, the store, the host's description; no keys or dumps in the
 repository), `peanuts/tests/test_ctl.py`. `upstream-update.sh --check` counts `android/app/src/jvmtest/java/dev/peanuts/` (the JVM tests of
 Peanuts' own classes) as Peanuts-owned.
+
+### amiibo Part B: a game's amiibo on its page (2026-11-24, GitHub issue #582, on Round 65)
+
+A game that uses amiibo (AmiiboAPI's table lists it, or it was seen initializing nfp) gets an amiibo tile after Controls. Its area
+(`dev.peanuts.amiibo.AmiiboPage`): the player's own amiibo that fit the game first (the last placed in it first), then every amiibo that fits it, as square
+pictures with their names; a search over all of them (name, series, game series); Import of .bin files or ZIP packs, or a folder (the system's picker,
+`LibrarySettings.result`, codes 87 and 88). An amiibo opens its page in the area: the picture, series and type, what it does in this game, the game's data on
+it with Reset game data (that game's area only), where it came from and how often it was placed, the other games that use it, and Remove from yours. B goes
+back from the page or the search to the pictures (`GamePage.onBack`). Pictures load when the area shows them (`AmiiboPictures`), Peanuts' own card (the
+stand icon, `pi_amiibo`) stands in until then or when there is none. No upstream file changes.
+
+Peanuts-owned: `AmiiboPage`, `GameAreas.AMIIBO`, its lines in `GamePage` and `LibrarySettings`, `pi_amiibo` (`peanuts/scripts/icons.py`). Tests:
+`peanuts/tests/test_amiibo.py` (Page: the wiring, the words, pictures only on demand), `peanuts/tests/test_game_page.py` (`GameAreasJvmTest`: the ten areas).

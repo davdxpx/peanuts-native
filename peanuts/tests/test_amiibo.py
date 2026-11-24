@@ -63,5 +63,37 @@ class Table(unittest.TestCase):
         self.assertRegex(db.read_text(encoding='utf-8'), r'name\.substring\(0, i\) \+ " \(" \+ name\.substring\(i \+ 3\) \+ "\)"')
 
 
+def literals(path):
+    return re.findall(r'"((?:[^"\\]|\\.)*)"', path.read_text(encoding='utf-8'))
+
+
+class Page(unittest.TestCase):
+    """The game page's amiibo area (AmiiboPage), Part B"""
+
+    def test_wiring(self):
+        ui = APP / 'main/java/dev/peanuts/ui'
+        areas = (ui / 'GameAreas.java').read_text(encoding='utf-8')
+        self.assertIn('new Area(AMIIBO, "amiibo", "amiibo",', areas)
+        page = (ui / 'GamePage.java').read_text(encoding='utf-8')
+        self.assertIn('case GameAreas.AMIIBO: return dev.peanuts.amiibo.AmiiboStand.usesAmiibo(a, f.titleId);', page, 'only for games that use amiibo')
+        self.assertIn('dev.peanuts.amiibo.AmiiboPage.area(a, body, f.titleId, f.name, wide);', page)
+        self.assertIn('dev.peanuts.amiibo.AmiiboPage.back()', page, 'B from an amiibo\'s page goes back to the pictures')
+        self.assertIn('dev.peanuts.amiibo.AmiiboPage.leave()', page)
+        self.assertIn('dev.peanuts.amiibo.AmiiboPage.result(a, request, result, data)', (ui / 'LibrarySettings.java').read_text(encoding='utf-8'))
+        self.assertTrue((APP / 'peanuts/res/drawable/pi_amiibo.xml').is_file(), 'the tile\'s icon')
+
+    def test_words(self):
+        """UI-RULES.md: no separator glyphs, no dashes, no exclamation marks, no Loading text in the player's words"""
+        for f in ('AmiiboPage.java', 'AmiiboImport.java'):
+            for s in literals(PKG / f):
+                for bad in ('·', '•', ' - ', '—', '–', '!', 'Loading', 'Oops'):
+                    self.assertNotIn(bad, s, f'{f}: "{s}"')
+
+    def test_pictures_only_on_demand(self):
+        """Pictures are fetched when a page shows an amiibo (AmiiboPictures.load from the page), never at start or in the background"""
+        uses = [p.name for p in APP.rglob('*.java') if 'AmiiboPictures.load(' in p.read_text(encoding='utf-8') and p.name != 'AmiiboPictures.java']
+        self.assertTrue(set(uses) <= {'AmiiboPage.java', 'AmiiboTab.java', 'AmiiboCard.java', 'AmiiboShow.java'}, uses)
+
+
 if __name__ == '__main__':
     unittest.main()

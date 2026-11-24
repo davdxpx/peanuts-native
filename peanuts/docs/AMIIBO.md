@@ -40,6 +40,12 @@ game's data leaves the others'.
 An imported `.bin` gives its ID (plain at 0x54) and its UID (the first pages). Everything else in a dump is encrypted and is not read: the game data a
 figure carries from a console stays on the figure, and Peanuts keeps its own. No keys of any kind are asked for, read or shipped.
 
+## The game page
+
+A game that uses amiibo has an amiibo tile (after Controls). Its area shows the player's own amiibo that fit the game, then every amiibo that fits it,
+searches all of them, and imports .bin files, folders and ZIP packs. An amiibo's page says what it does in this game and whether the game keeps data on
+it, and resets that game's data (Reset game data) or removes the amiibo from the player's own.
+
 ## Control
 
 `adb shell am start -n <package>/dev.peanuts.ctl.Command -e cmd game -e do amiibo -e value <status | off | ID | own:<ID>-<UID>>` (CONTROL.md).
