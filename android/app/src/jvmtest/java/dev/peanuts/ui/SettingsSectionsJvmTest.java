@@ -32,6 +32,16 @@ public final class SettingsSectionsJvmTest {
 
         // the rows of the long page, by the heading they were built under
         eq("library/Folders", SettingsSections.place("Game folder", "Library"));
+        // PEANUTS: every folder a row of its kind, then Add folder, then the per-game Folders and Rescan (issue #546)
+        eq("library/Folders", SettingsSections.place("Update and DLC folder", "Library"));
+        eq("library/Folders", SettingsSections.place("Build folder", "Library"));
+        eq("library/Folders", SettingsSections.place("Add folder", "Library"));
+        SettingsSections.Section lib = SettingsSections.section("library");
+        String[] folderOrder = {"Game folder", "Update and DLC folder", "Build folder", "Add folder", "Folders", "Rescan"};
+        for (int i = 1; i < folderOrder.length; i++)
+            yes(SettingsSections.order(lib, "Folders", folderOrder[i - 1]) < SettingsSections.order(lib, "Folders", folderOrder[i]), folderOrder[i - 1] + " before " + folderOrder[i]);
+        eq("update", SettingsSections.place("Update and DLC folder", "Library").icon);
+        eq("add", SettingsSections.place("Add folder", "Library").icon);
         eq("library/Space", SettingsSections.place("Storage", "System"));
         eq("console/Keys and firmware", SettingsSections.place("Keys", "Library"));
         eq("console/Keys and firmware", SettingsSections.place("Firmware", "Library"));

@@ -456,8 +456,7 @@ public final class GameSheet {
         // game folder's / the app's own storage
         String root = PeanutsPrefs.chosenBuildDir(a, title.titleId);
         File buildGameDir = root == null ? PeanutsPrefs.buildGameDir(a, title.titleId) : PeanutsPrefs.buildGameDir(root, title.titleId);
-        String gameDir = PeanutsPrefs.gameDir(a);
-        File importDest = buildGameDir != null ? buildGameDir : (gameDir == null ? null : new File(gameDir));
+        File importDest = buildGameDir != null ? buildGameDir : PeanutsPrefs.homeFor(a, title.base == null ? null : title.base.file);   // the game folder that holds it
         File packVolume = buildGameDir != null ? new File(buildGameDir, "pack") : a.getExternalFilesDir(null);
         String warn = SpaceEstimate.warning(importBytes + unpackBytes, packBasis, needsImport, importDest, packVolume);
         if (warn != null) PUi.add(box, PUi.warnChip(a, "Low disk space", "Low disk space", warn + SpaceEstimate.unpackSentence(unpackBytes) + " Build still works, but it may run out of space part way."), 14);

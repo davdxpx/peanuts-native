@@ -19,7 +19,7 @@ You need three things from your own console first: your game dumps, your `prod.k
 1. Install the APK and open the app. The first screen is the card **Set up your games**. It lists four steps: **1 Keys**, **2 Game folder**, **3 Updates & DLC**, **4 Firmware**.
 2. Tap **Keys** and pick your `prod.keys`. You should see the message **Keys accepted**, and the row reads **Added: prod.keys is in the app.**
 3. Tap **Game folder** and pick the folder that holds your dumps. The first time, a dialog **Allow file access** appears. Tap **Open settings**, turn on All files access for Peanuts Native, and go back to the app. You should see the folder's path in the row.
-4. Optional: tap **Updates & DLC** if your update or DLC files are in other folders. Set **Update folder** and **DLC folder**, then **Done**. Skip this if everything is inside the game folder.
+4. Optional: tap **Updates & DLC** if your update or DLC files are in a folder of their own, and pick it. Skip this if everything is inside the game folder. More folders of either kind can be added later in Settings › Library › **Add folder**.
 5. Tap **Firmware**, then **Folder** or **Zip file**, and pick your firmware dump. The row reads **Reading the firmware…** and then **Firmware added from …**. Do this after the keys: the fonts cannot be read without them.
 6. Tap **Show my games**. You should see a grid of covers. A game that can be built has a **Build** label on its cover.
 7. Optional: install a GPU driver in Settings › Graphics › **GPU driver**. See [Which driver is recommended?](#which-driver-is-recommended)
@@ -68,7 +68,7 @@ You dump your own games, keys and firmware from your own console. The app ships 
 ### Where do my files go?
 
 - Your dumps stay where you put them, in the game folder you picked.
-- Settings › Library › **Build folders** lets you add folders on internal storage and the SD card. The game sheet's **Build destination** chooses where that game's new build goes.
+- Settings › Library › **Add folder** › **Builds** adds build folders on internal storage and the SD card. The game sheet's **Build destination** chooses where that game's new build goes.
 - Keys and extracted fonts are kept inside the app.
 - Saves are in the app's own storage. The game's **Saves** tab shows the exact path.
 
@@ -152,13 +152,19 @@ Some games also need the fonts to start at all, for example Echoes of Wisdom. If
 
 Then tap a game's cover to open its sheet. Check the **Base**, **Update**, **DLC** and **Dual-screen companion** rows and tap **Build**. The build imports the game, prepares it and installs the companion. Only one build runs at a time.
 
-Later, change the folders in Settings › Library. **Rescan** reads them again.
+Later, add or remove folders in Settings › Library. **Rescan** reads them again.
 
 ### Where does the app look for my games?
 
-In the **Game folder**, the **Update folder**, the **DLC folder** and the **Build folder**, each up to two folders deep. It finds `.nsp`, `.xci`, `.nsz`, `.xcz` and `.nup` files and dump folders: in the dump tools' layout (`base/`, `updates/<version>/`), in the console's layout as OunceCake serves it (`base/program/0/`), and one version's folder (`exefs` and `romfs` at its top). A dump folder's version is its `updates/<version>/`, else the version its `main` was built for, so a game updated on a PC shows as that update. Build prepares a dump from `base/` or `updates/<version>/`: for one version's folder, make a folder named `base` in it and move `exefs` and `romfs` there. Updates and DLC are matched to their game by title ID, wherever they are in those folders. A file deeper than two folders is not found: move it up, or point the folder setting at it. Mods for other emulators are skipped: folders named `mods`, `load` or `atmosphere`, and one version's folder whose `exefs` lacks the game's `main`, `main.npdm` or `sdk` (a mod may bring its own `main`, never `sdk`). To use a mod here, add it on the game's page, see [Mods](#mods).
+In every folder listed in Settings › Library: each **Game folder**, **Update and DLC folder** and **Build folder**, each up to two folders deep. It finds `.nsp`, `.xci`, `.nsz`, `.xcz` and `.nup` files and dump folders: in the dump tools' layout (`base/`, `updates/<version>/`), in the console's layout as OunceCake serves it (`base/program/0/`), and one version's folder (`exefs` and `romfs` at its top). A dump folder's version is its `updates/<version>/`, else the version its `main` was built for, so a game updated on a PC shows as that update. Build prepares a dump from `base/` or `updates/<version>/`: for one version's folder, make a folder named `base` in it and move `exefs` and `romfs` there. Updates and DLC are matched to their game by title ID, wherever they are in those folders. A file deeper than two folders is not found: move it up, or point the folder setting at it. Mods for other emulators are skipped: folders named `mods`, `load` or `atmosphere`, and one version's folder whose `exefs` lacks the game's `main`, `main.npdm` or `sdk` (a mod may bring its own `main`, never `sdk`). To use a mod here, add it on the game's page, see [Mods](#mods).
 
 If the home screen says **No games found in …**, put your files in that folder and tap Settings › Library › **Rescan**.
+
+### Can I use several game folders?
+
+Yes, and several folders for updates and DLC, and several build folders, for example one on internal storage and one on the microSD card. In Settings › Library, tap **Add folder**, choose what is in the folder (**Games**, **Updates and DLC** or **Builds**) and pick it. The sheet stays open, so you can add the next folder right away; tap **Done** when you have them all. Every folder is a row of its own in Settings › Library. Tap one to remove it from the list: its files stay where they are, and its games leave Home until you add it again. A game you build from an NSP or XCI without a build folder gets its `.nup` in the game folder its file is in.
+
+If you set a game folder, an update folder and a DLC folder in an earlier version, they are in the list after the update, nothing to do.
 
 ### What do the labels on a cover mean?
 
@@ -188,8 +194,8 @@ The usual causes and their fixes:
 
 | Cause | How it looks | Fix |
 |---|---|---|
-| No update file was found | **Update** reads **None found · Choose…**, **You have: v0** | Put the update from your own console in the game folder or the **Update folder**, then **Rescan**. Or tap the **Update** row and pick the file. |
-| The update is in a folder the app does not scan | The same | Set Settings › Library › **Update folder**, or tap the **Update** row and pick the file. |
+| No update file was found | **Update** reads **None found · Choose…**, **You have: v0** | Put the update from your own console in a game folder or an **Update and DLC folder**, then **Rescan**. Or tap the **Update** row and pick the file. |
+| The update is in a folder the app does not scan | The same | Add the folder in Settings › Library › **Add folder** › **Updates and DLC**, or tap the **Update** row and pick the file. |
 | Your update is newer or older than the supported ones | **You have** shows a version that is not in **This build supports** | Use the update the app lists, dumped from your own console. If you have it, tap the **Update** row (**Choose another…**) and pick it. |
 | Keys are not added yet | Every version reads **v0** | Add **Keys**, then **Rescan**. |
 
@@ -241,7 +247,7 @@ How the three labels differ:
 The base game or its newest update was in your folder at the last scan and is not there now. Typical causes: the file was moved, renamed or deleted, or the microSD card was removed.
 
 1. Put the file back, or insert the card.
-2. Tap Settings › Library › **Rescan**. If the folder itself moved, pick the **Game folder** again.
+2. Tap Settings › Library › **Rescan**. If the folder itself moved, add it again with Settings › Library › **Add folder** and remove the old row.
 3. For an update, you can also tap the **Update** row in the sheet and pick the file again.
 
 Until then the sheet says **Pick the file again above before building** and **Build** is off.
@@ -305,7 +311,7 @@ Probably not. Large games can stay on one step for many minutes. Open the **Buil
 
 ### Can I build on a microSD card?
 
-Yes. Add folders on internal storage and the microSD card in Settings › Library › **Build folders**. Tap a folder there to make it the default or forget it. Peanuts searches every configured folder for existing builds.
+Yes. Add folders on internal storage and the microSD card in Settings › Library › **Add folder** › **Builds**. Tap a build folder's row to make it the default or remove it from the list. Peanuts searches every configured folder for existing builds.
 
 In the game's Build or Rebuild pop-up, tap **Build destination** above the space estimate. Choose **Default** or pick a folder for that game. You can also add a folder there. A newly imported `.nup` and its `pack/` go into the title-ID folder at the selected destination. If you start from an existing `.nup`, only the pack goes to the selected destination.
 
@@ -385,7 +391,7 @@ Yes. A game's pack is what Build makes: its code for this app and its shaders. *
 
 ### How do updates and DLC work?
 
-Put them in the game folder, or set Settings › Library › **Update folder** and **DLC folder**. They are matched to their games by title ID. The sheet shows the update it will use, the newest one found unless you chose another (**Choose another…** picks a different file), and the DLC it found (**Add…** picks more).
+Put them in a game folder, or add the folders they are in with Settings › Library › **Add folder** › **Updates and DLC** (as many as you have). They are matched to their games by title ID. The sheet shows the update it will use, the newest one found unless you chose another (**Choose another…** picks a different file), and the DLC it found (**Add…** picks more).
 
 For a game that is built already, the cover says when it found a newer update the app knows for the game, or DLC its `.nup` does not hold yet: an **Update** mark, and "Update 3.0.4 found" or "An add-on found" in its state. A tap asks first: **Build** takes them in with Import again, **Play** plays the game as it is, **Not now** asks no more for these (the mark then reads **Update later**). Nothing is built without the tap. Such a build keeps what did not change since the last build of the game (its shaders, its code, the game files the shader search read) and makes only the rest, so it takes a fraction of a first build; its ready message says what came from earlier builds. Later, while the device is plugged in and no game runs, the app checks every shader it kept against a translation made from the start.
 
@@ -397,7 +403,7 @@ This is not the message for a game the app knows in several versions. There the 
 
 The build stops there and lets you choose. Its card has two buttons:
 
-- **Import again with DLC**, when the app found DLC for the game. Without a DLC folder the button is **Set the DLC folder**: set it (or add the DLC file in the game's sheet, **DLC** row), then tap **Import again with DLC**. It makes the `.nup` again with the DLC and builds the game. Whether the missing shaders are then found is not known: no game has needed this yet. See [Import again](#what-is-import-again-and-when-do-i-need-it).
+- **Import again with DLC**, when the app found DLC for the game. Without an update and DLC folder the button is **Add a DLC folder**: pick the folder with the DLC (or add the DLC file in the game's sheet, **DLC** row), then tap **Import again with DLC**. It makes the `.nup` again with the DLC and builds the game. Whether the missing shaders are then found is not known: no game has needed this yet. See [Import again](#what-is-import-again-and-when-do-i-need-it).
 - **Try anyway** builds without those shaders: the base game runs, and what the add-on adds is drawn without those materials. The game's sheet then says "Built without DLC shaders", and **Import again** there is the way to try for them later.
 
 Older versions of the app went on without asking here, so a game built by one of them can lack these shaders with no message. **Import again** is the thing to try there too.

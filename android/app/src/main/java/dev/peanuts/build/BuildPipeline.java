@@ -350,7 +350,7 @@ public final class BuildPipeline {
         if (r.base == null) return "Pick the game's base file first.";
         if (!r.base.exists()) { Log.w(TAG, "check: the base file is missing: " + r.base); return "The game's base file is missing. Open the game's sheet to pick it again."; }
         if (r.needsImport() && r.gameDir == null && r.buildDestination == null && dev.peanuts.PeanutsPrefs.buildDir(ctx) == null)
-            return "Set a Game folder in Settings › Library, or pick a Build destination, then build.";
+            return "Add a game folder in Settings › Library, or pick a Build destination, then build.";
         return null;
     }
 

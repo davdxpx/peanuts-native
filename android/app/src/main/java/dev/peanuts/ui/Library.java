@@ -842,8 +842,7 @@ public final class Library {
         for (LibraryScanner.Title t : lastTitles) if (t.launch != null && samePath(t.launch.getPath(), dump.getPath())) { if (id == null || id.isEmpty()) id = t.titleId; if (name == null) name = t.name; break; }
         if (id == null || id.isEmpty()) return false;   // upstream's own check says what is wrong with the dump
         BuildRequest r = new BuildRequest(id.toUpperCase(Locale.ROOT), name != null ? name : dump.getName(), dump, null, null, null, null);
-        String root = PeanutsPrefs.gameDir(a);
-        r.gameDir = root == null ? null : new File(root);
+        r.gameDir = PeanutsPrefs.homeFor(a, dump);   // the game folder that holds the file, else the first (issue #546)
         r.buildDestination = PeanutsPrefs.chosenBuildDir(a, r.titleId);
         Library l = current != null && current.a == a ? current : null;
         if (l != null && l.building(r.titleId)) { Toast.makeText(a, r.name + " is being built now.", Toast.LENGTH_LONG).show(); return true; }
@@ -1187,7 +1186,9 @@ public final class Library {
             int n = PeanutsPrefs.roots(a).size();
             note = PUi.add(box, PUi.small(a, "Looking in " + n + (n == 1 ? " folder…" : " folders…")), 8);
         } else if (rows.isEmpty() && pc == null && !setup) {
-            note = PUi.add(box, PUi.small(a, "No games found in " + PeanutsPrefs.gameDir(a) + ". Put NSP, NSZ, XCI, XCZ, .nup files or dump folders there, then Rescan (Settings › Library)."), 8);
+            List<String> dirs = PeanutsPrefs.gameDirs(a);
+            note = PUi.add(box, PUi.small(a, (dirs.size() == 1 ? "No games found in " + dirs.get(0) + ". Put NSP, NSZ, XCI, XCZ, .nup files or dump folders there"
+                    : "No games found in your " + dirs.size() + " game folders. Put NSP, NSZ, XCI, XCZ, .nup files or dump folders in one of them") + ", then Rescan (Settings › Library)."), 8);
         }
         if (note != null && !hadNote) Motion.fadeIn(note);
         hadNote = note != null;
@@ -1229,7 +1230,7 @@ public final class Library {
         StringBuilder s = new StringBuilder(64 + show.size() * 48);
         s.append(gen).append('|').append(filter).append('|').append(find).append('|').append(showHidden).append('|').append(hidden).append('|').append(cols).append('|').append(widthDp())
                 .append('|').append(all).append(',').append(ready).append(',').append(toBuild).append(',').append(noProfile).append(',').append(building)
-                .append('|').append(scanning ? PeanutsPrefs.roots(a).size() : -1).append('|').append(PeanutsPrefs.gameDir(a))
+                .append('|').append(scanning ? PeanutsPrefs.roots(a).size() : -1).append('|').append(PeanutsPrefs.gameDirs(a))
                 .append('|').append(pc == null ? 0 : System.identityHashCode(pc)).append('|').append(buildCard);
         if (b != null) s.append('|').append(b.id).append(',').append(b.step).append(',').append(b.failed).append(',').append(b.code).append(',').append(b.error.hashCode());
         for (Row r : show) {
@@ -1858,11 +1859,11 @@ public final class Library {
             switch (code) {
                 case BuildListener.ADDON_MISSING: {
                     // Prepare stopped and asks (dev.peanuts.build.AutoRelax): the shaders come with add-on content that was not imported. What mends it, by
-                    // what is there: no DLC folder set, the folder rows; DLC found for the game, Import again; else the sheet (its DLC row adds a file).
+                    // what is there: no update and DLC folder set, its folder picker; DLC found for the game, Import again; else the sheet (its DLC row adds a file).
                     // Try anyway is the other choice, asked once with what it costs
                     boolean nup = t != null && t.base != null && t.base.isNup();
-                    if (nup && PeanutsPrefs.dlcDir(a) == null && !GameSheet.dlcFound(t))
-                        left = PUi.button(a, "Set the DLC folder", PUi.Kind.TONAL, Haptics.on(Haptics.Word.TICK, v -> LibrarySettings.extraFolders(a)));
+                    if (nup && PeanutsPrefs.addonDirs(a).isEmpty() && !GameSheet.dlcFound(t))
+                        left = PUi.button(a, "Add a DLC folder", PUi.Kind.TONAL, Haptics.on(Haptics.Word.TICK, v -> LibraryFolders.pick(a, dev.peanuts.folders.FolderKinds.ADDONS, false)));
                     else if (nup && GameSheet.dlcFound(t))
                         left = PUi.button(a, "Import again with DLC", PUi.Kind.TONAL, Haptics.on(Haptics.Word.TICK, v -> GameSheet.importAgain(a, this, t, CompanionPort.forTitle(catalog, t.titleId), null)));
                     else left = PUi.button(a, "Open the game's sheet", PUi.Kind.TONAL, Haptics.on(Haptics.Word.CLICK, v -> openSheet.run()));
@@ -1938,7 +1939,7 @@ public final class Library {
             LibraryScanner.Title bt = titleFor(b.titleId);
             boolean btNup = bt != null && bt.base != null && bt.base.isNup();
             String action = b.reimport && b.step.equals("import") && !BuildListener.OUT_OF_SPACE.equals(b.code) ? " Open the game's sheet and tap Import again."
-                    : BuildListener.ADDON_MISSING.equals(b.code) ? (btNup && PeanutsPrefs.dlcDir(a) == null && !GameSheet.dlcFound(bt) ? " No DLC folder is set. Tap Set the DLC folder, then import the game again."
+                    : BuildListener.ADDON_MISSING.equals(b.code) ? (btNup && PeanutsPrefs.addonDirs(a).isEmpty() && !GameSheet.dlcFound(bt) ? " No update and DLC folder is set. Tap Add a DLC folder, then import the game again."
                             : btNup && GameSheet.dlcFound(bt) ? " DLC for this game was found. Tap Import again with DLC to add it." : " Add the DLC on the DLC row of the game's sheet.")
                     : BuildListener.FILE_DAMAGED.equals(b.code) ? ""   // its message says what to do (Compressed.failure)
                     : BuildListener.FILE_MISSING.equals(b.code) ? " Open the game's sheet to pick the file again."
@@ -2037,8 +2038,7 @@ public final class Library {
         BuildRequest r = new BuildRequest();
         r.titleId = s.titleId; r.name = s.name; r.base = s.base; r.update = s.update;
         r.dlcs = new ArrayList<>(s.dlcs);
-        String root = PeanutsPrefs.gameDir(a);
-        r.gameDir = root == null ? null : new File(root);
+        r.gameDir = PeanutsPrefs.homeFor(a, s.base);   // the game folder that holds the game's file, else the first (issue #546)
         r.buildDestination = PeanutsPrefs.chosenBuildDir(a, s.titleId);
         r.companionPackage = s.installCompanion ? s.companionPackage : null;
         r.replaceNup = s.replaceNup; r.deleteOldFirst = s.deleteOldFirst;   // Import again (GameSheet.importAgain)
@@ -2134,19 +2134,20 @@ public final class Library {
         }
         PUi.add(c, steps, 16, PUi.wrap());
         boolean keys = PeanutsPrefs.hasKeys(a);
-        String game = PeanutsPrefs.gameDir(a);
+        List<String> games = PeanutsPrefs.gameDirs(a);
+        String game = games.isEmpty() ? null : games.size() == 1 ? games.get(0) : games.size() + " game folders";
         // Keys and firmware fonts are a one-time setup requirement before Build, not per-build (owner, 2026-11-13): no longer worded "Optional" here, since
         // Build itself is gated on both (GameSheet, Library.startBuild). Browsing this screen (Show my games, below) still needs only the game folder.
         PUi.add(c, PUi.body(a, LibrarySettings.KEYS_FIRMWARE_GUIDANCE), 12);
         PUi.add(c, new PUi.Setting(a, "🔑", "Keys", Haptics.on(Haptics.Word.TICK, v -> LibrarySettings.pickKeys(a)))
                 .value(keys ? "Added: prod.keys is in the app." : "Needed before building. Importing an NSP, NSZ, XCI or XCZ needs it; browsing your folders here does not.").chevron(a).view, 16);
-        PUi.add(c, new PUi.Setting(a, "📁", "Game folder", Haptics.on(Haptics.Word.TICK, v -> LibrarySettings.pickFolder(a, LibrarySettings.REQ_GAME, "Pick your game folder")))
+        PUi.add(c, new PUi.Setting(a, "📁", "Game folder", Haptics.on(Haptics.Word.TICK, v -> LibraryFolders.pick(a, dev.peanuts.folders.FolderKinds.GAMES, false)))
                 .value(game != null ? game : "Required. Every NSP, NSZ, XCI, XCZ, .nup and dump folder inside is shown on this screen.").chevron(a).view, 0);
         // P5: folded in as its own numbered step, same Setting-row shape as the other three, instead of a quiet text button below the action row
-        String updateDir = PeanutsPrefs.updateDir(a), dlcDir = PeanutsPrefs.dlcDir(a);
-        CharSequence updDlcValue = updateDir == null && dlcDir == null ? "Point at your update and DLC files if they're not inside the game folder already. Skip if everything's together."
-                : PUi.joined(updateDir != null ? "Update: " + updateDir : "Update: not set", dlcDir != null ? "DLC: " + dlcDir : null);
-        PUi.add(c, new PUi.Setting(a, "⬆️", "Updates & DLC", Haptics.on(Haptics.Word.TICK, v -> LibrarySettings.extraFolders(a))).value(updDlcValue).chevron(a).view, 0);
+        List<String> addons = PeanutsPrefs.addonDirs(a);
+        CharSequence updDlcValue = addons.isEmpty() ? "Point at your update and DLC files if they're not inside the game folder already. Skip if everything's together."
+                : addons.size() == 1 ? addons.get(0) : addons.size() + " folders";
+        PUi.add(c, new PUi.Setting(a, "⬆️", "Updates & DLC", Haptics.on(Haptics.Word.TICK, v -> LibraryFolders.pick(a, dev.peanuts.folders.FolderKinds.ADDONS, false))).value(updDlcValue).chevron(a).view, 0);
         PUi.add(c, new PUi.Setting(a, "🔤", "Firmware", Haptics.on(Haptics.Word.TICK, v -> LibrarySettings.pickFirmwareSource(a)))
                 .value(LibrarySettings.fontsValue(a, "Needed before building. A missing font can crash some games at boot.")).chevron(a).view, 0);
         PUi.Action show = PUi.action(a, R.drawable.ic_add, "Show my games", PUi.Kind.PRIMARY, v -> {
