@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import io.github.davdxpx.mistel.mncf.Atmosphere;
 import io.github.davdxpx.mistel.mncf.AtmosphereException;
@@ -304,7 +305,7 @@ public final class MncfBuild {
             case "atmosphere:no-module": return "runtime:no-main";
             case "atmosphere:empty": return "invalid";
             case "": return "runtime:code";
-            default: return k.startsWith("atmosphere:") ? "runtime:" + k.substring("atmosphere:".length()) : k;   // module, region, address; the reader's reasons
+            default: return k.startsWith("atmosphere:") ? "runtime:" + k.substring("atmosphere:".length()) : k;   // module, region, address, too-long; the reader's reasons
         }
     }
 
@@ -429,11 +430,13 @@ public final class MncfBuild {
      * converter's stable reason (Export.reasons(), spec section 15; runtimeReason gives Peanuts' reason for it)
      */
     static Map<Integer, List<String>> lower(String text, String key, CodeModule main, Map<String, Object> values, Map<String, Boolean> want, Map<String, String> skipped) throws MncfException {
-        MncfFile d = renamed(text);
         io.github.davdxpx.mistel.mncf.Choices chosen = choices(values);
-        boolean anyRaw = want.containsValue(Boolean.TRUE), anyCore = want.containsValue(Boolean.FALSE) || want.containsValue(null);
-        Converter.Export raw = anyRaw ? Converter.toAtmosphere(d, key, main, "raw", chosen) : null, core = anyCore ? Converter.toAtmosphere(d, key, main, "core", chosen) : null;
-        return pick(d, raw, core, want, skipped);
+        Map<Integer, List<String>> out = new HashMap<>();
+        for (Map<String, Boolean> part : parts(want)) {
+            MncfFile d = renamed(text, part.keySet());
+            out.putAll(pick(d, Converter.toAtmosphere(d, key, main, "raw", chosen, cores(part)), skipped));
+        }
+        return out;
     }
 
     /**
@@ -444,52 +447,79 @@ public final class MncfBuild {
      */
     static Map<String, Map<Integer, List<String>>> lowerAll(String text, Map<String, CodeModule> mains, Map<String, Object> values, Map<String, Boolean> want,
             Map<String, Map<String, String>> reasons) throws MncfException {
-        MncfFile d = renamed(text);
         io.github.davdxpx.mistel.mncf.Choices chosen = choices(values);
-        List<Converter.BuildExport> raw = Converter.toAtmosphereAll(d, mains, "raw", chosen), core = Converter.toAtmosphereAll(d, mains, "core", chosen);
         Map<String, Map<Integer, List<String>>> out = new LinkedHashMap<>();
-        for (int i = 0; i < raw.size(); i++) {
-            Map<String, String> why = new LinkedHashMap<>();
-            reasons.put(raw.get(i).build(), why);
-            if (raw.get(i).export() == null) {
-                for (String id : want.keySet()) why.put(id, raw.get(i).reason());
-                continue;
+        for (Map<String, Boolean> part : parts(want)) {
+            MncfFile d = renamed(text, part.keySet());
+            for (Converter.BuildExport b : Converter.toAtmosphereAll(d, mains, "raw", chosen, cores(part))) {
+                Map<String, String> why = reasons.computeIfAbsent(b.build(), k -> new LinkedHashMap<String, String>());
+                if (b.export() == null) {
+                    for (String id : part.keySet()) why.put(id, b.reason());
+                    continue;
+                }
+                out.computeIfAbsent(b.build(), k -> new HashMap<Integer, List<String>>()).putAll(pick(d, b.export(), why));
             }
-            out.put(raw.get(i).build(), pick(d, raw.get(i).export(), core.get(i).export(), want, why));
-        }
-        return out;
-    }
-
-    /** The cheats in want from the export that writes them as wanted: raw (its own code first) or core (code made from its operations first) */
-    private static Map<Integer, List<String>> pick(MncfFile d, Converter.Export raw, Converter.Export core, Map<String, Boolean> want, Map<String, String> skipped) {
-        Map<String, List<String>> rawLines = entries(raw), coreLines = entries(core);
-        Map<Integer, List<String>> out = new HashMap<>();
-        for (io.github.davdxpx.mistel.mncf.Cheat c : d.cheats()) {
-            if (!want.containsKey(c.id())) continue;
-            boolean r = Boolean.TRUE.equals(want.get(c.id()));
-            Converter.Export e = r ? raw : core;
-            List<String> l = (r ? rawLines : coreLines).get(c.name());
-            if (l == null || l.isEmpty()) { skipped.put(c.id(), e == null ? "atmosphere:empty" : e.reasons().getOrDefault(c.id(), "atmosphere:empty")); continue; }
-            out.put(c.index(), l);
         }
         return out;
     }
 
     /**
-     * A file's text with its cheats named by their index and without their groups, presets and translations: the converter's entries are found again by
-     * name whatever a cheat's own name holds
+     * At most this many cheats are lowered together: the converter keeps Atmosphère's limit of 127 entries a file (spec section 15), and Peanuts' host
+     * takes more (CHEAT_MAX in dm/host/hle_cheats.c), so a source with more is lowered in parts. MncfExport keeps the limit for the whole ZIP file
+     */
+    static final int LOWER_PART = 127;
+
+    /** want in parts of at most LOWER_PART cheats, in its order */
+    private static List<Map<String, Boolean>> parts(Map<String, Boolean> want) {
+        List<Map<String, Boolean>> out = new ArrayList<>();
+        Map<String, Boolean> part = null;
+        for (Map.Entry<String, Boolean> e : want.entrySet()) {
+            if (part == null || part.size() >= LOWER_PART) out.add(part = new LinkedHashMap<>());
+            part.put(e.getKey(), e.getValue());
+        }
+        return out;
+    }
+
+    /** The cheats of want that are made from their operations first (Converter's preferCheats; the others run their own raw code for the build first) */
+    private static Map<String, String> cores(Map<String, Boolean> want) {
+        Map<String, String> out = new HashMap<>();
+        for (Map.Entry<String, Boolean> e : want.entrySet()) if (!Boolean.TRUE.equals(e.getValue())) out.put(e.getKey(), "core");
+        return out;
+    }
+
+    /** Each cheat's code from the converter's export, by its index in the file (renamed's n&lt;index&gt;); skipped gets the others with their stable reason */
+    private static Map<Integer, List<String>> pick(MncfFile d, Converter.Export e, Map<String, String> skipped) {
+        Map<String, List<String>> lines = entries(e);
+        Map<Integer, List<String>> out = new HashMap<>();
+        for (io.github.davdxpx.mistel.mncf.Cheat c : d.cheats()) {
+            List<String> l = lines.get(c.name());
+            if (l == null || l.isEmpty()) { skipped.put(c.id(), e.reasons().getOrDefault(c.id(), "atmosphere:empty")); continue; }
+            out.put(Integer.parseInt(c.name().substring(1)), l);
+        }
+        return out;
+    }
+
+    /**
+     * A file's text with only the cheats in keep, each named by its index in the file (n&lt;index&gt;), so the converter's entries are found again by name
+     * whatever a cheat's own name holds. Without what would join entries or tie cheats together, as neither matters for one cheat's code: groups (the
+     * converter's group entries), master (the converter puts every master into one entry; Peanuts' host and MncfExport.atmosphere keep them apart),
+     * requires, excludes and radio (they name cheats that may be left out here), presets and translations
      */
     @SuppressWarnings("unchecked")
-    private static MncfFile renamed(String text) throws MncfException {
+    private static MncfFile renamed(String text, Set<String> keep) throws MncfException {
         MncfFile p = Mncf.load(text.getBytes(StandardCharsets.UTF_8));
         Map<String, Object> doc = copy(p.doc());
-        List<Object> cheats = (List<Object>) doc.get("cheat");
+        List<Object> cheats = (List<Object>) doc.get("cheat"), kept = new ArrayList<>();
         int i = 0;
         for (Object o : cheats) {
             Map<String, Object> c = (Map<String, Object>) o;
-            c.put("name", "n" + i++);
-            c.remove("group");
+            int at = i++;
+            if (!keep.contains(c.get("id"))) continue;
+            c.put("name", "n" + at);
+            for (String k : new String[] {"group", "master", "requires", "excludes", "radio"}) c.remove(k);
+            kept.add(c);
         }
+        doc.put("cheat", kept);
         doc.remove("preset");   // a preset names values; the converter needs none of them
         doc.remove("i18n");
         return Mncf.load(io.github.davdxpx.mistel.mncf.Writer.dumps(doc).getBytes(StandardCharsets.UTF_8));

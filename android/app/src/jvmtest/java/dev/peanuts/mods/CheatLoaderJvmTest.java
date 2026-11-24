@@ -725,6 +725,7 @@ public final class CheatLoaderJvmTest {
         check(inZip.mncf.size() == 1 && !inZip.pack, "an .mncf in a zip");
         check(MncfExport.fileName("A/B: C?", false).equals("A B C cheats.mncf"), MncfExport.fileName("A/B: C?", false));
         zip(root, folder, pk, kv);
+        limits(root, pk);
 
         // What a file brings, for the Add dialog: counted from the file itself
         MncfFacts hf = MncfFacts.of(io.github.davdxpx.mistel.mncf.Mncf.load(u(HAND)));
@@ -761,11 +762,13 @@ public final class CheatLoaderJvmTest {
         check(left.get("Once").equals("It runs once when you turn it on, which an Atmosphère file cannot say.") && left.get("A monitor").equals("It shows values from the game, which an Atmosphère file cannot do.")
                 && left.get("Not in this version").equals("Its place was not found in this version of the game."), "and why, from the converter's stable reasons: " + left);
         // every cheat the file can run here, the raw one Peanuts' host does not run among them; and the pointer whose base lies past the made-up main, which
-        // Peanuts refuses (outside) but the converter writes: it checks patches against main, not a pointer path's base (a gap reported to Mistel)
+        // Peanuts refuses (outside) but whose own raw code for the build the converter writes as it is (spec section 15: it checks what it makes from a
+        // cheat's operations, never a raw entry)
         check(z.cheats == before.size() + 1 && before.containsKey("6. Pause trick") && t.contains("[3. Coins as a number]"), "what goes in: " + z.cheats + " " + before.keySet());
         check(t.startsWith("{Setup}\n") && t.indexOf("{") == t.lastIndexOf("{"), "one master code, first:\n" + t);
         check(t.contains("[A count]\n04000000 00002000 52800540\n"), "the number set in the game's tab (42) in its instruction:\n" + t);
-        check(t.contains("[--SectionStart:Items--]\n\n[1. Lots of coins]\n") && t.contains("[6. Pause trick]\n"), "the groups as EdiZon's sections, the raw code as it came:\n" + t);
+        check(t.contains("[Items]\n\n[1. Lots of coins]\n") && t.contains("[Extras]\n20000001\n") && t.contains("[6. Pause trick]\n") && !t.contains("SectionStart"),
+                "the groups as the spec writes them (a name, then an entry of only 20000001 where a cheat in no group follows), the raw code as it came:\n" + t);
         // added again: the same cheats, the same code, for everything that went in
         List<String> paths = new ArrayList<>();
         CheatImport.Found back = CheatImport.read(CheatImport.fromZip(new ByteArrayInputStream(z.bytes), paths), paths, TID, BUILDS, z.fileName);
@@ -792,20 +795,103 @@ public final class CheatLoaderJvmTest {
                 "[[cheat]]", "id = \"wrong\"", "name = \"Made for other code\"", "",
                 "  [[cheat.patch]]", "  at = { module = \"main\", offset = 0x1000 }", "  expect = \"DE AD BE EF\"", "  bytes = \"1F 20 03 D5\"", "",
                 "[[cheat]]", "id = \"found\"", "name = \"Found by its pattern\"", "",
-                "  [[cheat.patch]]", "  at = { module = \"main\", find = \"08 40 00 B9 23 01 00 94\" }", "  expect = \"08 40 00 B9\"", "  bytes = \"09 40 00 B9\"", "");
+                "  [[cheat.patch]]", "  at = { module = \"main\", find = \"08 40 00 B9 23 01 00 94\" }", "  expect = \"08 40 00 B9\"", "  bytes = \"09 40 00 B9\"", "",
+                "[[cheat]]", "id = \"far\"", "name = \"Far pointer\"", "",
+                "  [[cheat.write]]", "  at = { module = \"main\", offset = 0x200000, path = [0x10] }", "  type = \"u32\"", "  value = 1", "");
         File ck = new File(root, "zip-checked");
         CheatSources.addMncf(ck, "checked", CheatSources.FROM_FILE, u(checked), 1);
         MncfExport.Zip zc = MncfExport.zip(ck, "Example Game", g, null, new LinkedHashMap<>());
         String tc;
         try (java.util.zip.ZipInputStream zi = new java.util.zip.ZipInputStream(new ByteArrayInputStream(zc.bytes))) { zi.getNextEntry(); tc = new String(zi.readAllBytes(), StandardCharsets.UTF_8); }
-        check(tc.equals("[Found by its pattern]\n04000000 00001000 B9004009\n") && zc.left.size() == 1 && zc.left.get(0)[0].equals("Made for other code")
-                && zc.left.get(0)[1].equals("The game's code at its place is not what the cheat was made for: it is for another version."), "checked against main: " + tc + " " + zc.left.get(0)[1]);
+        Map<String, String> lc = new LinkedHashMap<>();
+        for (String[] l : zc.left) lc.put(l[0], l[1]);
+        check(tc.equals("[Found by its pattern]\n04000000 00001000 B9004009\n") && lc.size() == 2
+                && "The game's code at its place is not what the cheat was made for: it is for another version.".equals(lc.get("Made for other code"))
+                && "Its place lies outside the game.".equals(lc.get("Far pointer")), "checked against main, a pointer's base too: " + tc + " " + lc);
         MncfExport.Zip zn = MncfExport.zip(ck, "Example Game", game(B, null), null, new LinkedHashMap<>());
-        check(zn.cheats == 1 && zn.left.size() == 1 && zn.left.get(0)[0].equals("Found by its pattern")
+        check(zn.cheats == 2 && zn.left.size() == 1 && zn.left.get(0)[0].equals("Found by its pattern")
                 && zn.left.get(0)[1].equals("Its place is found by the code around it, and Peanuts can look it up only in the version it has built."), "no main: " + zn.left.get(0)[1]);
         String other = "atmosphere/contents/" + TID + "/cheats/" + OTHER + ".txt";
         check(f2.keySet().equals(Set.of(path, other)) && f2.get(other).equals("[Coins]\n04000000 00001000 00000063\n") && z2.left.isEmpty()
                 && new ArrayList<>(z2.builds.keySet()).equals(List.of(B, OTHER)), "both builds, the running one first: " + f2 + " " + z2.builds);
+    }
+
+    /** An .mncf of n cheats, each a write of its own place in main (the first in, of them, in group "Few"), and two masters ahead of them */
+    static String many(int n, int in) {
+        StringBuilder sb = new StringBuilder(String.join("\n", "format = \"mncf/1\"", "name = \"Many\"", "", "[game]", "platform = \"switch\"", "id = \"" + TID + "\"", "",
+                "[builds.\"1.0.0\"]", "modules = { main = \"" + B + "\" }", "", ""));
+        for (int m = 0; m < 2; m++) {
+            sb.append("[[cheat]]\nid = \"setup").append(m).append("\"\nname = \"Setup ").append(m).append("\"\nmaster = true\n\n  [[cheat.write]]\n  at = { module = \"main\", offset = 0x")
+                    .append(Integer.toHexString(0x8000 + 4 * m)).append(" }\n  type = \"u32\"\n  value = ").append(m + 1).append("\n\n");
+        }
+        for (int i = 0; i < n; i++) {
+            sb.append("[[cheat]]\nid = \"c").append(i).append("\"\nname = \"Cheat ").append(i).append("\"\n").append(i < in ? "group = \"Few\"\n" : "")
+                    .append("\n  [[cheat.write]]\n  at = { module = \"main\", offset = 0x").append(Integer.toHexString(0x1000 + 4 * i)).append(" }\n  type = \"u32\"\n  value = ").append(i).append("\n\n");
+        }
+        return sb.toString();
+    }
+
+    /** An Atmosphère file whose master writes words places from at, and two cheats: one on the master's first place (so it requires it), one apart */
+    static String withMaster(String name, int at, int words) {
+        StringBuilder sb = new StringBuilder("{" + name + " setup}\n");
+        for (int i = 0; i < words / 3; i++) sb.append(String.format("04000000 %08X 00000001\n", at + 4 * i));
+        sb.append(String.format("\n[%s on the setup]\n04000000 %08X 00000002\n\n[%s apart]\n04000000 %08X 00000003\n", name, at, name, at + 0x800));
+        return sb.toString();
+    }
+
+    /** Atmosphère's limits (spec section 15) in the ZIP, across sources; Peanuts' own engine is not held to them */
+    static void limits(File root, File pk) throws Exception {
+        MncfBuild.Game g = game(B, pk);
+        // more than 127 cheats: Peanuts runs them all, the ZIP has 127 and names the rest; group entries that would leave cheats out are not written
+        File big = new File(root, "zip-many");
+        CheatSources.addMncf(big, "many", CheatSources.FROM_FILE, u(many(130, 3)), 1);
+        MncfBuild.Ready r = CheatSources.list(big).get(0).ready(g);
+        int runs = 0, masters = 0;
+        for (MncfBuild.Cheat c : r.cheats) {
+            if (c.reason == null && !c.master) runs++;
+            if (c.master && c.reason == null && c.lines.size() == 1) masters++;
+        }
+        check(runs == 130 && masters == 2, "Peanuts runs every cheat, each master with its own code: " + runs + " " + masters);
+        MncfExport.Zip z = MncfExport.zip(big, "Example Game", g, null, new LinkedHashMap<>());
+        String t;
+        try (java.util.zip.ZipInputStream zi = new java.util.zip.ZipInputStream(new ByteArrayInputStream(z.bytes))) { zi.getNextEntry(); t = new String(zi.readAllBytes(), StandardCharsets.UTF_8); }
+        check(z.cheats == 127 && z.left.size() == 3 && z.left.get(0)[0].equals("Cheat 127") && z.left.get(0)[1].equals("An Atmosphère file holds at most 127 cheats.")
+                && !t.contains("[Few]") && t.startsWith("{Master codes}\n04000000 00008000 00000001\n04000000 00008004 00000002\n"), "127 cheats, one master: " + z.cheats + " " + z.left.size());
+        CheatSources.addMncf(new File(root, "zip-few"), "few", CheatSources.FROM_FILE, u(many(5, 3)), 1);
+        MncfExport.Zip zf = MncfExport.zip(new File(root, "zip-few"), "Example Game", g, null, new LinkedHashMap<>());
+        try (java.util.zip.ZipInputStream zi = new java.util.zip.ZipInputStream(new ByteArrayInputStream(zf.bytes))) { zi.getNextEntry(); t = new String(zi.readAllBytes(), StandardCharsets.UTF_8); }
+        check(t.contains("[Few]\n\n[Cheat 0]\n") && t.contains("[Few]\n20000001\n\n[Cheat 3]\n") && zf.cheats == 5, "where there is room, the groups:\n" + t);
+        // the master codes of several sources are one entry of at most 256 words: a master past that stays out, with the cheats of its source that need it
+        File two = new File(root, "zip-masters");
+        CheatSources.add(two, "first", CheatSources.FROM_ZIP, Map.of(B, withMaster("First", 0x1000, 210)), 1, known(pk, null), null);
+        CheatSources.add(two, "second", CheatSources.FROM_ZIP, Map.of(B, withMaster("Second", 0x4000, 210)), 1, known(pk, null), null);
+        MncfExport.Zip zm = MncfExport.zip(two, "Example Game", g, null, new LinkedHashMap<>());
+        try (java.util.zip.ZipInputStream zi = new java.util.zip.ZipInputStream(new ByteArrayInputStream(zm.bytes))) { zi.getNextEntry(); t = new String(zi.readAllBytes(), StandardCharsets.UTF_8); }
+        Map<String, String> left = new LinkedHashMap<>();
+        for (String[] l : zm.left) left.put(l[0], l[1]);
+        check(t.startsWith("{First setup}\n") && !t.contains("00004000 00000001") && t.contains("[Second apart]") && t.contains("[First on the setup]")
+                && left.keySet().equals(Set.of("Second on the setup"))
+                && left.get("Second on the setup").equals("It needs a code that is always on, and that code does not fit in one Atmosphère file beside the others."),
+                "one master of at most 256 words: " + left + "\n" + t.substring(0, Math.min(t.length(), 60)));
+        // a file of 64 KB or more Atmosphère refuses: the cheats that would make it that big stay out; a name keeps the 63 bytes Atmosphère keeps
+        StringBuilder huge = new StringBuilder();
+        for (int i = 0; i < 40; i++) {
+            huge.append(i == 0 ? "[" + "A very long name ".repeat(5).trim() + "]\n" : "[Long " + i + "]\n");
+            for (int k = 0; k < 67; k++) huge.append(String.format("04000000 %08X 00000001\n", 0x1000 + 4 * (67 * i + k)));
+            huge.append('\n');
+        }
+        File hf = new File(root, "zip-huge");
+        CheatSources.add(hf, "huge", CheatSources.FROM_ZIP, Map.of(B, huge.toString()), 1, known(pk, null), null);
+        MncfExport.Zip zh = MncfExport.zip(hf, "Example Game", g, null, new LinkedHashMap<>());
+        byte[] file;
+        try (java.util.zip.ZipInputStream zi = new java.util.zip.ZipInputStream(new ByteArrayInputStream(zh.bytes))) { zi.getNextEntry(); file = zi.readAllBytes(); }
+        t = new String(file, StandardCharsets.UTF_8);
+        boolean allBig = !zh.left.isEmpty();
+        for (String[] l : zh.left) allBig &= l[1].equals("An Atmosphère file can be at most 64 KB, and the cheats before this one fill it.");
+        String first = t.substring(1, t.indexOf(']'));
+        check(file.length < 0x10000 && zh.cheats + zh.left.size() == 40 && zh.cheats > 30 && allBig && zh.left.get(zh.left.size() - 1)[0].equals("Long 39"),
+                "under 64 KB: " + file.length + " " + zh.cheats + " " + zh.left.size());
+        check(first.getBytes(StandardCharsets.UTF_8).length <= 63 && first.startsWith("A very long name A very long name"), "a name of at most 63 bytes: " + first);
     }
 
     // ---- A real file, when one is given (never in the repository) ----

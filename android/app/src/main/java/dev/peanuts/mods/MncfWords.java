@@ -49,6 +49,7 @@ public final class MncfWords {
             case "module": return "It changes a part of the game other than its main code, which Peanuts cannot do yet.";
             case "region": return "It writes a part of the game's memory Peanuts cannot reach yet.";
             case "address": return "It writes a fixed address, which the Switch does not have.";
+            case "too-long": return "Its code is longer than Peanuts can run yet.";
             default: return "Peanuts cannot run it yet.";
         }
     }

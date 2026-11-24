@@ -19,6 +19,8 @@ import java.util.Set;
 final class Patterns {
 
     private static final int STEP = 4;
+    /** Candidates left after which a search looks at its last window first. */
+    private static final int CROWD = 64;
 
     private Patterns() {
     }
@@ -208,6 +210,8 @@ final class Patterns {
         long end = Math.max(offset + cover, a0 + 1);
         end = Math.min(hi, start + ((end - start + STEP - 1) / STEP) * STEP);
         List<Long> alive = null;
+        long[] verified = null;     // the module offsets of the pattern whose bytes every candidate was checked for
+        boolean lookedAhead = false;
         int toggle = 0;
         while (true) {
             int[] items = slice(window, start - lo, end - lo);
@@ -220,15 +224,39 @@ final class Patterns {
                         alive.add(h - shift);
                     }
                 }
+                boolean whole = items.length == end - start;
+                // The pattern only grows: a candidate needs checking only for the bytes added since it was checked.
+                int doneFrom = 0;
+                int doneTo = 0;
+                if (verified != null && whole) {
+                    doneFrom = (int) (verified[0] - start);
+                    doneTo = (int) (verified[1] - start);
+                }
                 List<Long> kept = new ArrayList<>();
                 for (long q : alive) {
-                    if (matches(image, q, items, ranges)) {
+                    if (matches(image, q, items, ranges, doneFrom, doneTo)) {
                         kept.add(q);
                     }
                 }
                 alive = kept;
+                verified = whole ? new long[] {start, end} : null;
                 if (alive.size() == 1 && alive.get(0) == start) {
                     return new Found(items, start, offset - start);
+                }
+                if (alive.size() > CROWD && !lookedAhead) {
+                    // Many candidates are left. Every later window lies inside the last one this order grows to,
+                    // so where two candidates match that one, none of the windows before it can be unique.
+                    lookedAhead = true;
+                    long[] last = lastWindow(start, end, lo, hi, order, longest, toggle);
+                    int[] lastItems = slice(window, last[0] - lo, last[1] - lo);
+                    if (lastItems.length == last[1] - last[0]) {
+                        int matching = 0;
+                        for (long q : alive) {
+                            if (matches(image, q - (start - last[0]), lastItems, ranges, 0, 0) && ++matching == 2) {
+                                return null;
+                            }
+                        }
+                    }
                 }
             }
             boolean growBack = start - STEP >= lo;
@@ -268,7 +296,33 @@ final class Patterns {
         return b <= a ? new int[0] : Arrays.copyOfRange(list, (int) a, (int) b);
     }
 
-    private static boolean matches(byte[] image, long q, int[] items, List<long[]> ranges) {
+    /** The window that growing from (start, end) in this order ends with. */
+    private static long[] lastWindow(long start, long end, int lo, int hi, String order, int longest, int toggle) {
+        while (true) {
+            boolean growBack = start - STEP >= lo;
+            boolean growAhead = end + STEP <= hi;
+            if (end - start >= longest || !(growBack || growAhead)) {
+                return new long[] {start, end};
+            }
+            boolean ahead;
+            if (order.equals("forward")) {
+                ahead = growAhead;
+            } else if (order.equals("backward")) {
+                ahead = !growBack;
+            } else {
+                ahead = growAhead && (toggle % 2 == 0 || !growBack);
+                toggle++;
+            }
+            if (ahead) {
+                end += STEP;
+            } else {
+                start -= STEP;
+            }
+        }
+    }
+
+    /** Whether the pattern matches at q, inside the search ranges; the items from doneFrom to doneTo are known to. */
+    private static boolean matches(byte[] image, long q, int[] items, List<long[]> ranges, int doneFrom, int doneTo) {
         int n = items.length;
         boolean inside = false;
         for (long[] r : ranges) {
@@ -278,6 +332,10 @@ final class Patterns {
             return false;
         }
         for (int i = 0; i < n; i++) {
+            if (i == doneFrom && doneTo > doneFrom) {
+                i = doneTo - 1;
+                continue;
+            }
             if (items[i] >= 0 && (image[(int) q + i] & 0xFF) != items[i]) {
                 return false;
             }

@@ -1,9 +1,10 @@
 package io.github.davdxpx.mistel.mncf;
 
 /**
- * Cheat files cannot become one .mncf file. {@link #code()} says why: "source" for sources that
- * do not fit together, such as two files that name the same build, or "atmosphere" for a file
- * that is not an Atmosphère cheat file ({@link AtmosphereException}).
+ * Cheat or patch files cannot become one .mncf file. {@link #code()} says why: "source" for
+ * sources that do not fit together, such as two files that name the same build, "patch" for a
+ * file that is no patch file ({@link PatchFileException}), or "atmosphere" for a file that is not
+ * an Atmosphère cheat file ({@link AtmosphereException}).
  */
 public class ConvertException extends Exception {
 
@@ -22,7 +23,7 @@ public class ConvertException extends Exception {
         this.code = code;
     }
 
-    /** Returns "source" or "atmosphere". */
+    /** Returns "source", "atmosphere" or "patch". */
     public String code() {
         return code;
     }

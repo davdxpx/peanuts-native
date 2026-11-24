@@ -205,6 +205,99 @@ final class Py {
         return negative ? value.negate() : value;
     }
 
+    /**
+     * Reads a whole number as Python's int(text, 0) does: as {@link #parseInt}, with the base
+     * from a prefix (0x, 0o or 0b, in either case), else decimal without leading zeros.
+     *
+     * @return the number, or null where int() raises ValueError
+     */
+    static BigInteger parseIntAuto(String s) {
+        StringBuilder t = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); ) {
+            int c = s.codePointAt(i);
+            i += Character.charCount(c);
+            if (c < 127) {
+                t.append((char) c);
+            } else if (isSpace(c)) {
+                t.append(' ');
+            } else if (Character.isDigit(c)) {
+                t.append((char) ('0' + Character.digit(c, 10)));
+            } else {
+                return null;
+            }
+        }
+        int n = t.length();
+        int i = 0;
+        while (i < n && isAsciiSpace(t.charAt(i))) {
+            i++;
+        }
+        int sign = i;
+        if (i < n && (t.charAt(i) == '+' || t.charAt(i) == '-')) {
+            i++;
+        }
+        int base = 10;
+        if (i + 1 < n && t.charAt(i) == '0') {
+            char p = Character.toLowerCase(t.charAt(i + 1));
+            base = p == 'x' ? 16 : p == 'o' ? 8 : p == 'b' ? 2 : 10;
+        }
+        if (base != 10) {
+            int from = i + 2;
+            if (from < n && t.charAt(from) == '_') {
+                from++;
+            }
+            return parseDigits(t, sign, from, base);
+        }
+        BigInteger v = parseDigits(t, sign, i, 10);
+        if (v != null && i < n && t.charAt(i) == '0' && v.signum() != 0) {
+            return null;                    // a decimal number has no leading zeros, but 0, 00 and 0_0 are 0
+        }
+        return v;
+    }
+
+    /**
+     * The number of the text from an index on: digits of the base with single underscores
+     * between them, then white space, and the sign at the index given. Null when it is anything
+     * else.
+     */
+    private static BigInteger parseDigits(CharSequence t, int sign, int from, int base) {
+        int n = t.length();
+        boolean negative = sign < from && t.charAt(sign) == '-';
+        int i = from;
+        if (i < n && t.charAt(i) == '_') {
+            return null;
+        }
+        StringBuilder digits = new StringBuilder();
+        char previous = 0;
+        while (i < n) {
+            char c = t.charAt(i);
+            if (c == '_') {
+                if (previous == '_') {
+                    return null;
+                }
+            } else if (Character.digit(c, base) >= 0 && c < 128) {
+                digits.append(c);
+            } else {
+                break;
+            }
+            previous = c;
+            i++;
+        }
+        if (previous == '_' || digits.length() == 0) {
+            return null;
+        }
+        if (base == 10 && digits.length() > MAX_DECIMAL_DIGITS) {
+            return null;
+        }
+        while (i < n && isAsciiSpace(t.charAt(i))) {
+            i++;
+        }
+        if (i != n) {
+            return null;
+        }
+        BigInteger value = new BigInteger(digits.toString(), base);
+        return negative ? value.negate() : value;
+    }
+
     private static boolean isAsciiSpace(char c) {
         return c == ' ' || (c >= 0x09 && c <= 0x0D);
     }
