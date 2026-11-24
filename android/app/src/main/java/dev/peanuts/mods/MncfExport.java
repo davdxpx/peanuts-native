@@ -306,7 +306,8 @@ public final class MncfExport {
     static final String MASTER_TOO_LONG = "It needs a code that is always on, and that code does not fit in one Atmosphère file beside the others.";
 
     /**
-     * One build's Atmosphère file, within Atmosphère's limits (spec section 15): the masters as its one master code, of at most ATMOSPHERE_WORDS words (a
+     * One build's Atmosphère file, within Atmosphère's limits (spec section 15), as Mistel's converter writes one source's file, for every source of the
+     * game together (the converter takes one file): the masters as its one master code, named by the first, of at most ATMOSPHERE_WORDS words (a
      * master past that stays out, and with it the cheats of its source that require it), then each source's cheats in its order, at most ATMOSPHERE_MAX
      * entries, the file under ATMOSPHERE_BYTES (past either, the rest stays out). A group starts with its name as an empty entry and ends with an entry of
      * only 20000001 where a cheat in no group follows it, as Mistel's converter writes and reads them; where the group entries would leave cheats out, the
@@ -336,7 +337,7 @@ public final class MncfExport {
         StringBuilder sb = new StringBuilder();
         Map<String, Integer> taken = new HashMap<>();   // a name in lower case → the source that has it
         if (!masters.isEmpty()) {
-            String name = masters.size() == 1 ? atm(masters.get(0).name) : "Master codes";
+            String name = atm(masters.get(0).name);   // the first master's name, as the converter names its one master entry (spec section 15)
             if (name.isEmpty()) name = "Master code";
             sb.append('{').append(name).append("}\n");
             taken.put(name.toLowerCase(Locale.ROOT), -1);
@@ -373,7 +374,7 @@ public final class MncfExport {
         String open = null;
         int source = -1;
         for (Lowered x : cheats) {
-            String g = groups && !x.group.isEmpty() ? atm(CheatSources.section(null, x.group)) : null;
+            String g = groups && !x.group.isEmpty() ? atm(x.group) : null;
             String m = null;
             if (g != null && (x.source != source || !g.equals(open))) m = "[" + g + "]\n";
             else if (g == null && open != null) m = "[" + open + "]\n20000001\n";

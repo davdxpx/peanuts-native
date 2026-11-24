@@ -856,7 +856,7 @@ public final class CheatLoaderJvmTest {
         String t;
         try (java.util.zip.ZipInputStream zi = new java.util.zip.ZipInputStream(new ByteArrayInputStream(z.bytes))) { zi.getNextEntry(); t = new String(zi.readAllBytes(), StandardCharsets.UTF_8); }
         check(z.cheats == 127 && z.left.size() == 3 && z.left.get(0)[0].equals("Cheat 127") && z.left.get(0)[1].equals("An Atmosphère file holds at most 127 cheats.")
-                && !t.contains("[Few]") && t.startsWith("{Master codes}\n04000000 00008000 00000001\n04000000 00008004 00000002\n"), "127 cheats, one master: " + z.cheats + " " + z.left.size());
+                && !t.contains("[Few]") && t.startsWith("{Setup 0}\n04000000 00008000 00000001\n04000000 00008004 00000002\n"), "127 cheats, one master: " + z.cheats + " " + z.left.size());
         CheatSources.addMncf(new File(root, "zip-few"), "few", CheatSources.FROM_FILE, u(many(5, 3)), 1);
         MncfExport.Zip zf = MncfExport.zip(new File(root, "zip-few"), "Example Game", g, null, new LinkedHashMap<>());
         try (java.util.zip.ZipInputStream zi = new java.util.zip.ZipInputStream(new ByteArrayInputStream(zf.bytes))) { zi.getNextEntry(); t = new String(zi.readAllBytes(), StandardCharsets.UTF_8); }
