@@ -295,14 +295,15 @@ public final class CheatsPage {
         android.widget.Button add = PUi.button(a, "Add", PUi.Kind.PRIMARY, Feel.button(v -> CheatImportUi.add(a, g.titleId)));
         android.graphics.drawable.Drawable plus = Icons.get(a, "add", Icons.Ink.ON_BANANA);
         if (plus != null) { plus.setBounds(0, 0, PUi.dp(a, 20), PUi.dp(a, 20)); add.setCompoundDrawables(plus, null, null, null); add.setCompoundDrawablePadding(PUi.dp(a, 6)); add.setPadding(PUi.dp(a, 12), 0, PUi.dp(a, 16), 0); }
-        // Export beside Add, the other way a cheat file goes: the player's sources as .mncf (one) or .mncp (several), with what is on and the numbers set
+        // Export beside Add, the other way a cheat file goes: the player's sources as .mncf (one) or .mncp (several), with what is on and the numbers set, or
+        // as a ZIP for other emulators (CheatImportUi.export: a dialog with both)
         int sources = 0;
         for (CheatSources.Source s : m.sources) if (s.file().isFile()) sources++;
         int exportable = sources;
         android.widget.Button export = !tab.equals(CHEATS) || sources == 0 ? null
                 : PUi.button(a, "Export", PUi.Kind.TONAL, Feel.button(v -> CheatImportUi.export(a, g, exportable)));
         if (export != null) {
-            export.setContentDescription(sources == 1 ? "Export the cheats as an .mncf file" : "Export the cheats as an .mncp pack of " + sources + " files");
+            export.setContentDescription("Export the cheats");
             android.graphics.drawable.Drawable out = Icons.get(a, "pack_out", Icons.Ink.NORMAL);
             if (out != null) { out.setBounds(0, 0, PUi.dp(a, 20), PUi.dp(a, 20)); export.setCompoundDrawables(out, null, null, null); export.setCompoundDrawablePadding(PUi.dp(a, 6)); export.setPadding(PUi.dp(a, 12), 0, PUi.dp(a, 16), 0); }
         }

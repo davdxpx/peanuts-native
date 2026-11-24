@@ -26,7 +26,8 @@ import dev.peanuts.ui.PUi;
  * (CheatImport), then one dialog in the app's AlertDialog look: the cheats for the game's version ("Add cheats"), or why not (another version, another game, no
  * build named, nothing found). A pick with romfs or exefs folders is a mod: it goes to the mod import (ModsSection) on the page's Mods tab. Nothing is downloaded.
  * An .mncf (or an .mncp pack of them) is added as it is; any other cheat file becomes an .mncf as it is added (CheatSources.add: MncfConvert), off the UI thread,
- * and is made ready for the game's build before the page lists it. Export ({@link #export}) writes the game's sources as .mncf or .mncp (MncfExport).
+ * and is made ready for the game's build before the page lists it. Export ({@link #export}) writes the game's sources as .mncf or .mncp, or as a ZIP in
+ * Atmosphère's folders for other emulators (MncfExport).
  * The pickers' results come back through MainActivity.onActivityResult → dev.peanuts.ui.LibrarySettings.result → {@link #result}.
  */
 public final class CheatImportUi {
@@ -60,30 +61,196 @@ public final class CheatImportUi {
         catch (android.content.ActivityNotFoundException e) { Toast.makeText(a, "This device has no file picker.", Toast.LENGTH_LONG).show(); }
     }
 
-    /** Export: the game's sources as one .mncf, or an .mncp when there are several, to a place the player picks */
+    private static boolean exportZip;   // the export that is open: a ZIP for other emulators, else .mncf / .mncp
+
+    /**
+     * Export: one dialog with the two ways the cheats leave Peanuts. The Mistel cheat file (one .mncf, or an .mncp for several sources), recommended and picked:
+     * every cheat for every version, with what is on and the numbers set. Or a ZIP in Atmosphère's folders for other emulators: one file for each version,
+     * with what Atmosphère code can say; which cheats cannot go in (and why) is worked out off the UI thread and shown under it, before anything is written
+     */
     static void export(Activity a, CheatsPage.Game g, int sources) {
-        Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/octet-stream")
-                .putExtra(Intent.EXTRA_TITLE, MncfExport.fileName(g.name, sources > 1));
-        try { exporting = true; a.startActivityForResult(i, REQ_EXPORT); }
+        LinearLayout box = new LinearLayout(a);
+        box.setOrientation(LinearLayout.VERTICAL);
+        boolean[] zip = {false};
+        MncfExport.Zip[] plan = new MncfExport.Zip[1];
+        boolean[] planned = new boolean[1];
+        AlertDialog[] d = new AlertDialog[1];
+        LinearLayout mncf = choice(a, "check", "Mistel cheat file", "Recommended", (sources == 1 ? "One .mncf" : "An .mncp of " + sources + " files")
+                + ": every cheat for every version, with what you turned on and the numbers you set.");
+        LinearLayout other = choice(a, "folder", "ZIP for other emulators", null, "Atmosphère's folders, one file for each version, for Atmosphère, Eden, Ryujinx and others.");
+        LinearLayout details = new LinearLayout(a);
+        details.setOrientation(LinearLayout.VERTICAL);
+        details.setVisibility(View.GONE);
+        details.addView(PUi.progress(a), PUi.wrap());   // until the plan is known
+        PUi.add(other, details, 0);
+        Runnable show = () -> {
+            select(a, mncf, !zip[0]);
+            select(a, other, zip[0]);
+            details.setVisibility(zip[0] ? View.VISIBLE : View.GONE);
+            if (zip[0]) box.post(() -> ((android.widget.ScrollView) box.getParent()).smoothScrollTo(0, other.getTop()));   // what goes in and what stays out, in view
+            if (d[0] != null && d[0].getButton(AlertDialog.BUTTON_POSITIVE) != null)
+                d[0].getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(!zip[0] || !planned[0] || plan[0] != null && plan[0].cheats > 0);
+        };
+        mncf.setOnClickListener(Feel.row(v -> { zip[0] = false; show.run(); }));
+        other.setOnClickListener(Feel.row(v -> { zip[0] = true; show.run(); }));
+        mncf.setContentDescription("Mistel cheat file, recommended");
+        other.setContentDescription("ZIP for other emulators");
+        box.addView(mncf);
+        PUi.add(box, other, 10);
+        d[0] = PUi.sheet(a, "Export cheats", box).setNegativeButton("Cancel", null)
+                .setPositiveButton("Export", Feel.confirm((x, w) -> pickExport(a, g, sources, zip[0]))).create();
+        Feel.dialog(d[0]);
+        d[0].show();
+        show.run();
+        new Thread(() -> {
+            MncfExport.Zip z = null;
+            try {
+                z = zipOf(a, g);
+            } catch (IOException | RuntimeException e) {
+                android.util.Log.w("peanuts", "cheats: export: the ZIP's plan: " + e);
+            }
+            MncfExport.Zip zz = z;
+            a.runOnUiThread(() -> {
+                if (!d[0].isShowing()) return;
+                plan[0] = zz;
+                planned[0] = true;
+                details.removeAllViews();
+                zipLines(a, g, zz, details);
+                show.run();
+            });
+        }, "peanuts-cheat-export").start();
+    }
+
+    /** One way to export, as a card the player picks: a tile, its title (with a badge), a line under it; select() draws it picked or not */
+    private static LinearLayout choice(Activity a, String icon, String title, String badge, String sub) {
+        LinearLayout card = new LinearLayout(a);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(PUi.dp(a, 14), PUi.dp(a, 10), PUi.dp(a, 14), PUi.dp(a, 10));
+        card.setClickable(true);
+        card.setFocusable(true);
+        LinearLayout row = PUi.row(a);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        TextView tile = PUi.text(a, "", 12, R.color.bn_text, 400);
+        tile.setTag(icon);
+        row.addView(tile, new LinearLayout.LayoutParams(PUi.dp(a, 44), PUi.dp(a, 44)));
+        LinearLayout col = new LinearLayout(a);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding(PUi.dp(a, 14), 0, PUi.dp(a, 8), 0);
+        LinearLayout head = PUi.row(a);
+        head.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        head.addView(PUi.text(a, title, 17, R.color.bn_text, 800), PUi.wrap());
+        if (badge != null) {
+            LinearLayout.LayoutParams lp = PUi.wrap();
+            lp.leftMargin = PUi.dp(a, 8);
+            head.addView(CheatsPage.chip(a, badge, true), lp);
+        }
+        col.addView(head);
+        TextView s = PUi.small(a, sub);
+        s.setLineSpacing(0, 1.1f);
+        col.addView(s);
+        row.addView(col, PUi.weight());
+        TextView mark = new TextView(a);   // the pick: a ring with a dot, or an empty ring
+        row.addView(mark, new LinearLayout.LayoutParams(PUi.dp(a, 24), PUi.dp(a, 24)));
+        card.addView(row);
+        return card;
+    }
+
+    /** A choice card drawn picked (tinted, banana outline, banana tile, a dot in the ring) or not (an outline, a quiet tile, an empty ring) */
+    private static void select(Activity a, LinearLayout card, boolean on) {
+        LinearLayout row = (LinearLayout) card.getChildAt(0);
+        TextView tile = (TextView) row.getChildAt(0), mark = (TextView) row.getChildAt(2);
+        card.setBackground(PUi.ripple(a, PUi.round(PUi.col(a, on ? R.color.bn_tint : R.color.bn_card), PUi.dp(a, 16), PUi.col(a, on ? R.color.bn_banana : R.color.bn_card_stroke), PUi.dp(a, on ? 2 : 1))));
+        tile.setBackground(PUi.round(PUi.col(a, on ? R.color.bn_banana : R.color.bn_tint), PUi.dp(a, 13), 0, 0));
+        android.graphics.drawable.Drawable icon = Icons.get(a, (String) tile.getTag(), on ? Icons.Ink.ON_BANANA : Icons.Ink.NORMAL);
+        tile.setForeground(icon == null ? null : new android.graphics.drawable.InsetDrawable(icon, PUi.dp(a, 10)));
+        mark.setBackground(PUi.round(android.graphics.Color.TRANSPARENT, PUi.dp(a, 12), PUi.col(a, on ? R.color.bn_banana : R.color.bn_text_2), PUi.dp(a, 2)));
+        mark.setForeground(on ? new android.graphics.drawable.InsetDrawable(PUi.round(PUi.col(a, R.color.bn_banana), PUi.dp(a, 6), 0, 0), PUi.dp(a, 6)) : null);
+        card.setSelected(on);
+    }
+
+    /** The ZIP of the game's sources as it would be written now (MncfExport.zip) */
+    private static MncfExport.Zip zipOf(Activity a, CheatsPage.Game g) throws IOException {
+        File folder = CheatsBridge.folder(a, g.titleId);
+        String build = CheatsBridge.builds(g.titleId, g.packDir).stream().findFirst().orElse(null);
+        CheatSources.Merged m = build == null ? null : CheatsBridge.merged(a, g.titleId, g.gameDir, g.packDir, build, CheatsBridge.textEnd(g.packDir), true);
+        return MncfExport.zip(folder, g.name, CheatsBridge.game(g.titleId, build, g.packDir), m, CheatValues.read(folder));
+    }
+
+    /** Most of the cheats left out the dialog names one by one; the rest are counted */
+    static final int LEFT_NAMED = 5;
+
+    /** Under the ZIP's card: how many cheats go in, for which versions, and calmly, which ones cannot and why (the Mistel cheat file keeps them) */
+    private static void zipLines(Activity a, CheatsPage.Game g, MncfExport.Zip z, LinearLayout to) {
+        List<String[]> lines = new ArrayList<>();
+        if (z == null) {
+            lines.add(new String[] {"info", "Checked when you export", "Which cheats fit an Atmosphère file is worked out as the ZIP is written."});
+        } else if (z.cheats == 0) {
+            lines.add(new String[] {"info", "None of them fits a ZIP", "An Atmosphère file cannot hold what these cheats do. The Mistel cheat file keeps them all."});
+        } else {
+            List<String> per = new ArrayList<>();
+            for (Map.Entry<String, Integer> e : z.builds.entrySet()) {
+                String v = z.versions.get(e.getKey());
+                if (v == null) v = CheatsBridge.version(g.titleId, e.getKey());
+                per.add(per.isEmpty() ? CheatsPage.count(e.getValue(), "cheat") + " for " + (v != null ? v : "build " + CheatsPage.shortBuild(e.getKey())) : e.getValue() + " for " + (v != null ? v : "build " + CheatsPage.shortBuild(e.getKey())));
+            }
+            lines.add(new String[] {"check", String.join(", ", per), z.builds.size() == 1 ? "One file, where Atmosphère and the others look for it." : "One file for each version, where Atmosphère and the others look for them."});
+            if (!z.left.isEmpty()) lines.add(new String[] {"info", (z.left.size() == 1 ? "1 stays out" : z.left.size() + " stay out") + " of the ZIP",
+                    "An Atmosphère file cannot hold what " + (z.left.size() == 1 ? "it does" : "they do") + ". The Mistel cheat file keeps " + (z.left.size() == 1 ? "it." : "them.")});
+        }
+        for (String[] line : lines) PUi.add(to, line(a, line), 12);
+        if (z == null || z.left.isEmpty() || z.cheats == 0) return;
+        LinearLayout names = new LinearLayout(a);
+        names.setOrientation(LinearLayout.VERTICAL);
+        names.setPadding(PUi.dp(a, 44), 0, 0, 0);   // under the line's text, past its tile
+        for (int i = 0; i < z.left.size() && i < LEFT_NAMED; i++) {
+            TextView n = PUi.text(a, z.left.get(i)[0], 14, R.color.bn_text, 600);
+            n.setSingleLine(true);
+            n.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            PUi.add(names, n, i == 0 ? 0 : 8);
+            TextView why = PUi.small(a, z.left.get(i)[1]);
+            why.setLineSpacing(0, 1.1f);
+            names.addView(why);
+        }
+        if (z.left.size() > LEFT_NAMED) PUi.add(names, PUi.small(a, "And " + (z.left.size() - LEFT_NAMED) + " more."), 8);
+        PUi.add(to, names, 10);
+    }
+
+    /** The export's file picked: the name and kind of the format chosen */
+    private static void pickExport(Activity a, CheatsPage.Game g, int sources, boolean zip) {
+        Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(zip ? "application/zip" : "application/octet-stream")
+                .putExtra(Intent.EXTRA_TITLE, zip ? MncfExport.zipName(g.name) : MncfExport.fileName(g.name, sources > 1));
+        try { exporting = true; exportZip = zip; a.startActivityForResult(i, REQ_EXPORT); }
         catch (android.content.ActivityNotFoundException e) { exporting = false; Toast.makeText(a, "This device has no file picker.", Toast.LENGTH_LONG).show(); }
     }
 
     /** The export written to the document picked, off the UI thread */
-    private static void exported(Activity a, CheatsPage.Game g, Uri u) {
+    private static void exported(Activity a, CheatsPage.Game g, Uri u, boolean zip) {
         CheatPick.work(a, "Export cheats", () -> {
             File folder = CheatsBridge.folder(a, g.titleId);
-            String build = CheatsBridge.builds(g.titleId, g.packDir).stream().findFirst().orElse(null);
-            CheatSources.Merged m = build == null ? null : CheatsBridge.merged(a, g.titleId, g.gameDir, g.packDir, build, CheatsBridge.textEnd(g.packDir), true);
-            MncfExport.Out out = MncfExport.make(folder, g.name, m, CheatsBridge.on(a, g.titleId), CheatValues.read(folder));
-            if (out == null) throw new IOException("There are no added cheats to export.");
+            byte[] bytes;
+            String done;
+            if (zip) {
+                MncfExport.Zip z = zipOf(a, g);
+                if (z == null) throw new IOException("There are no added cheats to export.");
+                if (z.cheats == 0) throw new IOException("None of the cheats fits an Atmosphère file. Export them as a Mistel cheat file, which keeps them all.");
+                bytes = z.bytes;
+                done = "Exported " + CheatsPage.count(z.cheats, "cheat") + " as a ZIP" + (z.left.isEmpty() ? "." : ". " + (z.left.size() == 1 ? "1 could" : z.left.size() + " could") + " not go in.");
+            } else {
+                String build = CheatsBridge.builds(g.titleId, g.packDir).stream().findFirst().orElse(null);
+                CheatSources.Merged m = build == null ? null : CheatsBridge.merged(a, g.titleId, g.gameDir, g.packDir, build, CheatsBridge.textEnd(g.packDir), true);
+                MncfExport.Out out = MncfExport.make(folder, g.name, m, CheatsBridge.on(a, g.titleId), CheatValues.read(folder));
+                if (out == null) throw new IOException("There are no added cheats to export.");
+                bytes = out.bytes;
+                done = "Exported " + CheatsPage.count(out.cheats, "cheat") + (out.pack ? " of " + out.sources + " sources as a pack." : ".");
+            }
             try (java.io.OutputStream os = a.getContentResolver().openOutputStream(u)) {
                 if (os == null) throw new IOException("The place picked cannot be written. Pick another one.");
-                os.write(out.bytes);
+                os.write(bytes);
             }
-            return out;
-        }, out -> {
+            return done;
+        }, done -> {
             Feel.accepted(a);
-            Toast.makeText(a, "Exported " + CheatsPage.count(out.cheats, "cheat") + (out.pack ? " of " + out.sources + " sources as a pack." : "."), Toast.LENGTH_LONG).show();
+            Toast.makeText(a, done, Toast.LENGTH_LONG).show();
         }, e -> {
             Feel.refused(a);
             android.util.Log.w("peanuts", "cheats: export: " + e);
@@ -96,7 +263,7 @@ public final class CheatImportUi {
         if (request == REQ_EXPORT && exporting) {
             exporting = false;
             CheatsPage.Game g = CheatsPage.shown();
-            if (result == Activity.RESULT_OK && data != null && data.getData() != null && g != null) exported(a, g, data.getData());
+            if (result == Activity.RESULT_OK && data != null && data.getData() != null && g != null) exported(a, g, data.getData(), exportZip);
             return true;
         }
         if (request != REQ_FILE && request != REQ_FOLDER || !waiting) return false;
@@ -372,29 +539,32 @@ public final class CheatImportUi {
             l.setLineSpacing(0, 1.15f);
             PUi.add(box, l, card != null ? 14 : 0);
         }
-        for (String[] line : lines) {
-            LinearLayout r = PUi.row(a);
-            r.setGravity(android.view.Gravity.TOP);
-            TextView tile = PUi.text(a, "", 12, R.color.bn_text, 400);
-            tile.setBackground(PUi.round(PUi.col(a, R.color.bn_tint), PUi.dp(a, 10), 0, 0));
-            r.addView(tile, new LinearLayout.LayoutParams(PUi.dp(a, 32), PUi.dp(a, 32)));
-            Icons.tile(tile, line[0]);
-            LinearLayout col = new LinearLayout(a);
-            col.setOrientation(LinearLayout.VERTICAL);
-            col.setPadding(PUi.dp(a, 12), PUi.dp(a, 1), 0, 0);
-            col.addView(PUi.text(a, line[1], 15, R.color.bn_text, 600));
-            TextView sub = PUi.small(a, line[2]);
-            sub.setLineSpacing(0, 1.1f);
-            col.addView(sub);
-            r.addView(col, PUi.weight());
-            PUi.add(box, r, 14);
-        }
+        for (String[] line : lines) PUi.add(box, line(a, line), 14);
         AlertDialog.Builder b = PUi.sheet(a, title, box);
         if (positive != null) b.setPositiveButton(positive, onPositive == null ? null : Feel.confirm((x, w) -> onPositive.run()));
         if (negative != null) b.setNegativeButton(negative, onNegative == null ? null : (x, w) -> onNegative.run());
         AlertDialog d = b.create();
         Feel.dialog(d);
         d.show();
+    }
+
+    /** One of a dialog's lines: {icon, heading, the line under it} */
+    private static View line(Activity a, String[] line) {
+        LinearLayout r = PUi.row(a);
+        r.setGravity(android.view.Gravity.TOP);
+        TextView tile = PUi.text(a, "", 12, R.color.bn_text, 400);
+        tile.setBackground(PUi.round(PUi.col(a, R.color.bn_tint), PUi.dp(a, 10), 0, 0));
+        r.addView(tile, new LinearLayout.LayoutParams(PUi.dp(a, 32), PUi.dp(a, 32)));
+        Icons.tile(tile, line[0]);
+        LinearLayout col = new LinearLayout(a);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding(PUi.dp(a, 12), PUi.dp(a, 1), 0, 0);
+        col.addView(PUi.text(a, line[1], 15, R.color.bn_text, 600));
+        TextView sub = PUi.small(a, line[2]);
+        sub.setLineSpacing(0, 1.1f);
+        col.addView(sub);
+        r.addView(col, PUi.weight());
+        return r;
     }
 
 }

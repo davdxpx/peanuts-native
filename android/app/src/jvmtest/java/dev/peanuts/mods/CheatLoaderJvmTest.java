@@ -724,6 +724,7 @@ public final class CheatLoaderJvmTest {
         CheatImport.Found inZip = CheatImport.read(CheatImport.fromZip(new ByteArrayInputStream(zo.toByteArray()), paths), paths, TID, BUILDS, "hand.zip");
         check(inZip.mncf.size() == 1 && !inZip.pack, "an .mncf in a zip");
         check(MncfExport.fileName("A/B: C?", false).equals("A B C cheats.mncf"), MncfExport.fileName("A/B: C?", false));
+        zip(root, folder, pk, kv);
 
         // What a file brings, for the Add dialog: counted from the file itself
         MncfFacts hf = MncfFacts.of(io.github.davdxpx.mistel.mncf.Mncf.load(u(HAND)));
@@ -731,6 +732,61 @@ public final class CheatLoaderJvmTest {
                 "the hand-made file: " + hf.cheats + " " + hf.checked + " " + hf.patterns + " " + hf.values + " " + hf.described);
         MncfFacts sf = MncfFacts.of(load(CheatSources.find(folder, "site").file()));
         check(sf.versions.equals(List.of("1.0.0")) && "1.0.0".equals(sf.versionWords()) && sf.rawOnly > 0 && sf.checked > 0, "a converted file: " + sf.versions + " raw " + sf.rawOnly);
+    }
+
+    /** The cheats a source's file made ready for the build can run, by name → their Atmosphère code */
+    static Map<String, List<String>> runnable(File folder, MncfBuild.Game g) throws Exception {
+        Map<String, List<String>> out = new LinkedHashMap<>();
+        for (CheatSources.Source s : CheatSources.list(folder)) for (MncfBuild.Cheat c : s.ready(g).cheats) if (c.reason == null && !c.master) out.put(out.containsKey(c.name) ? c.name + " #2" : c.name, c.lines);
+        return out;
+    }
+
+    /** Export as a ZIP for other emulators (folder: the hand-made file and the site's, kv: the count's number 42), then that ZIP added again */
+    static void zip(File root, File folder, File pk, Map<String, CheatValues.Kept> kv) throws Exception {
+        MncfBuild.Game g = game(B, pk);
+        CheatSources.Merged m = CheatSources.merge(CheatSources.blocks(folder, null, true, g, 0x8000, true));
+        MncfExport.Zip z = MncfExport.zip(folder, "Example Game", g, m, kv);
+        check(z != null && z.fileName.equals("Example Game cheats.zip") && MncfExport.zipName("A/B").equals("A B cheats.zip"), "its name");
+        Map<String, String> files = new LinkedHashMap<>();
+        try (java.util.zip.ZipInputStream zi = new java.util.zip.ZipInputStream(new ByteArrayInputStream(z.bytes))) {
+            for (ZipEntry e; (e = zi.getNextEntry()) != null; ) files.put(e.getName(), new String(zi.readAllBytes(), StandardCharsets.UTF_8));
+        }
+        String path = "atmosphere/contents/" + TID + "/cheats/" + B + ".txt", t = files.get(path);
+        check(files.keySet().equals(Set.of(path)) && z.builds.equals(Map.of(B, z.cheats)) && "1.0.0".equals(z.versions.get(B)), "Atmosphère's layout, one file a build: " + files.keySet() + " " + z.builds);
+        Map<String, List<String>> before = runnable(folder, g);
+        // what an Atmosphère file cannot hold, or what does not fit the game, is left out and named; everything else is in
+        Map<String, String> left = new LinkedHashMap<>();
+        for (String[] l : z.left) left.put(l[0], l[1]);
+        check(left.keySet().equals(Set.of("A monitor", "Once", "Not in this version", "3. Coins as a number")), "left out: " + left);
+        check(left.get("Once").equals("It runs once when you turn it on, which an Atmosphère file cannot say.") && left.get("A monitor").equals("It shows values from the game, which an Atmosphère file cannot do.")
+                && left.get("Not in this version").equals("Its place was not found in this version of the game.") && left.get("3. Coins as a number").equals("Its place lies outside the game."), "and why: " + left);
+        check(z.cheats == before.size() && before.containsKey("6. Pause trick"), "every cheat the file can run here, the raw one Peanuts' host does not run among them: " + z.cheats + " " + before.keySet());
+        check(t.startsWith("{Setup}\n") && t.indexOf("{") == t.lastIndexOf("{"), "one master code, first:\n" + t);
+        check(t.contains("[A count]\n04000000 00002000 52800540\n"), "the number set in the game's tab (42) in its instruction:\n" + t);
+        check(t.contains("[--SectionStart:Items--]\n\n[1. Lots of coins]\n") && t.contains("[6. Pause trick]\n"), "the groups as EdiZon's sections, the raw code as it came:\n" + t);
+        // added again: the same cheats, the same code, for everything that went in
+        List<String> paths = new ArrayList<>();
+        CheatImport.Found back = CheatImport.read(CheatImport.fromZip(new ByteArrayInputStream(z.bytes), paths), paths, TID, BUILDS, z.fileName);
+        check(back.forGame.size() == 1 && back.mncf.isEmpty(), "read back as an Atmosphère file of this game's build: " + back.forGame.size());
+        File again = new File(root, "zip-again");
+        for (Map.Entry<String, Map<String, String>> e : back.sources().entrySet()) CheatSources.add(again, e.getKey(), CheatSources.FROM_ZIP, e.getValue(), 1, known(pk, null), z.fileName);
+        Map<String, List<String>> after = runnable(again, g);
+        before.put("A count", List.of("04000000 00002000 52800540"));   // the number set, now the file's own
+        for (Map.Entry<String, List<String>> e : before.entrySet()) check(e.getValue().equals(after.get(e.getKey())), "the same code for " + e.getKey() + ": " + e.getValue() + " " + after.get(e.getKey()));
+        check(after.keySet().equals(before.keySet()), "the same cheats: " + after.keySet() + " " + before.keySet());
+        MncfBuild.Ready ra = CheatSources.list(again).get(0).ready(g);
+        for (MncfBuild.Cheat c : ra.cheats) if (c.name.equals("1. Lots of coins")) check(c.group.equals("Items"), "its group came back: " + c.group);
+        // a file of two builds: each build's own file, the other build's cheats as their own code for it
+        File two = new File(root, "zip-two");
+        CheatSources.add(two, "both", CheatSources.FROM_ZIP, Map.of(B, "[Coins]\n04000000 00001000 B9004009\n", OTHER, SMALL), 1, known(pk, null), null);
+        MncfExport.Zip z2 = MncfExport.zip(two, "Example Game", g, CheatSources.merge(CheatSources.blocks(two, null, true, g, 0x8000, true)), new LinkedHashMap<>());
+        Map<String, String> f2 = new LinkedHashMap<>();
+        try (java.util.zip.ZipInputStream zi = new java.util.zip.ZipInputStream(new ByteArrayInputStream(z2.bytes))) {
+            for (ZipEntry e; (e = zi.getNextEntry()) != null; ) f2.put(e.getName(), new String(zi.readAllBytes(), StandardCharsets.UTF_8));
+        }
+        String other = "atmosphere/contents/" + TID + "/cheats/" + OTHER + ".txt";
+        check(f2.keySet().equals(Set.of(path, other)) && f2.get(other).equals("[Coins]\n04000000 00001000 00000063\n") && z2.left.isEmpty()
+                && new ArrayList<>(z2.builds.keySet()).equals(List.of(B, OTHER)), "both builds, the running one first: " + f2 + " " + z2.builds);
     }
 
     // ---- A real file, when one is given (never in the repository) ----
