@@ -16,6 +16,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.util.Log;
 
 import dev.peanuts.PeanutsPrefs;
@@ -41,7 +42,9 @@ import java.util.Locale;
  * The queue (issue #348, {@link BuildQueue}): a build asked while another runs waits its turn instead of being refused, and the queue is kept in the app's own
  * storage, so a killed app or process goes on with it (a sticky restart, or the next start of the app: {@link BuildPipeline#resume}). One game at a time, in order:
  * <ul>
- * <li>a game whose build fails or is stopped is marked (its build card says why), and the next one starts;</li>
+ * <li>a game whose build fails or is stopped is marked (its build card says why), and the next one starts. So is one whose build crashes or hangs
+ *     ({@link BuildWatch}: an Error is caught, a packer that hangs or ended and was not started again is stopped, a native crash while importing stops that
+ *     game at once);</li>
  * <li>before each game the queue waits while the phone is hot or the battery is low and not charging (upstream's PackPolicy, the packer's own rule, with the
  *     Go on anyway remembered for the device, #93), while a game of this app runs (an import and a Prepare beside it take its memory: 8 GB phones, #124), and
  *     while a build with mods runs (it shares the packer); it goes on by itself;</li>
@@ -259,9 +262,11 @@ public final class BuildService extends Service {
      * Waits before a game while the phone is hot or the battery low (PackPolicy), a game of this app runs, a build with mods runs, or a pack of this game is
      * being imported (Import pack, GitHub issue #44); true when the game may start, false when the queue is to stop (Cancel all, Android's daily limit)
      */
-    private boolean waitTurn(BuildQueue q, BuildQueue.Item next) {
+    private boolean waitTurn(BuildQueue q, BuildQueue.Item first) {
         String was = null;
         while (!cancelAll && !q.held()) {
+            final BuildQueue.Item next = q.next();   // each round: the game it waited for may have been removed meanwhile (its pack import is then not waited for)
+            if (next == null) return true;   // the loop finds nothing to run and ends
             String r = waitFor(was, next);
             if (r == null) {
                 if (was != null) {
@@ -272,7 +277,8 @@ public final class BuildService extends Service {
                 BuildPipeline.waiting(null, 0);
                 return true;
             }
-            if (!r.equals(was)) {
+            if (!r.equals(was) || next != first) {
+                first = next;
                 Log.i(TAG, "queue: waiting before " + next.name() + ": " + r + " (" + readings() + ")");
                 BuildLogShare.line(this, next.titleId(), "queue: waiting before the build: " + BuildQueue.waitText(r) + " (" + readings() + ")");
                 waitReason = r;
@@ -372,6 +378,11 @@ public final class BuildService extends Service {
     /** One game of the queue: its build, then how it ended into the queue and to the screens that follow it */
     private void runItem(BuildQueue q, BuildQueue.Item next) {
         cancelled = false;   // before the id: a Cancel from here on is this game's
+        // its last run ended with the app's process (the queue put it back at the front when the file was read): what ended it, before start() takes its time
+        boolean cut = next.cut;
+        next.cut = false;
+        String cutStep = next.step;
+        android.app.ApplicationExitInfo cutEnd = cut ? lastEnd(next.started) : null;
         q.start(next.id, System.currentTimeMillis());
         BuildQueue.Item got = q.get(next.id);   // the game asked again meanwhile keeps its place with the newer request
         final BuildQueue.Item it = got != null ? got : next;
@@ -382,7 +393,17 @@ public final class BuildService extends Service {
         wakeHeld(true);
         String place = q.placeText(it);
         main.post(() -> { if (worker != null) nm.notify(NOTE, note(it, 0, "Starting")); });
-        String[] end = run(it.request, place);
+        int cutReason = cutEnd == null ? 0 : cutEnd.getReason();
+        if (cut) BuildLogShare.line(this, it.titleId(), "queue: the last run of " + name + " ended with the app's process in its " + (cutStep.isEmpty() ? "first" : cutStep) + " step ("
+                + (cutEnd == null ? "Android has no record of why" : BuildLogBundle.reason(cutReason) + ", status " + cutEnd.getStatus() + (cutEnd.getDescription() == null ? "" : ", " + cutEnd.getDescription()))
+                + "); start " + it.tries + " of " + BuildQueue.MAX_TRIES);
+        String[] end;
+        if (cut && BuildWatch.stopsAtOnce(cutReason, cutStep)) {
+            // the importer crashed on these files: a run again would crash the same way, and a second crash within a minute ends Android's restarts of this
+            // service, so the queue would wait until the app is opened. The game stops; the queue goes on with the next one
+            BuildLogShare.line(this, it.titleId(), "queue: the importer crashed on these game files: " + name + " stops, the queue goes on with the next game");
+            end = new String[] {"The app crashed while importing " + name + "'s game files, so the queue went on without it. " + Prepare.RETRY_SHARE, BuildListener.OTHER};
+        } else end = run(it.request, place);
         boolean ok = "".equals(end[1]);
         String code = ok ? "" : end[1], message = end[0];
         // A pause is not this game's end: the packer's own Pause (its notification, Home's Prepare card), the control interface's job pause, or a pause
@@ -405,6 +426,31 @@ public final class BuildService extends Service {
         id = 0;
         BuildPipeline.finish(fid, ok, message, code);
     }
+
+    /** Android's record of how this app's own process ended since `since` (wall clock, ms), the newest such end; null when there is none */
+    private android.app.ApplicationExitInfo lastEnd(long since) {
+        if (since <= 0) return null;
+        try {
+            ActivityManager am = getSystemService(ActivityManager.class);
+            if (am == null) return null;
+            for (android.app.ApplicationExitInfo e : am.getHistoricalProcessExitReasons(getPackageName(), 0, 16)) {
+                if (e.getTimestamp() < since) break;   // Android returns the newest end first
+                if (getPackageName().equals(e.getProcessName())) return e;
+            }
+        } catch (RuntimeException e) { Log.w(TAG, "queue: Android's record of the app's end: " + e); }
+        return null;
+    }
+
+    /** The hang time (BuildWatch): half an hour, or with the fake engine the test file's seconds (files/test-hang-seconds) */
+    static long hangMs(Context c) {
+        boolean fake = "fake".equals(dev.nxnative.android.BuildConfig.NX_PACK_ENGINE);
+        String t = null;
+        if (fake) try { t = new String(java.nio.file.Files.readAllBytes(new File(c.getFilesDir(), BuildWatch.TEST_FILE).toPath()), StandardCharsets.UTF_8); } catch (IOException | RuntimeException e) { /* none */ }
+        return BuildWatch.hangMs(fake, t);
+    }
+
+    /** "30 minutes", or a test time's seconds */
+    static String minutes(long ms) { return ms >= 120_000 ? ms / 60_000 + " minutes" : ms / 1000 + " seconds"; }
 
     /** One line in logcat and in the game's build log */
     private void log(String s) {
@@ -573,7 +619,7 @@ public final class BuildService extends Service {
             message = e.getMessage() == null ? e.toString() : e.getMessage();
             code = category(e);
             Log.w(TAG, "build " + name + ": " + message);
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | Error e) {   // an Error too (OutOfMemoryError, a missing native method): uncaught it ended the app's process, and the queue went on only after Android started the service again
             message = "The build stopped because of a problem in the app. " + Prepare.RETRY_SHARE;
             Log.e(TAG, "build " + name, e);
             BuildLogShare.line(this, logId, "crash in the build service:\n" + Log.getStackTraceString(e).trim());
@@ -680,20 +726,47 @@ public final class BuildService extends Service {
             final String[] lastStep = {""};
             Importer.cancel(false);   // a Stop meant for an earlier import does not stop this one; a Stop for this one from here on does (then cancelled is true)
             if (cancelled) throw new BuildListener.Failure("Build cancelled." + kept, BuildListener.CANCELLED);
-            int rc = Importer.writeNup(tmp, inputs, r.titleId, (step, done, total) -> {
-                long now = System.currentTimeMillis();
-                boolean newStep = !step.equals(lastStep[0]) && (step.startsWith("unpack/") || step.startsWith("check/"));
-                if (newStep) log("import: " + Compressed.stepText(step, 0, 0).toLowerCase(Locale.ROOT));
-                lastStep[0] = step;
-                if (now - last[0] < 250 && done < total && !newStep) return;
-                last[0] = now;
-                progress("import", Compressed.percent(step, done, total, unpackBytes + checkBytes, nupBytes, IMPORT_END), Compressed.stepText(step, done, total));
-            });
+            // the watchdog (BuildWatch): an import whose progress stands still for the hang time is stopped, so the queue's next game is not held behind it
+            final java.util.concurrent.atomic.AtomicLong heard = new java.util.concurrent.atomic.AtomicLong(SystemClock.elapsedRealtime());   // the watch thread reads what the import's thread writes
+            final java.util.concurrent.atomic.AtomicBoolean hung = new java.util.concurrent.atomic.AtomicBoolean();
+            final long hangMs = hangMs(this);
+            Thread watch = new Thread(() -> {
+                while (true) {
+                    if (BuildWatch.hangs(SystemClock.elapsedRealtime(), heard.get(), true, hangMs)) { hung.set(true); Importer.cancel(true); return; }
+                    try { Thread.sleep(Math.min(15_000, hangMs / 4)); } catch (InterruptedException e) { return; }   // the import ended
+                }
+            }, "peanuts-import-watch");
+            watch.setDaemon(true);
+            watch.start();
+            int rc;
+            try {
+                rc = Importer.writeNup(tmp, inputs, r.titleId, (step, done, total) -> {
+                    heard.set(SystemClock.elapsedRealtime());
+                    long now = System.currentTimeMillis();
+                    boolean newStep = !step.equals(lastStep[0]) && (step.startsWith("unpack/") || step.startsWith("check/"));
+                    if (newStep) log("import: " + Compressed.stepText(step, 0, 0).toLowerCase(Locale.ROOT));
+                    lastStep[0] = step;
+                    if (now - last[0] < 250 && done < total && !newStep) return;
+                    last[0] = now;
+                    progress("import", Compressed.percent(step, done, total, unpackBytes + checkBytes, nupBytes, IMPORT_END), Compressed.stepText(step, done, total));
+                });
+            } finally {
+                watch.interrupt();   // never left to stop a later import
+            }
             if (cancelled) { tmp.delete(); deleteUnpacked(tmp); throw new BuildListener.Failure("Build cancelled." + kept, BuildListener.CANCELLED); }
+            if (hung.get()) {
+                tmp.delete();
+                deleteUnpacked(tmp);
+                log("import: no progress for " + minutes(hangMs) + ": stopped (the importer returned " + rc + ": " + Importer.lastError() + ")");
+                throw new BuildListener.Failure("The import of " + name + " made no progress for " + minutes(hangMs) + ", so it was stopped and the queue went on." + (again ? kept : " What it had written was deleted.")
+                        + " " + Prepare.RETRY_SHARE, BuildListener.STALLED);
+            }
             if (rc != 0) { tmp.delete();
                 deleteUnpacked(tmp);
                 String why = Importer.lastError(), damaged = Compressed.failure(why, name, !deleted);
                 log("import: the importer returned " + rc + ": " + why + " (after " + (System.currentTimeMillis() - importStart) / 1000 + " s)");
+                if (BuildWatch.full(why)) throw new BuildListener.Failure("The storage filled up while " + name + " was imported, so the import was stopped." + (again ? kept : " What it had written was deleted.")
+                        + " Free up some space, then tap Retry.\n" + why, BuildListener.OUT_OF_SPACE);
                 if (damaged != null) throw new BuildListener.Failure(damaged + (deleted ? kept : ""), BuildListener.FILE_DAMAGED);
                 throw new IOException("The import stopped." + (again ? kept : "") + " " + Prepare.RETRY_SHARE);
             }
