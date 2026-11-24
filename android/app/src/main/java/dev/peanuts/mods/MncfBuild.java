@@ -167,17 +167,20 @@ public final class MncfBuild {
         return main != null && main.equalsIgnoreCase(v) ? null : v;   // a build named by its build ID has no version name
     }
 
-    /** A source file made ready for the game's build: from its kept pinned file when that is of these very bytes, else made now (and kept) */
+    /**
+     * A source file made ready for the game's build: from its kept pinned file when that is of these very bytes, else made now (and kept). One made while the
+     * pack had no main yet (a game not built yet) is kept too, so the page does not look it up again and again, and made again once the pack has its main
+     */
     public static Ready of(File source, Game g) throws IOException {
         byte[] bytes = Files.readAllBytes(source.toPath());
         File dir = new File(source.getParentFile(), DIR);
         String sha = sha256(bytes);
-        Ready kept = g.build == null ? null : kept(dir, g.build, sha, bytes);
+        Ready kept = g.build == null ? null : kept(dir, g.build, sha, bytes, hasMain(g));
         if (kept != null) return kept;
         CodeModule main = g.pack == null ? null : MncfMain.of(g.pack);
         List<CodeModule.Run> changed = g.pack == null ? Collections.<CodeModule.Run>emptyList() : MncfMain.changed(g.pack);
         Ready r = make(bytes, g, main, changed);
-        if (r.error == null && main != null && g.build != null) keep(dir, g.build, sha, r);   // without main a pattern could not be searched: nothing kept
+        if (r.error == null && g.build != null) keep(dir, g.build, sha, r, main != null);
         return r;
     }
 
@@ -185,8 +188,11 @@ public final class MncfBuild {
     public static Ready kept(File source, Game g) throws IOException {
         if (g.build == null) return null;
         byte[] bytes = Files.readAllBytes(source.toPath());
-        return kept(new File(source.getParentFile(), DIR), g.build, sha256(bytes), bytes);
+        return kept(new File(source.getParentFile(), DIR), g.build, sha256(bytes), bytes, hasMain(g));
     }
+
+    /** Whether the game's pack has its main now (MncfMain.has) */
+    static boolean hasMain(Game g) { return g.pack != null && MncfMain.has(g.pack); }
 
     /** The bytes made ready (main: the game's own main, null when there is none; changed: the runs the rewriter changed) */
     public static Ready make(byte[] bytes, Game g, CodeModule main, List<CodeModule.Run> changed) {
@@ -462,14 +468,18 @@ public final class MncfBuild {
 
     // ---- Keeping it for the build ----
 
-    /** The kept pinned file of this build, when it was made from these very bytes; null otherwise (then it is made again) */
-    static Ready kept(File dir, String build16, String sha, byte[] bytes) {
+    /**
+     * The kept pinned file of this build, when it was made from these very bytes, and with the game's main where the pack has it now (mainNow); null otherwise
+     * (then it is made again)
+     */
+    static Ready kept(File dir, String build16, String sha, byte[] bytes, boolean mainNow) {
         File tsv = new File(dir, build16 + ".tsv"), mncf = new File(dir, build16 + ".mncf");
         if (!tsv.isFile() || !mncf.isFile()) return null;
         try {
             String[] lines = new String(Files.readAllBytes(tsv.toPath()), StandardCharsets.UTF_8).split("\n");
             String[] h = lines[0].split("\t", -1);
             if (h.length < 6 || !h[0].equals("# " + CACHE) || !h[1].equals(sha)) return null;
+            if (mainNow && h.length > 6 && h[6].equals(NO_MAIN)) return null;   // made before the pack had its main: its patterns were not searched
             MncfFile f = Mncf.load(bytes, TRUST);
             String pinned = new String(Files.readAllBytes(mncf.toPath()), StandardCharsets.UTF_8);
             MncfFile p = Mncf.load(pinned.getBytes(StandardCharsets.UTF_8));
@@ -501,12 +511,18 @@ public final class MncfBuild {
         }
     }
 
-    /** The pinned file and its states kept for the build: "# mncf-build/1 \t sha \t key \t file's build key \t signer \t signature", then id \t reason \t uses */
-    static void keep(File dir, String build16, String sha, Ready r) {
+    /** Made without the game's main (the .tsv's last header field; "main" when it was read) */
+    static final String NO_MAIN = "no-main";
+
+    /**
+     * The pinned file and its states kept for the build: "# mncf-build/1 \t sha \t key \t file's build key \t signer \t signature \t main or no-main", then
+     * id \t reason \t uses
+     */
+    static void keep(File dir, String build16, String sha, Ready r, boolean withMain) {
         try {
             if (!dir.isDirectory() && !dir.mkdirs()) return;
             StringBuilder sb = new StringBuilder("# ").append(CACHE).append('\t').append(sha).append('\t').append(r.key == null ? "" : r.key).append('\t')
-                    .append(r.buildKey == null ? "" : r.buildKey).append('\t').append(r.signer == null ? "" : r.signer.replaceAll("[\t\r\n]", " ")).append('\t').append(r.signature).append('\n');
+                    .append(r.buildKey == null ? "" : r.buildKey).append('\t').append(r.signer == null ? "" : r.signer.replaceAll("[\t\r\n]", " ")).append('\t').append(r.signature).append('\t').append(withMain ? "main" : NO_MAIN).append('\n');
             for (Cheat c : r.cheats) sb.append(c.id).append('\t').append(c.reason == null ? "" : c.reason).append('\t').append(r.usesRaw(c) ? "raw" : "core").append('\n');
             CheatSources.write(new File(dir, build16 + ".mncf"), r.pinned);
             CheatSources.write(new File(dir, build16 + ".tsv"), sb.toString());

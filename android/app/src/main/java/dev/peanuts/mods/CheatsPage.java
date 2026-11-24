@@ -478,8 +478,11 @@ public final class CheatsPage {
         int n = p == null ? 0 : p.switchable();
 
         LinearLayout card = PUi.add(content, PUi.listCard(a), 16);
+        // a source not made ready for this build yet, or one that cannot be read, may name no other build: its line says what it is instead
         CharSequence line = p != null ? PUi.joined(count(n, "cheat") + " for " + m.versionWords(), shortBuild(m.build))
-                : PUi.joined("For another version", shortBuild(otherBuilds.iterator().next()));
+                : b != null && b.pending ? PUi.joined("Cheats for " + m.versionWords(), shortBuild(m.build))
+                : b != null && b.error != null ? "Cannot be read"
+                : otherBuilds.isEmpty() ? "For another version" : PUi.joined("For another version", shortBuild(otherBuilds.iterator().next()));
         PUi.Setting head = new PUi.Setting(a, "", name, Feel.row(v -> sourceSheet(a, m, b, s, name, otherBuilds))).value(line);
         rowLook(head.view, mod ? "mods" : "folder");
         String from = s == null ? (app ? "Comes with the app" : "From a mod") : fromWords(s.from);

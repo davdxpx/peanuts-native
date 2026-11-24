@@ -624,6 +624,13 @@ public final class CheatLoaderJvmTest {
         MncfBuild.Ready again = MncfBuild.kept(s.file(), game(B, null));
         check(again != null && again.cheats.size() == r.cheats.size() && again.cheats.get(0).lines.equals(r.cheats.get(0).lines), "a later start reads the kept one without main");
         check(MncfBuild.kept(s.file(), game(OTHER, null)) == null, "another build is made again");
+        // made while the pack has no main yet (a game not built): kept, so the page does not look it up again and again; made again once main is there
+        File early = new File(root, "early");
+        CheatSources.Source es = CheatSources.addMncf(early, "hand", CheatSources.FROM_FILE, u(HAND), 1);
+        MncfBuild.Ready e1 = es.ready(game(B, new File(root, "not-built-yet")));
+        check("runtime:no-main".equals(e1.cheats.get(0).reason) && MncfBuild.kept(es.file(), game(B, new File(root, "not-built-yet"))) != null, "kept without main: " + e1.cheats.get(0).reason);
+        check(MncfBuild.kept(es.file(), game(B, pk)) == null && es.ready(game(B, pk)).cheats.get(0).reason == null && MncfBuild.kept(es.file(), game(B, pk)) != null,
+                "made again with the pack's main, its pattern found");
 
         // The page and the tab: kinds, words, the number field
         CheatFile.Parsed p = CheatFile.fromMncf(r, 0x8000);
