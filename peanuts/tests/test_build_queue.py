@@ -70,33 +70,55 @@ class Wiring(unittest.TestCase):
         self.assertIn('queueDone(q.readyCount() == total, q.summary(), cancelAll)', s)
 
     def test_watchdog(self):
-        """A game that fails, crashes or hangs never holds the next one (the question on #448: "if queue 1 failed, queue 2 still progress")"""
+        """A game that fails, crashes or hangs never holds the next one (the question on #448: "if queue 1 failed, queue 2 still progress"; the review of #555)"""
         self.assertNotIn('import android', read(BUILD / 'BuildWatch.java'))
         s = read(BUILD / 'BuildService.java')
-        # an Error (OutOfMemoryError, a missing native method) is that game's end, not the app process's
+        # an Error (OutOfMemoryError, a missing native method) is that game's end, not the app process's, and its log does not throw again
         self.assertIn('catch (RuntimeException | Error e)', s)
-        # a run the app's process did not live through: Android's record of why, and a native crash while importing stops that game at once
+        self.assertIn('boolean oom = e instanceof OutOfMemoryError;', s)
+        # a run the app's process did not live through: Android's record of why; a native crash in the import's thread stops that game at once, and what
+        # the import wrote goes
         self.assertIn('lastEnd(next.started)', s)
-        self.assertIn('BuildWatch.stopsAtOnce(cutReason, cutStep)', s)
-        # the import's watchdog, ended with the import, and a full disk while it writes
+        self.assertIn('BuildWatch.stopsAtOnce(cutReason, cutStep, cutThread)', s)
+        self.assertIn('File part = importPart(it.request);', s)
+        self.assertIn('self.setName(BuildWatch.IMPORT_THREAD);', s)
+        # the import's watchdog from the keys on, ended with the import; a hang is Retry (what it wrote is deleted), a finished import is kept, and one that
+        # does not return is given up
         self.assertIn('"peanuts-import-watch"', s)
-        self.assertIn('watch.interrupt();', s)
+        self.assertIn('iw.done();', s)
+        self.assertIn('if (iw.hung() && rc != 0)', s)
+        self.assertRegex(s, r'made no progress for " \+ minutes\(hangMs\) \+ ", so it was stopped and the queue went on\."[^;]*BuildListener\.OTHER\);')
+        self.assertIn('android.os.Process.killProcess(android.os.Process.myPid());', s)
         self.assertIn('BuildWatch.full(why)', s)
         # the test time is read only by a build with the fake engine
         self.assertIn('boolean fake = "fake".equals(dev.nxnative.android.BuildConfig.NX_PACK_ENGINE);', s)
         p = read(BUILD / 'Prepare.java')
-        # a packer that hangs: the job kept as paused, then its process ended; a packer that ended and did not come back: Android's record of why
-        self.assertIn('BuildWatch.hangs(now, lastChange, l != null && l.alive, hangMs)', p)
-        self.assertIn('endPacker(file);', p)
-        self.assertIn('"state", new Class<?>[] {String.class, String.class, String.class}, "paused", "user", null', p)
-        self.assertIn('android.os.Process.killProcess(i.pid);', p)
-        self.assertIn('BuildWatch.packerGone(now, l == null ? 0 : l.gone, lastChange, BuildWatch.PACKER_BACK_MS)', p)
-        self.assertIn('gone = SystemClock.elapsedRealtime();', p)
+        # one watchdog for a build and a build with mods (a build with mods holds the queue while it runs), and a full disk in both
+        self.assertIn('watch(w, file, step, stage, startedAt, false);', p)
+        self.assertIn('watch(w, file, step, stage, startedAt, true);', p)
+        self.assertEqual(p.count('BuildWatch.full(err, detail) ? BuildListener.OUT_OF_SPACE : BuildListener.TOOL_STOPPED'), 2)
+        # one list of the pauses that end a build, with the watchdog's reasons in it
+        self.assertEqual(p.count('if (stops(reason))'), 2)
+        self.assertNotIn('reason.equals("user") || reason.equals("timeout")', p)
+        self.assertRegex(p, r'case HUNG:\s+case ENDED: return true;')
+        # every stop keeps the job as paused; a hang ends the packer's processes (the forked ones too, from /proc)
+        self.assertEqual(p.count('endPacker(file, ENDED, null, false);'), 2)
+        self.assertIn('endPacker(file, HUNG, ', p)
+        self.assertIn('endPacker(otherFile, HUNG, ', p)
+        self.assertIn('for (int pid : BuildWatch.pids(PROC, packName()))', p)
+        self.assertIn('if (!"running".equals(Upstream.jobState(j))) return;', p)
+        # uptime, CPU time, and a packer that went keeps its time when Android binds a new one
+        self.assertRegex(p, r'long now = SystemClock\.uptimeMillis\(\);\s+Link l = link;\s+if \(w\.cpuDue\(now\)\) w\.cpu\(now, BuildWatch\.cpuTicks\(PROC, packName\(\)\), TICKS\);')
+        self.assertIn('gone = SystemClock.uptimeMillis();', p)
+        self.assertNotIn('gone = 0;', p)
         # another game's job that hangs does not hold this build either, and its heat pause is no hang
-        self.assertIn('endPacker(otherFile);', p)
-        self.assertIn('if (!"running".equals(otherState)) otherChangedAt = now;', p)
-        # a full disk in the packer: the card offers Free up space
-        self.assertIn('BuildWatch.full(err, detail) ? BuildListener.OUT_OF_SPACE : BuildListener.TOOL_STOPPED', p)
+        self.assertIn('if (!"running".equals(otherState)) ow.changed(now);', p)
+        # the packer's panel and notification have the watchdog's reasons in words (a marked hook)
+        j = read(APP / 'ondevice/java/dev/nxnative/android/Job.java')
+        self.assertRegex(j, r'case "hung": return "[^"]+";\s+// PEANUTS:')
+        self.assertRegex(j, r'case "ended": return "[^"]+";\s+// PEANUTS:')
+        # the packer's own sentence for a full disk is not said twice on the card
+        self.assertIn('first.contains("Free up") || first.contains("Free some")', read(APP / 'main/java/dev/peanuts/ui/Library.java'))
 
     def test_packer_jobs_one_at_a_time(self):
         p = read(BUILD / 'Prepare.java')

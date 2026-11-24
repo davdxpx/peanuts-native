@@ -1948,7 +1948,7 @@ public final class Library {
                     : BuildListener.WRONG_VERSION.equals(b.code) ? (first.contains("Build anyway") ? "" : " To try it anyway, open the game's sheet and tap Build anyway. Or pick the update the sheet recommends.")
                     : BuildListener.INVALID_DUMP.equals(b.code) ? (bt != null && bt.base != null && dev.peanuts.build.VersionFolder.is(bt.base.file) ? ""   // its message says where the files go (GitHub issue #370)
                             : " Details says why. Open the game's sheet to check the files, or dump the game again.")
-                    : BuildListener.OUT_OF_SPACE.equals(b.code) ? (first.contains("Free up") ? "" : " Free up some space, then tap Retry.")
+                    : BuildListener.OUT_OF_SPACE.equals(b.code) ? (first.contains("Free up") || first.contains("Free some") ? "" : " Free up some space, then tap Retry.")   // the packer's own sentence says "Free some space" (PrepareText)
                     : BuildListener.STALLED.equals(b.code) || BuildListener.CANCELLED.equals(b.code) ? (first.contains("Resume") ? "" : " Tap Resume to go on from where it stopped.")
                     : BuildListener.TOOL_STOPPED.equals(b.code) || first.contains("Tap ") || first.contains(" tap ") ? "" : " Tap Retry to build again.";   // a first line that says what to tap gets no second instruction
             buildBody.setText((first.isEmpty() ? "The build stopped." : first) + action);
