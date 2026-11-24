@@ -73,10 +73,10 @@ class Sources(unittest.TestCase):
         for call in ('ModsPanel.opening(', 'ModsPanel.build(', 'ModsPanel.padKey(', 'ModsPanel.shows()', 'ModsPanel.afterLayout('):
             self.assertRegex(panel, re.escape(call) + r'.*// PEANUTS', f'SidePanel: the marked hook {call}')
         self.assertRegex(panel, r'static String\[\] TAB_NAMES = .*// PEANUTS')
-        self.assertRegex(panel, r'static int TAB_GENERAL = 3;\s+// PEANUTS')
+        self.assertRegex(panel, r'static int TAB_CONTROLS = 2, TAB_GENERAL = 3;\s+// PEANUTS')
         self.assertRegex(panel, r'if \(!ModsPanel\.shows\(\)\) cheatRows\(\);', "General keeps upstream's cheat switches only without the Mods tab")
         mp = (LAUNCHER / 'ModsPanel.java').read_text(encoding='utf-8')
-        self.assertIn('{"Performance", "Display", "Controls", MODS, "General"}', mp, 'Mods sits between Controls and General')
+        self.assertRegex(mp, r'if \(shows\) names\.add\(CHEATS\);\s+if \(mods\) names\.add\(MODS\);\s+names\.add\("Controls"\);', 'the quick menu: Cheats, then Mods, before Controls (the canvas page "In-game menus")')
         bridge = (LAUNCHER / 'CheatsBridge.java').read_text(encoding='utf-8')
         for call in ('Native.cheatStatus()', 'Native.cheatsReload()', 'Native.cheatSet('):
             self.assertIn(call, bridge, f'the tab reaches {call} through CheatsBridge (Native is package-private)')

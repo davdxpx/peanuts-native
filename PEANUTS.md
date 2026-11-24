@@ -121,6 +121,16 @@ Banana Native ships several releases a day, so this fork is kept as a **thin ove
      `build`'s first line hands the page to `GamePagePort.build` on a window 600 dp wide or more; its `wide` and sections lines build the narrow column with every section while the port
      takes upstream's rows off its tabs (`GamePagePort.harvesting`); `stepTab` asks `GamePagePort.step` after Mods & Cheats' own line; `openOn` (Round 61's
      line) tells the port the tab, so Settings › Users opens the area Saves. `GamePagePort.java` is Peanuts' own file in upstream's package.
+   - `android/app/src/main/java/dev/nxnative/android/SidePanel.java`, `GameActivity.java`, `SaveStore.java` — (2026-11-24, the in-game menus, `InGamePanel`,
+     `dev.peanuts.ingame`) the one side panel becomes two menus. SidePanel is the quick menu: `TAB_CONTROLS` not final (Cheats and Mods come before it);
+     its constructor hands its sheet to `InGamePanel.frame` (a rail of the tabs at the left, a header with Back and the tab's name); `tabBar`'s first line
+     `InGamePanel.rail`; `showTab` keeps the focus on the rail (`InGamePanel.railFocused`); `open` and `close` slide through `InGamePanel.slideIn`/`slideOut`;
+     `padKey`'s back key is `InGamePanel.panelBack`; `look` ends with `InGamePanel.laid` (what moved to the game menu). GameActivity: `attach` in `onCreate`
+     (the game menu, a swipe in from the left edge), the combination through `InGamePanel.key` (Home held: the quick menu) and `InGamePanel.toggle` (Home
+     pressed, − and + held: the game menu), the controller's own Back through `InGamePanel.backKey` (pressed the game menu, held the quick menu: the
+     Thor's Home is Android's), `menuKey` and `menuMotion` (the game menu has the controller), Back through `InGamePanel.back`, and `runSave()`
+     (the save the game runs on). SaveStore: `backupLocked` not private (the game menu's Back up the save, under the running game's own lock).
+     `peanuts/UPSTREAM-EDITS.md` "In-game menus".
 3. **Settings go through upstream's own mechanisms**: `env.txt` keys named `PN_*`, `settings.tsv` rows, `DM_CTL` lines. No new settings UI inside upstream classes.
 4. **Never reformat or "fix" upstream files.** A general fix belongs upstream as a PR to Banana Native (its AGENTS.md prefers general changes), then it arrives by rebase.
 5. **Branches:** `upstream/android` is Banana Native; `peanuts` is this overlay, always a linear set of commits on top of a Banana Native tag. History is rewritten on every update (rebase, never merge).

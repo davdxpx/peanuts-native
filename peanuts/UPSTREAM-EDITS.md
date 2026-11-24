@@ -3160,3 +3160,51 @@ so every title's profile.bin is regenerated with the APK, as for any new key), `
 the generic profile field, `join_cap` cut from vka_mem.c with the profile at 0 and 512 and the player's line set and unset). No rewrite key or shader input
 changes: `place_join_mb` is not a build row (`pack_android.py build_rows`), and `vka_mem.c` does not feed `DMSH_VK_CHAIN`. Upstream candidate: the key, if
 upstream wants a per-game join cap.
+### In-game menus: a game menu at the left, a quick menu at the right (2026-11-24, on main 0.1.8)
+
+Upstream's one in-game panel with five text tabs becomes two menus, as a console's: everything about this session at the left, everything that tunes
+the running game at the right. The game keeps running behind both.
+
+- **The game menu** (`dev.peanuts.ingame.GameMenu`): the game's cover, name, version and how long this session has run; Back to the game, Pause the
+  game, Quick menu, Back up the save (the save the game runs on, copied while it runs: SaveStore checks the save before and after the copy, and the host
+  writes a save only by an atomic swap at the game's Commit, so a Commit in between fails the copy, which is tried again), Button mapping, Share log;
+  Stop the game set apart at the bottom, asked once inline (Keep playing first). The header and Stop stay while the rows scroll on a short screen.
+- **The quick menu** is upstream's SidePanel with its tabs on a rail at the left (`dev.peanuts.ingame.Rail`): Performance, Display, Cheats, Mods,
+  Controls, and the menu's own settings at the bottom (upstream's General without Pause, Stop and Back to the game). Cheats and Mods are two tabs now
+  (`ModsTab.fill(..., part)`), each only when the game has some. The selected tab is a peanut-brown block across the rail that slides to the next one;
+  up and down on the rail switch the tab, left from a row comes back to the selected tab. Its header has Back and the tab's name. Section heads are in
+  capitals in peanut tan, a slider's label has its value at the right (`PanelPolish`).
+- **Opening**: Home pressed, − and + held, Back and a swipe in from the left edge open the game menu; Home held (half a second, while still down), a
+  swipe in from the right edge, a long press on the on-screen controls' button and the game menu's Quick menu row open the quick menu. Home pressed
+  closes either; B in the quick menu goes back to the game menu when that opened it, onto its Quick menu row. Settings › Controller › In-game panel still decides whether Home
+  and − + open anything. On a device whose Home is Android's (the AYN Thor: it goes to the launcher), the controller's own Back does what Home does:
+  pressed the game menu with the selection shown, held the quick menu (`InGamePanel.backKey`); in the quick menu it goes one step back, and a Back made
+  from an unused B or by the edge swipe goes on to `onBackPressed` as before. A tool that watches the keys (on the Thor an accessibility service with a
+  screen swap on Back held) hands Back on as Android's own: that Back opens the game menu with the selection shown too while a controller is attached.
+- **Icons**: a solid set for the rail and the game menu (`drawable/pis_*.xml` from `design/peanuts-native/icons/icons.py` SOLID, colours per state in
+  `values/peanuts_ingame.xml`): at rest a muted grey with a muted banana, selected peanut cream with banana yellow.
+- **Motion**: in 240 ms decelerating, out 180 ms accelerating, the scrim with them; a tab's rows come up 8 dp and fade in; all on translation and alpha
+  with hardware layers (`dev.peanuts.ingame.Look`).
+- **Feel** (`dev.peanuts.ui.MenuFeel`): a fine tick of the motor for each step of the controller's focus, a firmer one for a choice or a tab, through
+  the launcher's own haptics (`Haptics`: its gaps, the system's touch feedback, battery saver and heat); soft menu sounds made in the app (a few
+  milliseconds of a sine, no files), off by default. Both in the menu's own settings: Vibrate on each step, Menu sounds.
+- **Console details**: Stop the game has the power sign. A tab's own action sits in the header beside its name with the controller's button (the Cheats
+  tab's "X All off", `Rail.action`) instead of a row of its own. The yellow focus frame keeps clear of a row's first letter (`PanelPolish.inset`: a
+  switch or list row reaches 10 dp into the side padding, its content 10 dp in) and shows on the short choices too (one line without a single-line
+  scroll, which moved the frame out of sight); no grey veil of the system's under it. The focus coming into a track of choices lands on the chosen
+  one, not the nearest (`PanelPolish.chosen`); in a list of choices (Console mode, the frame rate cap) each choice takes the row's width with its
+  mark and text 10 dp in, so the frame keeps clear of them too, its mark a still one of the panel's (a ring, with a yellow dot when chosen). Right from the rail goes into the rows (the first in sight), not to the header's Back. Left from any row goes back to the rail's tab. A Value cheat's
+  number takes the room between its − and + (a narrow menu narrows the number, + is never cut off), and a focused cheat is kept whole on the screen
+  once its line opens.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `android/app/src/main/java/dev/nxnative/android/SidePanel.java` | 8 | `TAB_CONTROLS` not final; the constructor's `InGamePanel.frame`; `tabBar`'s `InGamePanel.rail`; `showTab`'s `InGamePanel.railFocused`; `open`'s `InGamePanel.slideIn` and `close`'s `slideOut` instead of upstream's two animations; `padKey`'s back key `InGamePanel.panelBack`; `look`'s `InGamePanel.laid` | `// PEANUTS` on each line |
+| `android/app/src/main/java/dev/nxnative/android/GameActivity.java` | 7 | `comboHeld` and the combination's TOGGLE through `InGamePanel.toggle`, the combination through `InGamePanel.key`; `onCreate`'s `InGamePanel.attach`; `dispatchKeyEvent`'s `InGamePanel.menuKey`; `onGenericMotionEvent`'s `InGamePanel.menuMotion`; `onBackPressed`'s `InGamePanel.back`; `runSave()` | `// PEANUTS` / `/* PEANUTS */` on each line |
+| `android/app/src/main/java/dev/nxnative/android/SaveStore.java` | 1 | `backupLocked` not private | `// PEANUTS` |
+| `android/app/src/main/java/dev/nxnative/android/InGamePanel.java` | new | Peanuts-owned, in upstream's package (as `ModsPanel.java`): the two menus, the keys, the backup while the game runs | Peanuts' own file |
+| `android/app/src/main/java/dev/nxnative/android/ModsPanel.java` | (Peanuts' own, Part E) | the quick menu's tabs: Cheats and Mods apart, before Controls | Peanuts' own file |
+
+Peanuts-owned: `dev.peanuts.ingame` (`GameMenu`, `Rail`, `Look`), `dev.peanuts.ui.MenuFeel`, `drawable/pis_*.xml`, `values/peanuts_ingame.xml`, the halves
+of `ModsTab` and its header action, the heads, valued sliders and row insets of `PanelPolish`. Tests: `peanuts/tests/test_ingame_menus.py` (the hooks, the rail's order, the rows, the text against UI-RULES.md, the
+icons against icons.py), `peanuts/tests/test_cheat_loader.py` (Part E's hooks in their new place).

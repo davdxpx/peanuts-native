@@ -423,3 +423,4 @@ dm/games/01004BC0166CC000/shader_pairs.tsv	Generated vertex and pixel key pairs.
 dm/games/01004BC0166CC000/pso_pairs.tsv	Generated supplemental pipeline key pairs.
 dm/games/01004BC0166CC000/pso_manifest.tsv	Generated pipeline seed list.
 dm/games/01004BC0166CC000/bf_want.tsv	Generated shader auxiliary table.
+android/app/src/main/java/dev/nxnative/android/ModsPanel.java	a Peanuts-owned file (its class comment starts with "PEANUTS:") in upstream's launcher package since mod menu Part E, in main since 0.1.8: every line of it is Peanuts', so its hunks carry no marker of their own (in-game menus)

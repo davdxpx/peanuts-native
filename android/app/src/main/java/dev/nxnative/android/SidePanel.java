@@ -45,7 +45,7 @@ final class SidePanel extends FrameLayout {
 
     // The tabs: each a builder of its own (build); Performance's rows refresh twice a second while it shows
     static String[] TAB_NAMES = {"Performance", "Display", "Controls", "General"};   // PEANUTS: not final, ModsPanel.opening puts Mods between Controls and General
-    private static final int TAB_PERF = 0, TAB_DISPLAY = 1, TAB_CONTROLS = 2; static int TAB_GENERAL = 3;   // PEANUTS: TAB_GENERAL not final, the last tab (4 while Mods shows: ModsPanel)
+    private static final int TAB_PERF = 0, TAB_DISPLAY = 1; static int TAB_CONTROLS = 2, TAB_GENERAL = 3;   // PEANUTS: TAB_CONTROLS and TAB_GENERAL not final: ModsPanel puts Cheats and Mods before Controls, General last
     private int tab = TAB_PERF;
     private static final int FOCUS = 0xFFFFD54F;   // the tab bar's selected tab and the focus frame: a banana yellow, dark text on it
 
@@ -91,6 +91,7 @@ final class SidePanel extends FrameLayout {
         sh.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
         addView(sh, new LayoutParams(PanelLook.widthPx(Prefs.panelSize(a), dp, a.getResources().getDisplayMetrics().widthPixels), LayoutParams.MATCH_PARENT, Gravity.END));
         sheet = sh;
+        InGamePanel.frame(this, sh, tabs, scroll);   // PEANUTS: the quick menu, its tabs on a rail at the left with a header over the rows (dev.peanuts.ingame.Rail)
         getViewTreeObserver().addOnGlobalFocusChangeListener(this::focusMoved);
         setVisibility(GONE);
     }
@@ -112,8 +113,7 @@ final class SidePanel extends FrameLayout {
         build();
         look();
         setVisibility(VISIBLE);
-        sheet.setTranslationX(sheet.getLayoutParams().width);
-        sheet.animate().translationX(0).setDuration(180).start();
+        InGamePanel.slideIn(this, sheet);   // PEANUTS: in from the right, decelerating, the scrim fading in (dev.peanuts.ingame.Look's motion)
         post(() -> { if (open && !isInTouchMode()) focusFirst(); });
         removeCallbacks(tick);
         refresh();
@@ -124,7 +124,7 @@ final class SidePanel extends FrameLayout {
         open = false;
         heldDir = stickHeld = PadPanel.NONE;
         removeCallbacks(repeat);
-        sheet.animate().translationX(sheet.getLayoutParams().width).setDuration(150).withEndAction(() -> { if (!open) setVisibility(GONE); }).start();
+        InGamePanel.slideOut(this, sheet, () -> { if (!open) setVisibility(GONE); });   // PEANUTS: out to the right, accelerating, the scrim fading
     }
 
     /**
@@ -140,7 +140,7 @@ final class SidePanel extends FrameLayout {
         if (!press) return true;
         if (ModsPanel.padKey(k, findFocus(), confirm)) return true;   // PEANUTS: Y (details) and X (All off) on the Mods tab
         boolean lost = findFocus() == null || isInTouchMode();
-        if (k == back) close();
+        if (k == back) InGamePanel.panelBack(this);   // PEANUTS: back to the game menu when that opened the quick menu, else to the game
         else if (k == KeyEvent.KEYCODE_BUTTON_L1 || k == KeyEvent.KEYCODE_BUTTON_R1) { if (lost) ensureFocus(); showTab(PadPanel.tab(tab, k == KeyEvent.KEYCODE_BUTTON_L1 ? -1 : 1, TAB_NAMES.length)); }
         else if (k == confirm || k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER) { if (lost) ensureFocus(); else activate(); }   // the first press only shows where the focus is
         return true;
@@ -262,6 +262,7 @@ final class SidePanel extends FrameLayout {
 
     /** The tab bar: one button per tab (the selected one filled), then ✕; large enough to tap (the panel's row height, 48 dp at least), named for TalkBack */
     private void tabBar() {
+        if (InGamePanel.rail(this, tab, this::showTab)) return;   // PEANUTS: the rail instead of the bar
         tabs.removeAllViews();
         float dp = getResources().getDisplayMetrics().density;
         int h = Math.max(Math.round(48 * dp), PanelLook.rowPx(Prefs.panelSize(act), dp)), pad = Math.round(4 * dp);
@@ -322,7 +323,7 @@ final class SidePanel extends FrameLayout {
         build();
         look();
         scroll.scrollTo(0, 0);
-        if (!isInTouchMode()) focusFirst();
+        if (!isInTouchMode() && !InGamePanel.railFocused()) focusFirst();   // PEANUTS: a tab switched from the rail keeps the focus there
         refresh();
     }
 
@@ -333,6 +334,7 @@ final class SidePanel extends FrameLayout {
         if (sheet.getLayoutParams().width != w) { sheet.getLayoutParams().width = w; sheet.requestLayout(); }
         look(box, PanelLook.textScale(Prefs.panelText(act)), PanelLook.rowPx(size, dp));
         dev.peanuts.ui.PanelPolish.apply(box);   // PEANUTS: the panel's segmented choices, headings, notes and buttons
+        InGamePanel.laid(this, box, tab);   // PEANUTS: what moved to the game menu (Pause, Stop, Back to the game, Button mapping); a new tab fades in
     }
     private static void look(View v, float text, int row) {
         if (v instanceof TextView) {

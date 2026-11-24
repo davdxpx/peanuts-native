@@ -350,7 +350,7 @@ final class SaveStore {
         }
     }
 
-    private static Backup backupLocked(File save, File backups, String name) throws IOException {
+    static Backup backupLocked(File save, File backups, String name) throws IOException {   // PEANUTS: not private (InGamePanel: the game menu's Back up the save, under the running game's own lock)
         recoverLocked(save);
         Map<String, File> parts = parts(save);
         if (!save.isDirectory() && !parts.containsKey(DEVICE)) throw new IOException("there is no save folder at " + save);
