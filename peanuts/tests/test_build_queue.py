@@ -1,8 +1,9 @@
 """The build queue (issue #348): a build asked while another runs waits its turn, kept in the app's own storage so a killed app goes on with it.
 
 The pure half runs on the JVM (android/app/src/jvmtest/java/dev/peanuts/build/BuildQueueJvmTest.java: order, the file, a run the process did not live
-through, a failure that does not stop the queue, removing, Cancel all, the same game twice, the batch's places, a pause, a damaged file); it is skipped
-without a JDK. The source checks say that the service, the pipeline, the library and the control interface keep to it."""
+through, a failure that does not stop the queue, removing, Cancel all, the same game twice, the batch's places, a pause, a damaged file), and so do the
+watchdog's rules (BuildWatchJvmTest: a hang, a packer that ended, a full disk, a process's end); they are skipped without a JDK. The source checks say that
+the service, Prepare, the pipeline, the library and the control interface keep to them."""
 import re
 import shutil
 import subprocess
@@ -13,8 +14,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 APP = REPO / 'android/app/src'
 BUILD = APP / 'main/java/dev/peanuts/build'
-SRC = [BUILD / n for n in ('BuildQueue.java', 'BuildRequest.java', 'BuildListener.java')]
+SRC = [BUILD / n for n in ('BuildQueue.java', 'BuildRequest.java', 'BuildListener.java', 'BuildWatch.java')]
 TEST = APP / 'jvmtest/java/dev/peanuts/build/BuildQueueJvmTest.java'
+WATCH_TEST = APP / 'jvmtest/java/dev/peanuts/build/BuildWatchJvmTest.java'
 
 
 def read(p):
@@ -25,11 +27,12 @@ def read(p):
 class QueueJvm(unittest.TestCase):
     def test_rules(self):
         with tempfile.TemporaryDirectory() as d:
-            c = subprocess.run(['javac', '-Xlint:all,-serial', '-Werror', '-encoding', 'UTF-8', '-d', d] + [str(s) for s in SRC] + [str(TEST)], capture_output=True, text=True)
+            c = subprocess.run(['javac', '-Xlint:all,-serial', '-Werror', '-encoding', 'UTF-8', '-d', d] + [str(s) for s in SRC] + [str(TEST), str(WATCH_TEST)], capture_output=True, text=True)
             self.assertEqual(c.returncode, 0, c.stderr)
-            r = subprocess.run(['java', '-cp', d, 'dev.peanuts.build.BuildQueueJvmTest', d], capture_output=True, text=True, timeout=300)
-            self.assertEqual(r.returncode, 0, r.stderr)
-            self.assertEqual(r.stdout.strip(), 'ok')
+            for cls in ('BuildQueueJvmTest', 'BuildWatchJvmTest'):
+                r = subprocess.run(['java', '-cp', d, 'dev.peanuts.build.' + cls, d], capture_output=True, text=True, timeout=300)
+                self.assertEqual(r.returncode, 0, cls + ': ' + r.stderr)
+                self.assertEqual(r.stdout.strip(), 'ok', cls)
 
 
 class Wiring(unittest.TestCase):
@@ -65,6 +68,35 @@ class Wiring(unittest.TestCase):
         self.assertIn('q.placeText(it)', s)
         self.assertIn('action("Cancel all", ACTION_CANCEL_ALL, 2)', s)
         self.assertIn('queueDone(q.readyCount() == total, q.summary(), cancelAll)', s)
+
+    def test_watchdog(self):
+        """A game that fails, crashes or hangs never holds the next one (the question on #448: "if queue 1 failed, queue 2 still progress")"""
+        self.assertNotIn('import android', read(BUILD / 'BuildWatch.java'))
+        s = read(BUILD / 'BuildService.java')
+        # an Error (OutOfMemoryError, a missing native method) is that game's end, not the app process's
+        self.assertIn('catch (RuntimeException | Error e)', s)
+        # a run the app's process did not live through: Android's record of why, and a native crash while importing stops that game at once
+        self.assertIn('lastEnd(next.started)', s)
+        self.assertIn('BuildWatch.stopsAtOnce(cutReason, cutStep)', s)
+        # the import's watchdog, ended with the import, and a full disk while it writes
+        self.assertIn('"peanuts-import-watch"', s)
+        self.assertIn('watch.interrupt();', s)
+        self.assertIn('BuildWatch.full(why)', s)
+        # the test time is read only by a build with the fake engine
+        self.assertIn('boolean fake = "fake".equals(dev.nxnative.android.BuildConfig.NX_PACK_ENGINE);', s)
+        p = read(BUILD / 'Prepare.java')
+        # a packer that hangs: the job kept as paused, then its process ended; a packer that ended and did not come back: Android's record of why
+        self.assertIn('BuildWatch.hangs(now, lastChange, l != null && l.alive, hangMs)', p)
+        self.assertIn('endPacker(file);', p)
+        self.assertIn('"state", new Class<?>[] {String.class, String.class, String.class}, "paused", "user", null', p)
+        self.assertIn('android.os.Process.killProcess(i.pid);', p)
+        self.assertIn('BuildWatch.packerGone(now, l == null ? 0 : l.gone, lastChange, BuildWatch.PACKER_BACK_MS)', p)
+        self.assertIn('gone = SystemClock.elapsedRealtime();', p)
+        # another game's job that hangs does not hold this build either, and its heat pause is no hang
+        self.assertIn('endPacker(otherFile);', p)
+        self.assertIn('if (!"running".equals(otherState)) otherChangedAt = now;', p)
+        # a full disk in the packer: the card offers Free up space
+        self.assertIn('BuildWatch.full(err, detail) ? BuildListener.OUT_OF_SPACE : BuildListener.TOOL_STOPPED', p)
 
     def test_packer_jobs_one_at_a_time(self):
         p = read(BUILD / 'Prepare.java')
