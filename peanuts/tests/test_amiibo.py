@@ -92,7 +92,59 @@ class Page(unittest.TestCase):
     def test_pictures_only_on_demand(self):
         """Pictures are fetched when a page shows an amiibo (AmiiboPictures.load from the page), never at start or in the background"""
         uses = [p.name for p in APP.rglob('*.java') if 'AmiiboPictures.load(' in p.read_text(encoding='utf-8') and p.name != 'AmiiboPictures.java']
-        self.assertTrue(set(uses) <= {'AmiiboPage.java', 'AmiiboTab.java', 'AmiiboCard.java', 'AmiiboShow.java'}, uses)
+        self.assertTrue(set(uses) <= {'AmiiboPage.java', 'AmiiboTab.java', 'AmiiboCard.java', 'AmiiboWatch.java'}, uses)
+
+
+class InGame(unittest.TestCase):
+    """The quick menu's amiibo tab, the card over the game and the show (Part C)"""
+    LAUNCHER = APP / 'main/java/dev/nxnative/android'
+
+    def test_tab_wiring(self):
+        mods = (self.LAUNCHER / 'ModsPanel.java').read_text(encoding='utf-8')
+        for line in ('names.add(dev.peanuts.amiibo.AmiiboTab.NAME);', 'dev.peanuts.amiibo.AmiiboTab.openOn(', 'dev.peanuts.amiibo.AmiiboTab.fill(a, box, host(p, a))',
+                     'if (dev.peanuts.amiibo.AmiiboTab.padKey(k, confirm)) return true;'):
+            hit = [l for l in mods.splitlines() if line in l]
+            self.assertEqual(len(hit), 1, line)
+            self.assertIn('PEANUTS', hit[0], 'a hunk in an upstream file carries its marker')
+        tab = (PKG / 'AmiiboTab.java').read_text(encoding='utf-8')
+        self.assertIn('takeOff = run;', tab, "the controller's X reaches Take off")
+        self.assertIn('if (!has || v.isInTouchMode() || passed[0]) return;', tab, "a controller's first focus goes past the search, so the keyboard stays shut")
+        rail = (APP / 'main/java/dev/peanuts/ingame/Rail.java').read_text(encoding='utf-8')
+        self.assertIn('case "amiibo": return "amiibo";', rail)
+        self.assertIn('public static void lit(String tab)', rail)
+        self.assertTrue((APP / 'peanuts/res/drawable/pis_amiibo.xml').is_file(), 'the rail\'s solid icon')
+
+    def test_watch_wiring(self):
+        panel = (self.LAUNCHER / 'InGamePanel.java').read_text(encoding='utf-8')
+        self.assertIn('dev.peanuts.amiibo.AmiiboWatch.attach(a, root,', panel)
+        self.assertEqual(panel.count('dev.peanuts.amiibo.AmiiboWatch.key(e)'), 2, 'the card and the show have the controller (backKey, menuKey)')
+
+    def test_never_opens_unasked(self):
+        """The quick menu opens only from the card's Choose"""
+        watch = (PKG / 'AmiiboWatch.java').read_text(encoding='utf-8')
+        self.assertEqual(watch.count('host.openTab()'), 1)
+        self.assertIn('@Override public void choose() { hideCard(); if (host != null) host.openTab(); }', watch)
+        self.assertIn('CARD_AFTER_MS = 400', watch, 'the card after the game has looked for 0.4 s')
+        self.assertIn('s.search == handled', watch, 'once per search')
+
+    def test_setting(self):
+        prefs = (APP / 'main/java/dev/peanuts/PeanutsPrefs.java').read_text(encoding='utf-8')
+        self.assertIn('panel(c).getInt("amiibo_when", AMIIBO_SUGGEST)', prefs, 'Suggest by default')
+
+    def test_show(self):
+        show = (APP / 'main/java/dev/peanuts/ui/AmiiboShow.java').read_text(encoding='utf-8')
+        self.assertIn('END = 2300', show, 'about 2.3 s: the amiibo stands with its name for a good second')
+        self.assertIn('float left = cx - baseX * pw, top = bottom - baseY * ph;', show, 'its base on the ring\'s centre')
+        self.assertIn('PeanutArt', show, 'the About peanut')
+        self.assertIn('Haptics.Word.HEAVY', show, 'one firm tick')
+        self.assertIn('"PEANUTS NATIVE \\u00d7 AMIIBO"', show)
+        self.assertIn('public void skip()', show, 'any button skips it')
+
+    def test_words(self):
+        for f in (PKG / 'AmiiboCard.java', PKG / 'AmiiboTab.java', PKG / 'AmiiboWatch.java'):
+            for s in literals(f):
+                for bad in ('·', '•', ' - ', '—', '–', '!', 'Loading', 'Oops'):
+                    self.assertNotIn(bad, s, f'{f.name}: "{s}"')
 
 
 if __name__ == '__main__':
