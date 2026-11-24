@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import io.github.davdxpx.mistel.mncf.CodeModule;
 import io.github.davdxpx.mistel.mncf.Mncf;
 import io.github.davdxpx.mistel.mncf.MncfException;
 import io.github.davdxpx.mistel.mncf.MncfFile;
@@ -160,32 +161,31 @@ public final class MncfExport {
     }
 
     /**
-     * Whether a cheat Peanuts refuses here may still go into the ZIP: one refused for what Peanuts' own engine lacks (runtime:unsupported:, runtime:rewritten,
-     * a capability) can run in another emulator where Atmosphère code can say it; one whose place or code does not fit the game (pattern-not-found,
-     * expect-mismatch, outside, ...) or whose relations stop it never goes
-     */
-    static boolean fitsElsewhere(String reason) {
-        return reason == null || reason.startsWith("runtime:") && !reason.equals("runtime:no-main") || reason.startsWith("capability-missing:");
-    }
-
-    /**
-     * The game's sources as a ZIP for other emulators: one Atmosphère cheat file a build, at atmosphere/contents/&lt;title ID&gt;/cheats/&lt;build ID&gt;.txt, with
-     * each cheat lowered by Mistel's converter (Converter.toAtmosphere) for every build its file names, and for the build that runs from the file made ready for
-     * it (MncfBuild: its places found in the game's own main). Each cheat is the code Peanuts runs where it runs it, else its own code for the build, else code
-     * made from its operations, with the number set in the in-game tab where it has one. Left out and named: what Atmosphère code cannot say (a monitor, toggle
-     * buttons, a run once or for a time, several conditions), what finds its place by a pattern in a build whose main Peanuts does not have, and what does not
-     * fit the game that runs. Masters become each file's one master code; groups are headings; every name is unique. Null when the game has no source
+     * The game's sources as a ZIP for other emulators: one Atmosphère cheat file a build, at atmosphere/contents/&lt;title ID&gt;/cheats/&lt;build ID&gt;.txt, each
+     * source's cheats lowered by Mistel's converter for every build its file names (Converter.toAtmosphereAll). For the build that runs it gets the game's own
+     * main (MncfMain: the pack's main with its original words), so the patterns are found and every patch and override stub is checked against expect before
+     * it is written: a cheat whose place holds other code stays out, and the ZIP never writes over the wrong bytes. A build the game runs that the file does
+     * not name is written from the patterns with that main. Each cheat is its own code for the build where the file has it, else code made from its
+     * operations; one with a number set in the in-game tab is made from its operations with that number where it can be. Left out and named, with the
+     * converter's stable reason in the player's words: what Atmosphère code cannot say (a monitor, toggle buttons, a run once or for a time, several
+     * conditions), a pattern in a build whose main Peanuts does not have, and what does not fit the game. Masters become each file's one master code; groups
+     * are EdiZon's sections. Null when the game has no source
      */
     public static Zip zip(File folder, String gameName, MncfBuild.Game g, CheatSources.Merged merged, Map<String, CheatValues.Kept> kept) throws IOException {
         List<CheatSources.Source> sources = new ArrayList<>();
         for (CheatSources.Source s : CheatSources.list(folder)) if (s.file().isFile()) sources.add(s);
         if (sources.isEmpty()) return null;
+        CodeModule main = null;   // the game's own main of the build that runs, read once for every source
+        if (g.pack != null && g.build != null) {
+            try { main = MncfMain.of(g.pack); } catch (IOException e) { main = null; }   // a pack whose main does not fit together: its patterns stay out
+            if (main != null && !MncfConvert.sameBuild(main, g.build)) main = null;
+        }
         Map<String, List<Lowered>> byBuild = new LinkedHashMap<>();
         if (g.build != null) byBuild.put(g.build, new ArrayList<>());
         Map<String, String> versions = new LinkedHashMap<>();
         List<String[]> left = new ArrayList<>();
         Map<String, String> names = new LinkedHashMap<>();   // every cheat (not a master) by its key, in the sources' order
-        Map<String, String> why = new HashMap<>();           // a cheat's key → why it is in no build yet
+        Map<String, String> why = new HashMap<>();           // a cheat's key → why it is in no build
         for (int si = 0; si < sources.size(); si++) {
             CheatSources.Source s = sources.get(si);
             byte[] bytes = Files.readAllBytes(s.file().toPath());
@@ -198,39 +198,45 @@ public final class MncfExport {
             }
             String sig = f.signature().result();
             boolean bad = SignatureResult.INVALID.equals(sig) || SignatureResult.REVOKED.equals(sig);
+            Map<String, Object> values = new HashMap<>(numbers(s.id, merged, kept));
             List<MncfBuild.Cheat> all = new ArrayList<>();
+            Map<String, Boolean> want = new LinkedHashMap<>();   // its own code first, or code made from its operations first where a number is set
             for (io.github.davdxpx.mistel.mncf.Cheat c : f.cheats()) {
-                all.add(new MncfBuild.Cheat(c.index(), c, null, Collections.<String>emptyList(), MncfBuild.number(c)));
+                MncfBuild.Cheat x = new MncfBuild.Cheat(c.index(), c, null, Collections.<String>emptyList(), MncfBuild.number(c));
+                all.add(x);
+                want.put(c.id(), !(x.valueKey != null && values.containsKey(x.valueKey)));
                 if (!c.isMaster()) names.put(si + "/" + c.id(), c.name());
                 if (bad) why.put(si + "/" + c.id(), MncfWords.reason("signature", null));
             }
             if (bad) continue;
-            Map<String, Object> values = new HashMap<>(numbers(s.id, merged, kept));
-            // the build that runs: from the file made ready for it
-            MncfBuild.Ready r = g.build == null ? null : MncfBuild.kept(s.file(), g);
-            if (r == null && g.build != null) r = MncfBuild.of(s.file(), g);
-            if (r != null && r.error == null && r.key != null) {
-                Map<String, Boolean> want = new LinkedHashMap<>();
-                for (MncfBuild.Cheat c : r.cheats) {
-                    if (!fitsElsewhere(c.reason)) { why.put(si + "/" + c.id, MncfWords.reason(c.reason, c)); continue; }
-                    want.put(c.id, c.valueKey != null && values.containsKey(c.valueKey) ? Boolean.FALSE : c.reason == null ? r.usesRaw(c) : Boolean.TRUE);
+            String own = new String(bytes, StandardCharsets.UTF_8), runKey = MncfBuild.buildKey(f, g.build);
+            Map<String, CodeModule> mains = new HashMap<>();
+            if (runKey != null && main != null) mains.put(runKey, main);
+            Map<String, Map<String, String>> reasons = new LinkedHashMap<>();   // build key → cheat id → the converter's reason
+            try {
+                for (Map.Entry<String, Map<Integer, List<String>>> e : MncfBuild.lowerAll(own, mains, values, want, reasons).entrySet()) {
+                    String id = f.builds().get(e.getKey()).modules().get("main"), bid = id.substring(0, Math.min(16, id.length())).toUpperCase(Locale.ROOT);
+                    add(byBuild.computeIfAbsent(bid, k -> new ArrayList<>()), si, all, e.getValue());
+                    String v = MncfBuild.version(f, bid);
+                    if (v != null) versions.putIfAbsent(bid, v);
                 }
-                add(byBuild.get(g.build), si, r.cheats, lowered(r.pinned, r.key, values, want, si, why));
-                String v = MncfBuild.version(f, g.build);
-                if (v != null) versions.put(g.build, v);
+                if (runKey == null && main != null) {   // the build that runs, which the file does not name: from its patterns, with the game's main
+                    Map<String, String> sk = new LinkedHashMap<>();
+                    add(byBuild.get(g.build), si, all, MncfBuild.lower(own, g.build, main, values, want, sk));
+                    reasons.put(g.build, sk);
+                    if (g.version != null) versions.putIfAbsent(g.build, g.version);
+                }
+            } catch (MncfException | RuntimeException e) {   // the library's own writing of a file it read: not expected
+                for (MncfBuild.Cheat c : all) why.putIfAbsent(si + "/" + c.id, "An Atmosphère file cannot say what it does.");
+                continue;
             }
-            // every other build the file names: its own code for it, or code made from its operations where the places are fixed for it
-            String own = new String(bytes, StandardCharsets.UTF_8);
-            for (io.github.davdxpx.mistel.mncf.Build b : f.builds().values()) {
-                String main = b.modules().get("main");
-                if (main == null || main.length() < 16) continue;
-                String bid = main.substring(0, 16).toUpperCase(Locale.ROOT);
-                if (bid.equals(g.build)) continue;
-                Map<String, Boolean> want = new LinkedHashMap<>();
-                for (MncfBuild.Cheat c : all) want.put(c.id, c.valueKey != null && values.containsKey(c.valueKey) ? Boolean.FALSE : Boolean.TRUE);
-                add(byBuild.computeIfAbsent(bid, k -> new ArrayList<>()), si, all, lowered(own, b.key(), values, want, si, why));
-                String v = MncfBuild.version(f, bid);
-                if (v != null) versions.putIfAbsent(bid, v);
+            // a cheat in no build: the reason of the build that runs, else of the file's first build
+            List<Map<String, String>> order = new ArrayList<>();
+            Map<String, String> run = reasons.get(runKey != null ? runKey : g.build);
+            if (run != null) order.add(run);
+            order.addAll(reasons.values());
+            for (MncfBuild.Cheat c : all) {
+                for (Map<String, String> r : order) if (r.containsKey(c.id)) { why.putIfAbsent(si + "/" + c.id, zipWords(r.get(c.id), c)); break; }
             }
         }
         Map<String, Integer> counts = new LinkedHashMap<>();
@@ -259,35 +265,23 @@ public final class MncfExport {
         return new Zip(zipName(gameName), o.toByteArray(), counts, versions, in.size(), left);
     }
 
-    /** MncfBuild.lower, why getting the converter's reason (in the player's words) for each cheat it left out; a failure of the whole file leaves each out */
-    private static Map<Integer, List<String>> lowered(String text, String key, Map<String, Object> values, Map<String, Boolean> want, int source, Map<String, String> why) {
-        Map<String, String> skipped = new HashMap<>();
-        try {
-            Map<Integer, List<String>> out = MncfBuild.lower(text, key, values, want, skipped);
-            for (Map.Entry<String, String> e : skipped.entrySet()) why.putIfAbsent(source + "/" + e.getKey(), zipWords(e.getValue()));
-            return out;
-        } catch (MncfException | RuntimeException e) {   // the library's own writing of a file it read: not expected
-            for (String id : want.keySet()) why.putIfAbsent(source + "/" + id, "An Atmosphère file cannot say what it does.");
-            return new HashMap<>();
-        }
-    }
-
-    /** Why the converter left a cheat out of an Atmosphère file (Converter.toAtmosphere's words), in the player's words */
-    static String zipWords(String converterWhy) {
-        String w = converterWhy == null ? "" : converterWhy.toLowerCase(Locale.ROOT);
-        if (w.contains("pattern") || w.contains("without an offset")) return "Its place is found by the code around it, which an Atmosphère file cannot do.";
-        if (w.contains("value")) return "Its number does not fit the place it is written to.";
-        switch (MncfBuild.runtimeReason(converterWhy)) {
-            case "runtime:unsupported:run.once": return "It runs once when you turn it on, which an Atmosphère file cannot say.";
-            case "runtime:unsupported:run.timed": return "It runs for a set time, which an Atmosphère file cannot say.";
-            case "runtime:unsupported:toggle": return "It is switched with a button combination, which an Atmosphère file cannot say.";
-            case "capability-missing:display": return "It shows values from the game, which an Atmosphère file cannot do.";
-            case "runtime:unsupported:when.many": return "It waits for several things in the game at once, which an Atmosphère file cannot say.";
-            case "runtime:unsupported:when": return "It waits for the game in a way an Atmosphère file cannot say.";
-            case "runtime:unsupported:run.action": return "It runs when you press its buttons in a way an Atmosphère file cannot say.";
-            case "runtime:unsupported:override": return "It changes a function in a way an Atmosphère file cannot say.";
-            case "runtime:module": return "It changes a part of the game other than its main code, which an Atmosphère file cannot name.";
-            default: return "An Atmosphère file cannot say what it does.";
+    /** Why the converter left a cheat out of an Atmosphère file, from its stable reason (Converter.Export.reasons(), spec section 15), in the player's words */
+    static String zipWords(String code, MncfBuild.Cheat c) {
+        String k = code == null ? "" : code;
+        switch (k) {
+            case "atmosphere:no-module": return "Its place is found by the code around it, and Peanuts can look it up only in the version it has built.";
+            case "atmosphere:run": return "timed".equals(c == null ? null : c.run) ? "It runs for a set time, which an Atmosphère file cannot say."
+                    : "It runs once when you turn it on, which an Atmosphère file cannot say.";
+            case "atmosphere:monitor": return "It shows values from the game, which an Atmosphère file cannot do.";
+            case "atmosphere:toggle": return "It is switched with a button combination, which an Atmosphère file cannot say.";
+            case "atmosphere:condition": return "It waits for the game in a way an Atmosphère file cannot say.";
+            case "atmosphere:action": return "It runs when you press its buttons in a way an Atmosphère file cannot say.";
+            case "atmosphere:override": return "It changes a function in a way an Atmosphère file cannot say.";
+            case "atmosphere:module": return "It changes a part of the game other than its main code, which an Atmosphère file cannot name.";
+            case "atmosphere:region": return "It writes a part of the game's memory an Atmosphère file cannot name.";
+            case "atmosphere:address": return "It writes a fixed address, which an Atmosphère file cannot name.";
+            case "atmosphere:empty": return "It has nothing to write.";
+            default: return k.isEmpty() || k.startsWith("atmosphere:") ? "An Atmosphère file cannot say what it does." : MncfWords.reason(k, c);   // the reader's reasons (Appendix B)
         }
     }
 

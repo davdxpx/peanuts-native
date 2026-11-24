@@ -62,6 +62,7 @@ public final class CheatImportUi {
     }
 
     private static boolean exportZip;   // the export that is open: a ZIP for other emulators, else .mncf / .mncp
+    private static MncfExport.Zip exportPlan;   // the ZIP the dialog worked out (it reads the game's main once), written as it is; null: worked out when written
 
     /**
      * Export: one dialog with the two ways the cheats leave Peanuts. The Mistel cheat file (one .mncf, or an .mncp for several sources), recommended and picked:
@@ -98,7 +99,7 @@ public final class CheatImportUi {
         box.addView(mncf);
         PUi.add(box, other, 10);
         d[0] = PUi.sheet(a, "Export cheats", box).setNegativeButton("Cancel", null)
-                .setPositiveButton("Export", Feel.confirm((x, w) -> pickExport(a, g, sources, zip[0]))).create();
+                .setPositiveButton("Export", Feel.confirm((x, w) -> pickExport(a, g, sources, zip[0], zip[0] ? plan[0] : null))).create();
         Feel.dialog(d[0]);
         d[0].show();
         show.run();
@@ -216,21 +217,21 @@ public final class CheatImportUi {
     }
 
     /** The export's file picked: the name and kind of the format chosen */
-    private static void pickExport(Activity a, CheatsPage.Game g, int sources, boolean zip) {
+    private static void pickExport(Activity a, CheatsPage.Game g, int sources, boolean zip, MncfExport.Zip plan) {
         Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(zip ? "application/zip" : "application/octet-stream")
                 .putExtra(Intent.EXTRA_TITLE, zip ? MncfExport.zipName(g.name) : MncfExport.fileName(g.name, sources > 1));
-        try { exporting = true; exportZip = zip; a.startActivityForResult(i, REQ_EXPORT); }
+        try { exporting = true; exportZip = zip; exportPlan = plan; a.startActivityForResult(i, REQ_EXPORT); }
         catch (android.content.ActivityNotFoundException e) { exporting = false; Toast.makeText(a, "This device has no file picker.", Toast.LENGTH_LONG).show(); }
     }
 
-    /** The export written to the document picked, off the UI thread */
-    private static void exported(Activity a, CheatsPage.Game g, Uri u, boolean zip) {
+    /** The export written to the document picked, off the UI thread; a ZIP as the dialog worked it out (plan), or worked out now when it had not yet */
+    private static void exported(Activity a, CheatsPage.Game g, Uri u, boolean zip, MncfExport.Zip plan) {
         CheatPick.work(a, "Export cheats", () -> {
             File folder = CheatsBridge.folder(a, g.titleId);
             byte[] bytes;
             String done;
             if (zip) {
-                MncfExport.Zip z = zipOf(a, g);
+                MncfExport.Zip z = plan != null ? plan : zipOf(a, g);
                 if (z == null) throw new IOException("There are no added cheats to export.");
                 if (z.cheats == 0) throw new IOException("None of the cheats fits an Atmosphère file. Export them as a Mistel cheat file, which keeps them all.");
                 bytes = z.bytes;
@@ -263,7 +264,9 @@ public final class CheatImportUi {
         if (request == REQ_EXPORT && exporting) {
             exporting = false;
             CheatsPage.Game g = CheatsPage.shown();
-            if (result == Activity.RESULT_OK && data != null && data.getData() != null && g != null) exported(a, g, data.getData(), exportZip);
+            MncfExport.Zip plan = exportPlan;
+            exportPlan = null;
+            if (result == Activity.RESULT_OK && data != null && data.getData() != null && g != null) exported(a, g, data.getData(), exportZip, plan);
             return true;
         }
         if (request != REQ_FILE && request != REQ_FOLDER || !waiting) return false;

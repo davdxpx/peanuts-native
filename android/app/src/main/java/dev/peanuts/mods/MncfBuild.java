@@ -235,9 +235,9 @@ public final class MncfBuild {
             Map<String, Boolean> want = new LinkedHashMap<>();
             for (io.github.davdxpx.mistel.mncf.Cheat c : p.cheats()) if (reasons.get(c.id()) == null) want.put(c.id(), raw.get(c.id()));
             try {
-                lines = lower(pinned, key, Collections.<String, Object>emptyMap(), want, skipped);
+                lines = lower(pinned, key, null, Collections.<String, Object>emptyMap(), want, skipped);
             } catch (MncfException | RuntimeException e) {
-                for (String id : want.keySet()) skipped.put(id, "the file could not be written as Atmosphère code");
+                for (String id : want.keySet()) skipped.put(id, "");
             }
         }
         List<Cheat> cheats = new ArrayList<>();
@@ -245,7 +245,7 @@ public final class MncfBuild {
             String why = reasons.get(c.id());
             List<String> l = lines.get(c.index());
             if (why == null && key == null) why = "build-unknown";
-            if (why == null && l == null) why = runtimeReason(skipped.get(c.id()));
+            if (why == null && l == null) why = runtimeReason(skipped.get(c.id()), c);
             cheats.add(new Cheat(c.index(), c, why, why == null ? l : Collections.<String>emptyList(), Boolean.TRUE.equals(raw.get(c.id())) ? null : number(c)));
         }
         return new Ready(null, f, sig.result(), signer, fileKey, Collections.unmodifiableList(cheats), pinned, key, raw);
@@ -284,24 +284,28 @@ public final class MncfBuild {
     }
 
     /**
-     * The reason of a cheat the evaluator lets run but Atmosphère code cannot say (Converter.toAtmosphere's words): runtime:unsupported:&lt;part&gt; for a part
-     * of the core that has no Atmosphère form in this shape (a condition on a pointer path, an action that also writes or holds), else runtime:&lt;why&gt;
+     * The reason of a cheat the evaluator lets run but Atmosphère code cannot say, from the converter's stable reason (Converter.Export.reasons(), spec
+     * section 15): the reader's own reasons as they are, runtime:unsupported:&lt;part&gt; for a part of the core that has no Atmosphère form in this shape (a
+     * condition on a pointer path, an action that also writes or holds; c names which run or which condition), capability-missing:display for a monitor,
+     * runtime:no-main for a pattern with no main to search, else runtime:&lt;what&gt;
      */
-    static String runtimeReason(String why) {
-        String w = why == null ? "" : why.toLowerCase(Locale.ROOT);
-        if (w.contains("run = \"once\"")) return "runtime:unsupported:run.once";
-        if (w.contains("run = \"timed\"")) return "runtime:unsupported:run.timed";
-        if (w.contains("toggle")) return "runtime:unsupported:toggle";
-        if (w.contains("monitor")) return "capability-missing:display";
-        if (w.contains("conditions")) return "runtime:unsupported:when.many";
-        if (w.contains("condition")) return "runtime:unsupported:when";
-        if (w.contains("an action")) return "runtime:unsupported:run.action";
-        if (w.contains("override")) return "runtime:unsupported:override";
-        if (w.contains("module other than main")) return "runtime:module";
-        if (w.contains("region")) return "runtime:region";
-        if (w.contains("absolute address")) return "runtime:address";
-        if (w.contains("value")) return "value-out-of-range";
-        return "runtime:code";
+    static String runtimeReason(String code, io.github.davdxpx.mistel.mncf.Cheat c) {
+        String k = code == null ? "" : code;
+        switch (k) {
+            case "atmosphere:run": return "runtime:unsupported:run." + (c != null && c.run().equals("timed") ? "timed" : "once");
+            case "atmosphere:monitor": return "capability-missing:display";
+            case "atmosphere:toggle": return "runtime:unsupported:toggle";
+            case "atmosphere:condition": {
+                if (c != null) for (String part : Evaluator.uses(c)) if (part.equals("when.many") || part.equals("match.any") || part.equals("trigger.enter") || part.equals("interval")) return "runtime:unsupported:" + part;
+                return "runtime:unsupported:when";
+            }
+            case "atmosphere:action": return "runtime:unsupported:run.action";
+            case "atmosphere:override": return "runtime:unsupported:override";
+            case "atmosphere:no-module": return "runtime:no-main";
+            case "atmosphere:empty": return "invalid";
+            case "": return "runtime:code";
+            default: return k.startsWith("atmosphere:") ? "runtime:" + k.substring("atmosphere:".length()) : k;   // module, region, address; the reader's reasons
+        }
     }
 
     // ---- The pinned file ----
@@ -414,18 +418,70 @@ public final class MncfBuild {
 
     /** lower without a list of what it left out */
     static Map<Integer, List<String>> lower(String pinned, String key, Map<String, Object> values, Map<String, Boolean> want) throws MncfException {
-        return lower(pinned, key, values, want, new HashMap<String, String>());
+        return lower(pinned, key, null, values, want, new HashMap<String, String>());
     }
 
     /**
-     * The Atmosphère code of the cheats in want (id → whether it runs its raw code) for the build key, with the values set (cheat.value → number: the player's
-     * values, checked as the reader checks them; one a cheat cannot take leaves that cheat to its raw code for the build, or out); by the cheat's index. The
-     * cheats are named by their index and lose their groups for the converter, so each entry is found again by its name whatever the cheat's own name holds.
-     * skipped gets the ones Atmosphère code cannot say, with why
+     * The Atmosphère code of the cheats in want (id → whether it runs its raw code) for the build key (Converter.toAtmosphere), with the values set
+     * (cheat.value → number: the player's values, checked as the reader checks them; one a cheat cannot take leaves that cheat to its raw code for the build,
+     * or out); by the cheat's index. main: the build's main for the patterns and for checking each patch against expect, null for a file whose places are
+     * fixed already (the pinned file); with it a build the file does not name is written from the patterns. skipped gets the ones left out with the
+     * converter's stable reason (Export.reasons(), spec section 15; runtimeReason gives Peanuts' reason for it)
+     */
+    static Map<Integer, List<String>> lower(String text, String key, CodeModule main, Map<String, Object> values, Map<String, Boolean> want, Map<String, String> skipped) throws MncfException {
+        MncfFile d = renamed(text);
+        io.github.davdxpx.mistel.mncf.Choices chosen = choices(values);
+        boolean anyRaw = want.containsValue(Boolean.TRUE), anyCore = want.containsValue(Boolean.FALSE) || want.containsValue(null);
+        Converter.Export raw = anyRaw ? Converter.toAtmosphere(d, key, main, "raw", chosen) : null, core = anyCore ? Converter.toAtmosphere(d, key, main, "core", chosen) : null;
+        return pick(d, raw, core, want, skipped);
+    }
+
+    /**
+     * Every build a file names as Atmosphère code (Converter.toAtmosphereAll), as lower does for one: build key → the cheats' code by index. mains: the main of
+     * a build, by key, where Peanuts has it (patterns found, patches checked against expect); a build without one writes what is placed already and leaves
+     * a pattern out (atmosphere:no-module). reasons gets, by build key, the cheats left out with the converter's stable reason; a build that names no main
+     * module has no code and every cheat's reason is the build's (atmosphere:module)
+     */
+    static Map<String, Map<Integer, List<String>>> lowerAll(String text, Map<String, CodeModule> mains, Map<String, Object> values, Map<String, Boolean> want,
+            Map<String, Map<String, String>> reasons) throws MncfException {
+        MncfFile d = renamed(text);
+        io.github.davdxpx.mistel.mncf.Choices chosen = choices(values);
+        List<Converter.BuildExport> raw = Converter.toAtmosphereAll(d, mains, "raw", chosen), core = Converter.toAtmosphereAll(d, mains, "core", chosen);
+        Map<String, Map<Integer, List<String>>> out = new LinkedHashMap<>();
+        for (int i = 0; i < raw.size(); i++) {
+            Map<String, String> why = new LinkedHashMap<>();
+            reasons.put(raw.get(i).build(), why);
+            if (raw.get(i).export() == null) {
+                for (String id : want.keySet()) why.put(id, raw.get(i).reason());
+                continue;
+            }
+            out.put(raw.get(i).build(), pick(d, raw.get(i).export(), core.get(i).export(), want, why));
+        }
+        return out;
+    }
+
+    /** The cheats in want from the export that writes them as wanted: raw (its own code first) or core (code made from its operations first) */
+    private static Map<Integer, List<String>> pick(MncfFile d, Converter.Export raw, Converter.Export core, Map<String, Boolean> want, Map<String, String> skipped) {
+        Map<String, List<String>> rawLines = entries(raw), coreLines = entries(core);
+        Map<Integer, List<String>> out = new HashMap<>();
+        for (io.github.davdxpx.mistel.mncf.Cheat c : d.cheats()) {
+            if (!want.containsKey(c.id())) continue;
+            boolean r = Boolean.TRUE.equals(want.get(c.id()));
+            Converter.Export e = r ? raw : core;
+            List<String> l = (r ? rawLines : coreLines).get(c.name());
+            if (l == null || l.isEmpty()) { skipped.put(c.id(), e == null ? "atmosphere:empty" : e.reasons().getOrDefault(c.id(), "atmosphere:empty")); continue; }
+            out.put(c.index(), l);
+        }
+        return out;
+    }
+
+    /**
+     * A file's text with its cheats named by their index and without their groups, presets and translations: the converter's entries are found again by
+     * name whatever a cheat's own name holds
      */
     @SuppressWarnings("unchecked")
-    static Map<Integer, List<String>> lower(String pinned, String key, Map<String, Object> values, Map<String, Boolean> want, Map<String, String> skipped) throws MncfException {
-        MncfFile p = Mncf.load(pinned.getBytes(StandardCharsets.UTF_8));
+    private static MncfFile renamed(String text) throws MncfException {
+        MncfFile p = Mncf.load(text.getBytes(StandardCharsets.UTF_8));
         Map<String, Object> doc = copy(p.doc());
         List<Object> cheats = (List<Object>) doc.get("cheat");
         int i = 0;
@@ -436,23 +492,14 @@ public final class MncfBuild {
         }
         doc.remove("preset");   // a preset names values; the converter needs none of them
         doc.remove("i18n");
-        MncfFile d = Mncf.load(io.github.davdxpx.mistel.mncf.Writer.dumps(doc).getBytes(StandardCharsets.UTF_8));
+        return Mncf.load(io.github.davdxpx.mistel.mncf.Writer.dumps(doc).getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** The values set, as the player's choices */
+    private static io.github.davdxpx.mistel.mncf.Choices choices(Map<String, Object> values) {
         io.github.davdxpx.mistel.mncf.Choices.Builder cb = io.github.davdxpx.mistel.mncf.Choices.builder();
         for (Map.Entry<String, Object> v : values.entrySet()) cb.value(v.getKey(), v.getValue());
-        io.github.davdxpx.mistel.mncf.Choices chosen = cb.build();
-        Map<Integer, List<String>> out = new HashMap<>();
-        boolean anyRaw = want.containsValue(Boolean.TRUE), anyCore = want.containsValue(Boolean.FALSE) || want.containsValue(null);
-        Converter.Export raw = anyRaw ? Converter.toAtmosphere(d, key, null, "raw", chosen) : null, core = anyCore ? Converter.toAtmosphere(d, key, null, "core", chosen) : null;
-        Map<String, List<String>> rawLines = entries(raw), coreLines = entries(core);
-        for (io.github.davdxpx.mistel.mncf.Cheat c : d.cheats()) {
-            if (!want.containsKey(c.id())) continue;
-            boolean r = Boolean.TRUE.equals(want.get(c.id()));
-            Converter.Export e = r ? raw : core;
-            List<String> l = (r ? rawLines : coreLines).get(c.name());
-            if (l == null || l.isEmpty()) { skipped.put(c.id(), e == null ? "nothing to write" : e.skipped().getOrDefault(c.id(), "nothing to write")); continue; }
-            out.put(c.index(), l);
-        }
-        return out;
+        return cb.build();
     }
 
     private static Map<String, List<String>> entries(Converter.Export e) {
@@ -493,14 +540,14 @@ public final class MncfBuild {
                 if (r[1].isEmpty()) want.put(c.id(), "raw".equals(r[2]));
             }
             Map<String, String> skipped = new HashMap<>();
-            Map<Integer, List<String>> lines2 = key == null ? Collections.<Integer, List<String>>emptyMap() : lower(pinned, key, Collections.<String, Object>emptyMap(), want, skipped);
+            Map<Integer, List<String>> lines2 = key == null ? Collections.<Integer, List<String>>emptyMap() : lower(pinned, key, null, Collections.<String, Object>emptyMap(), want, skipped);
             List<Cheat> cheats = new ArrayList<>();
             Map<String, Boolean> raws = new HashMap<>();
             for (io.github.davdxpx.mistel.mncf.Cheat c : p.cheats()) {
                 String[] r = rows.get(c.id());
                 String why = r[1].isEmpty() ? null : r[1];
                 List<String> l = lines2.get(c.index());
-                if (why == null && l == null) why = runtimeReason(skipped.get(c.id()));
+                if (why == null && l == null) why = runtimeReason(skipped.get(c.id()), c);
                 boolean raw = "raw".equals(r[2]);
                 cheats.add(new Cheat(c.index(), c, why, why == null ? l : Collections.<String>emptyList(), raw ? null : number(c)));
                 raws.put(c.id(), raw);

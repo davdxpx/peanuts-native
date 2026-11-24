@@ -66,10 +66,17 @@ public final class Atmosphere {
     static final class Unclear extends Exception {
         private static final long serialVersionUID = 1L;
         final String why;
+        /** Back to Atmosphère: the stable reason (spec, section 15); null otherwise. */
+        final String code;
 
         Unclear(String why) {
+            this(why, null);
+        }
+
+        Unclear(String why, String code) {
             super(why, null, false, false);
             this.why = why;
+            this.code = code;
         }
     }
 

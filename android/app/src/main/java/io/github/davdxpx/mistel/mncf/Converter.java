@@ -1199,12 +1199,15 @@ public final class Converter {
         private final String text;
         private final Map<String, String> written;
         private final Map<String, String> skipped;
+        private final Map<String, String> reasons;
 
-        Export(String fileName, String text, Map<String, String> written, Map<String, String> skipped) {
+        Export(String fileName, String text, Map<String, String> written, Map<String, String> skipped,
+                Map<String, String> reasons) {
             this.fileName = fileName;
             this.text = text;
             this.written = Collections.unmodifiableMap(new LinkedHashMap<>(written));
             this.skipped = Collections.unmodifiableMap(new LinkedHashMap<>(skipped));
+            this.reasons = Collections.unmodifiableMap(new LinkedHashMap<>(reasons));
         }
 
         /** Returns the file name cheat files use: the build ID of the main module and ".txt". */
@@ -1226,6 +1229,67 @@ public final class Converter {
         public Map<String, String> skipped() {
             return skipped;
         }
+
+        /**
+         * Returns the cheats left out, by id, with the stable reason (spec, section 15): the
+         * reader's reason for a cheat with a problem of its own, such as {@code build-unknown},
+         * {@code pattern-not-found} or {@code expect-mismatch}, or {@code atmosphere:<what>} for
+         * what Atmosphère cannot say.
+         */
+        public Map<String, String> reasons() {
+            return reasons;
+        }
+    }
+
+    /** One build of a file as an Atmosphère cheat file, or the reason it cannot be one. Immutable. */
+    public static final class BuildExport {
+        private final String build;
+        private final Export export;
+        private final String reason;
+
+        BuildExport(String build, Export export, String reason) {
+            this.build = build;
+            this.export = export;
+            this.reason = reason;
+        }
+
+        /** Returns the build key. */
+        public String build() {
+            return build;
+        }
+
+        /** Returns the cheat file, or null when the build cannot be one. */
+        public Export export() {
+            return export;
+        }
+
+        /** Returns null, or {@code atmosphere:module} for a build that names no main module. */
+        public String reason() {
+            return reason;
+        }
+    }
+
+    /**
+     * Returns every build of a loaded file as an Atmosphère cheat file, in the file's order,
+     * for an export in the Atmosphère layout.
+     *
+     * @param modules the main module of each build, by build key, for the cheats that find their
+     *     place by a pattern; may be null or lack builds
+     * @param prefer "raw" or "core"
+     * @param choices the values the player chose; may be null
+     */
+    public static List<BuildExport> toAtmosphereAll(MncfFile f, Map<String, CodeModule> modules, String prefer,
+            Choices choices) {
+        List<BuildExport> out = new ArrayList<>();
+        for (Map.Entry<String, Build> e : f.builds().entrySet()) {
+            if (!e.getValue().modules().containsKey("main")) {
+                out.add(new BuildExport(e.getKey(), null, "atmosphere:module"));
+                continue;
+            }
+            CodeModule module = modules == null ? null : modules.get(e.getKey());
+            out.add(new BuildExport(e.getKey(), toAtmosphere(f, e.getKey(), module, prefer, choices), null));
+        }
+        return out;
     }
 
     /**
@@ -1273,6 +1337,7 @@ public final class Converter {
         Choices chosen = choices != null ? choices : Choices.none();
         Map<String, String> written = new LinkedHashMap<>();
         Map<String, String> skipped = new LinkedHashMap<>();
+        Map<String, String> reasons = new LinkedHashMap<>();
         List<Atmosphere.Out> entries = new ArrayList<>();
         String group = null;
         List<Cheat> cheats = new ArrayList<>(f.cheats());
@@ -1285,6 +1350,7 @@ public final class Converter {
         for (Cheat c : cheats) {
             if (c.problem() != null) {
                 skipped.put(c.id(), c.problem());
+                reasons.put(c.id(), c.problem());
                 continue;
             }
             Model.Raw raw = null;
@@ -1305,6 +1371,11 @@ public final class Converter {
             }
             List<String> lines;
             String how;
+            if (raw == null && c.ops().isEmpty()) {
+                skipped.put(c.id(), "only raw code, for other builds");
+                reasons.put(c.id(), "build-unknown");
+                continue;
+            }
             if (raw != null && "raw".equals(prefer)) {
                 lines = rawLines;
                 how = "raw";
@@ -1315,6 +1386,7 @@ public final class Converter {
                 } catch (Atmosphere.Unclear u) {
                     if (raw == null) {
                         skipped.put(c.id(), u.why);
+                        reasons.put(c.id(), u.code != null ? u.code : "atmosphere:unclear");
                         continue;
                     }
                     lines = rawLines;
@@ -1331,7 +1403,7 @@ public final class Converter {
             written.put(c.id(), how);
         }
         String name = mainId.substring(0, Math.min(16, mainId.length())).toUpperCase(Locale.ROOT) + ".txt";
-        return new Export(name, Atmosphere.writeFile(entries), written, skipped);
+        return new Export(name, Atmosphere.writeFile(entries), written, skipped, reasons);
     }
 
     private static long base(Model.Location loc, String buildKey, CodeModule module) throws Atmosphere.Unclear {
@@ -1340,30 +1412,31 @@ public final class Converter {
         }
         if (loc.kind.equals("module-builds") || loc.kind.equals("region-builds")) {
             if (!loc.offsets.containsKey(buildKey)) {
-                throw new Atmosphere.Unclear("a location without an offset for this build");
+                throw new Atmosphere.Unclear("a location without an offset for this build", "build-unknown");
             }
             return loc.offsets.get(buildKey);
         }
         if (loc.kind.equals("pattern")) {
             if (module == null) {
-                throw new Atmosphere.Unclear("a pattern, and no module to search");
+                throw new Atmosphere.Unclear("a pattern, and no module to search", "atmosphere:no-module");
             }
             List<Long> found = Evaluator.findAll(module.toModuleWithoutId(), loc.find, loc.section, 2);
             if (found.size() != 1) {
-                throw new Atmosphere.Unclear("a pattern that does not match exactly once in the module");
+                throw new Atmosphere.Unclear("a pattern that does not match exactly once in the module",
+                        found.isEmpty() ? "pattern-not-found" : "pattern-ambiguous");
             }
             return found.get(0) + loc.offset;
         }
-        throw new Atmosphere.Unclear("an absolute address");
+        throw new Atmosphere.Unclear("an absolute address", "atmosphere:address");
     }
 
     private static Atmosphere.Place place(Model.Location loc, String buildKey, CodeModule module) throws Atmosphere.Unclear {
         if (loc.module != null && !loc.module.equals("main")) {
-            throw new Atmosphere.Unclear("a module other than main");
+            throw new Atmosphere.Unclear("a module other than main", "atmosphere:module");
         }
         String region = loc.module != null ? "main" : loc.region;
         if (Atmosphere.regionCode(region) < 0) {
-            throw new Atmosphere.Unclear("the region " + (region == null ? "None" : region));
+            throw new Atmosphere.Unclear("the region " + (region == null ? "None" : region), "atmosphere:region");
         }
         long[] path = loc.hasPath() ? loc.path.clone() : null;
         return new Atmosphere.Place(region, base(loc, buildKey, module), path);
@@ -1400,18 +1473,39 @@ public final class Converter {
         }
         Object value = Evaluator.chosenValue(c, ref, chosen);
         if (value == null) {
-            throw new Atmosphere.Unclear("a chosen value the cheat cannot take");
+            throw new Atmosphere.Unclear("a chosen value the cheat cannot take", "value-out-of-range");
         }
         return value;
+    }
+
+    /**
+     * With the module, the bytes a patch or stub writes over must be expect, or data already:
+     * Atmosphère code writes without looking. Not where the module's bytes are not its own.
+     */
+    private static void checkModule(CodeModule module, Atmosphere.Place place, byte[] expect, byte[] data)
+            throws Atmosphere.Unclear {
+        if (module == null || place.hasPath() || !place.region.equals("main")) {
+            return;
+        }
+        byte[] image = module.image();
+        if (place.offset + expect.length > image.length) {
+            throw new Atmosphere.Unclear("a place past the end of the module", "outside");
+        }
+        byte[] here = Arrays.copyOfRange(image, (int) place.offset, (int) place.offset + expect.length);
+        if (!Arrays.equals(here, expect) && !Arrays.equals(here, data)
+                && !module.excluded(place.offset, expect.length)) {
+            throw new Atmosphere.Unclear("the module holds other bytes than `expect`", "expect-mismatch");
+        }
     }
 
     private static List<Long> coreWords(Cheat c, String buildKey, CodeModule module, Choices chosen)
             throws Atmosphere.Unclear {
         if (!c.run().equals("on") && !c.run().equals("action")) {
-            throw new Atmosphere.Unclear("run = \"" + c.run() + "\" has no Atmosph\u00E8re form");
+            throw new Atmosphere.Unclear("run = \"" + c.run() + "\" has no Atmosph\u00E8re form",
+                    c.run().equals("monitor") ? "atmosphere:monitor" : "atmosphere:run");
         }
         if (c.toggle() != null) {
-            throw new Atmosphere.Unclear("toggle buttons have no Atmosph\u00E8re form");
+            throw new Atmosphere.Unclear("toggle buttons have no Atmosph\u00E8re form", "atmosphere:toggle");
         }
         List<Atmosphere.Store> stores = new ArrayList<>();
         List<Atmosphere.Store> restores = new ArrayList<>();
@@ -1425,11 +1519,12 @@ public final class Converter {
                     data = Encode.arm64Imm(p.encode.insn, p.encode.width, p.encode.rd,
                             defaultOf(c, p.encode.value, chosen));
                     if (data == null) {
-                        throw new Atmosphere.Unclear("a value its instruction cannot hold");
+                        throw new Atmosphere.Unclear("a value its instruction cannot hold", "value-out-of-range");
                     }
                 } else {
                     data = p.bytes;
                 }
+                checkModule(module, place, p.expect, data);
                 stores.addAll(stores(place, data));
                 restores.addAll(stores(place, p.expect));
             } else if (op instanceof Model.Write) {
@@ -1444,7 +1539,7 @@ public final class Converter {
                     data = (byte[]) w.value;
                 } else {
                     if (!Values.fits(w.type, v)) {
-                        throw new Atmosphere.Unclear("a value its write cannot hold");
+                        throw new Atmosphere.Unclear("a value its write cannot hold", "value-out-of-range");
                     }
                     data = Values.encode(w.type, v, false);
                 }
@@ -1452,26 +1547,27 @@ public final class Converter {
             } else if (op instanceof Model.Override) {
                 Model.Override o = (Model.Override) op;
                 if (o.expect == null) {
-                    throw new Atmosphere.Unclear("an override without expect");
+                    throw new Atmosphere.Unclear("an override without expect", "atmosphere:override");
                 }
                 Object v = defaultOf(c, o.value, chosen);
                 long bits = v == null ? 0 : Values.bits(v);
                 byte[] stub = Encode.arm64Stub(o.action, bits);
                 if (stub.length > o.expect.length) {
-                    throw new Atmosphere.Unclear("an override whose stub is longer than expect");
+                    throw new Atmosphere.Unclear("an override whose stub is longer than expect", "atmosphere:override");
                 }
                 Atmosphere.Place place = place(o.function, buildKey, module);
+                checkModule(module, place, Arrays.copyOf(o.expect, stub.length), stub);
                 stores.addAll(stores(place, stub));
                 restores.addAll(stores(place, Arrays.copyOf(o.expect, stub.length)));
             } else if (op instanceof Model.Condition) {
                 conds.add((Model.Condition) op);
             } else if (op instanceof Model.Read) {
-                throw new Atmosphere.Unclear("a monitor has no Atmosph\u00E8re form");
+                throw new Atmosphere.Unclear("a monitor has no Atmosph\u00E8re form", "atmosphere:monitor");
             }
         }
         if (conds.size() > 1 || (!conds.isEmpty() && (!c.match().equals("all") || !c.trigger().equals("while")
                 || c.interval() != 1))) {
-            throw new Atmosphere.Unclear("conditions that Atmosph\u00E8re cannot say");
+            throw new Atmosphere.Unclear("conditions that Atmosph\u00E8re cannot say", "atmosphere:condition");
         }
         List<Long> body = new ArrayList<>();
         for (Atmosphere.Store s : stores) {
@@ -1483,7 +1579,7 @@ public final class Converter {
             Object value = defaultOf(c, cond.value, chosen);
             if (place.hasPath() || !Arrays.asList("u8", "u16", "u32", "u64").contains(cond.type)
                     || !Atmosphere.isConditionOp(cond.op) || !Values.isInt(value)) {
-                throw new Atmosphere.Unclear("a condition that Atmosph\u00E8re cannot say");
+                throw new Atmosphere.Unclear("a condition that Atmosph\u00E8re cannot say", "atmosphere:condition");
             }
             List<Long> words = Atmosphere.conditionWords(place, Integer.parseInt(cond.type.substring(1)) / 8, cond.op,
                     Values.bits(value));
@@ -1498,7 +1594,8 @@ public final class Converter {
                 writes |= op instanceof Model.Write;
             }
             if (c.hold() != null || writes) {
-                throw new Atmosphere.Unclear("an action with writes or hold has no Atmosph\u00E8re form");
+                throw new Atmosphere.Unclear("an action with writes or hold has no Atmosph\u00E8re form",
+                        "atmosphere:action");
             }
             words = new ArrayList<>();
             words.add(0x80000000L | Atmosphere.keyMask(c.press()));
@@ -1519,7 +1616,7 @@ public final class Converter {
             words = body;
         }
         if (words.isEmpty()) {
-            throw new Atmosphere.Unclear("nothing to write");
+            throw new Atmosphere.Unclear("nothing to write", "atmosphere:empty");
         }
         return words;
     }

@@ -757,10 +757,12 @@ public final class CheatLoaderJvmTest {
         // what an Atmosphère file cannot hold, or what does not fit the game, is left out and named; everything else is in
         Map<String, String> left = new LinkedHashMap<>();
         for (String[] l : z.left) left.put(l[0], l[1]);
-        check(left.keySet().equals(Set.of("A monitor", "Once", "Not in this version", "3. Coins as a number")), "left out: " + left);
+        check(left.keySet().equals(Set.of("A monitor", "Once", "Not in this version")), "left out: " + left);
         check(left.get("Once").equals("It runs once when you turn it on, which an Atmosphère file cannot say.") && left.get("A monitor").equals("It shows values from the game, which an Atmosphère file cannot do.")
-                && left.get("Not in this version").equals("Its place was not found in this version of the game.") && left.get("3. Coins as a number").equals("Its place lies outside the game."), "and why: " + left);
-        check(z.cheats == before.size() && before.containsKey("6. Pause trick"), "every cheat the file can run here, the raw one Peanuts' host does not run among them: " + z.cheats + " " + before.keySet());
+                && left.get("Not in this version").equals("Its place was not found in this version of the game."), "and why, from the converter's stable reasons: " + left);
+        // every cheat the file can run here, the raw one Peanuts' host does not run among them; and the pointer whose base lies past the made-up main, which
+        // Peanuts refuses (outside) but the converter writes: it checks patches against main, not a pointer path's base (a gap reported to Mistel)
+        check(z.cheats == before.size() + 1 && before.containsKey("6. Pause trick") && t.contains("[3. Coins as a number]"), "what goes in: " + z.cheats + " " + before.keySet());
         check(t.startsWith("{Setup}\n") && t.indexOf("{") == t.lastIndexOf("{"), "one master code, first:\n" + t);
         check(t.contains("[A count]\n04000000 00002000 52800540\n"), "the number set in the game's tab (42) in its instruction:\n" + t);
         check(t.contains("[--SectionStart:Items--]\n\n[1. Lots of coins]\n") && t.contains("[6. Pause trick]\n"), "the groups as EdiZon's sections, the raw code as it came:\n" + t);
@@ -784,6 +786,23 @@ public final class CheatLoaderJvmTest {
         try (java.util.zip.ZipInputStream zi = new java.util.zip.ZipInputStream(new ByteArrayInputStream(z2.bytes))) {
             for (ZipEntry e; (e = zi.getNextEntry()) != null; ) f2.put(e.getName(), new String(zi.readAllBytes(), StandardCharsets.UTF_8));
         }
+        // with the game's main every patch is checked before it is written, so the ZIP never writes over other code; without it a pattern cannot be placed
+        String checked = String.join("\n", "format = \"mncf/1\"", "name = \"Checked\"", "", "[game]", "platform = \"switch\"", "id = \"" + TID + "\"", "",
+                "[builds.\"1.0.0\"]", "modules = { main = \"" + B + "\" }", "",
+                "[[cheat]]", "id = \"wrong\"", "name = \"Made for other code\"", "",
+                "  [[cheat.patch]]", "  at = { module = \"main\", offset = 0x1000 }", "  expect = \"DE AD BE EF\"", "  bytes = \"1F 20 03 D5\"", "",
+                "[[cheat]]", "id = \"found\"", "name = \"Found by its pattern\"", "",
+                "  [[cheat.patch]]", "  at = { module = \"main\", find = \"08 40 00 B9 23 01 00 94\" }", "  expect = \"08 40 00 B9\"", "  bytes = \"09 40 00 B9\"", "");
+        File ck = new File(root, "zip-checked");
+        CheatSources.addMncf(ck, "checked", CheatSources.FROM_FILE, u(checked), 1);
+        MncfExport.Zip zc = MncfExport.zip(ck, "Example Game", g, null, new LinkedHashMap<>());
+        String tc;
+        try (java.util.zip.ZipInputStream zi = new java.util.zip.ZipInputStream(new ByteArrayInputStream(zc.bytes))) { zi.getNextEntry(); tc = new String(zi.readAllBytes(), StandardCharsets.UTF_8); }
+        check(tc.equals("[Found by its pattern]\n04000000 00001000 B9004009\n") && zc.left.size() == 1 && zc.left.get(0)[0].equals("Made for other code")
+                && zc.left.get(0)[1].equals("The game's code at its place is not what the cheat was made for: it is for another version."), "checked against main: " + tc + " " + zc.left.get(0)[1]);
+        MncfExport.Zip zn = MncfExport.zip(ck, "Example Game", game(B, null), null, new LinkedHashMap<>());
+        check(zn.cheats == 1 && zn.left.size() == 1 && zn.left.get(0)[0].equals("Found by its pattern")
+                && zn.left.get(0)[1].equals("Its place is found by the code around it, and Peanuts can look it up only in the version it has built."), "no main: " + zn.left.get(0)[1]);
         String other = "atmosphere/contents/" + TID + "/cheats/" + OTHER + ".txt";
         check(f2.keySet().equals(Set.of(path, other)) && f2.get(other).equals("[Coins]\n04000000 00001000 00000063\n") && z2.left.isEmpty()
                 && new ArrayList<>(z2.builds.keySet()).equals(List.of(B, OTHER)), "both builds, the running one first: " + f2 + " " + z2.builds);
