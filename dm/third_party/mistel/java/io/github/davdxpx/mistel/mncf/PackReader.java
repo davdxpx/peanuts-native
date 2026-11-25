@@ -10,7 +10,8 @@ import java.util.regex.Pattern;
 /** Reads packs (section 13): a ZIP file .mncp with a manifest pack.toml at its root. */
 public final class PackReader {
 
-    private static final List<String> PACK_KEYS = Values.list("format", "name", "authors", "about", "file_version", "file");
+    private static final List<String> PACK_KEYS = Values.list("format", "name", "id", "authors", "about",
+            "file_version", "signers", "update", "changes", "file");
     private static final Pattern SHA256 = Pattern.compile("[0-9a-f]{64}");
 
     /** The most entries, directories not counted, a pack may have. */
@@ -98,7 +99,6 @@ public final class PackReader {
         if (!(name instanceof String)) {
             throw new MncfException("schema:name", "`name` must be a string");
         }
-        SignatureResult signature = Signatures.check(raw, trust);
         String about = null;
         String fileVersion = null;
         for (String key : new String[] {"about", "file_version"}) {
@@ -129,6 +129,14 @@ public final class PackReader {
                 authors.add((String) x);
             }
         }
+        List<byte[]> signers = Updates.readSigners(doc, warnings);
+        Updates.Keys keys = Updates.readKeys(doc, warnings, new Updates.Name() {
+            @Override
+            public boolean ok(Object path) {
+                return path instanceof String && isValidPath((String) path) && !path.equals("pack.toml");
+            }
+        });
+        SignatureResult signature = Signatures.check(raw, trust, signers);
         Object entries = doc.get("file");
         boolean good = entries instanceof List && !((List<Object>) entries).isEmpty();
         if (good) {
@@ -171,7 +179,7 @@ public final class PackReader {
                 files.add(new PackFile((String) path, (String) digest, data, PackFile.OK));
             }
         }
-        return new Pack((String) name, signature, files, authors, about, fileVersion, warnings);
+        return new Pack((String) name, signature, files, authors, about, fileVersion, keys, signers, warnings);
     }
 
     /**

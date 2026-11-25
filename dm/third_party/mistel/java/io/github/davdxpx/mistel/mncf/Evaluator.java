@@ -369,6 +369,19 @@ public final class Evaluator {
             return spec.defaultValue();
         }
         Object v = choices.values().get(key);
+        if (!misfit(spec, v).isEmpty()) {
+            throw new Refused("value-out-of-range");
+        }
+        return v;
+    }
+
+    /**
+     * Why a value the player chose is not one the player can choose for this value, which
+     * refuses its cheat with value-out-of-range: "type" for one not of the value's kind, NaN or
+     * too wide, else "range" for one outside min and max, else "choice" for one not among the
+     * choices; the empty string where it fits. {@link Updates#fits} gives the same (section 17.5).
+     */
+    static String misfit(ValueSpec spec, Object v) {
         boolean ok;
         if (spec.type().equals("bool")) {
             ok = v instanceof Boolean;
@@ -377,10 +390,16 @@ public final class Evaluator {
         } else {
             ok = Values.isInt(v) && Values.fits(spec.type(), v);
         }
-        if (!ok || !Schema.inSpec(spec, v)) {
-            throw new Refused("value-out-of-range");
+        if (!ok) {
+            return "type";
         }
-        return v;
+        if ((spec.min() != null && Values.less(v, spec.min())) || (spec.max() != null && Values.less(spec.max(), v))) {
+            return "range";
+        }
+        if (spec.choices() != null && !spec.choices().containsKey(v)) {
+            return "choice";
+        }
+        return "";
     }
 
     /**

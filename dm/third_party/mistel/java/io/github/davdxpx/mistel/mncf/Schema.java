@@ -23,8 +23,9 @@ final class Schema {
 
     static final List<String> KNOWN_EXTENSIONS = Values.list("raw/1", "arm64-imm/1");
 
-    private static final List<String> FILE_KEYS = Values.list("format", "name", "authors", "about", "file_version",
-            "language", "origin", "extensions", "game", "builds", "cheat", "choices", "preset", "i18n");
+    private static final List<String> FILE_KEYS = Values.list("format", "name", "id", "authors", "about",
+            "file_version", "language", "origin", "extensions", "signers", "update", "changes", "game", "builds",
+            "cheat", "choices", "preset", "i18n");
     private static final List<String> RUNS = Values.list("on", "once", "action", "timed", "monitor");
     private static final List<String> OPS =
             Values.list("==", "!=", "<", "<=", ">", ">=", "&", "!&", "between", "changed");
@@ -169,6 +170,11 @@ final class Schema {
         if (doc.containsKey("authors")) {
             out.authors = strList(doc.get("authors"), "authors");
         }
+        out.signers = Updates.readSigners(doc, warnings);
+        Updates.Keys keys = Updates.readKeys(doc, warnings, Updates.CHEAT_ID);
+        out.id = keys.id;
+        out.update = keys.update;
+        out.changes = keys.changes;
         if (doc.containsKey("origin")) {
             Object o = doc.get("origin");
             if (!(o instanceof Map) || !(map(o).get("format") instanceof String)

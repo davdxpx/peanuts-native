@@ -41,7 +41,7 @@ The six default Miis (`mii_defs` in `dm/host/hle_mii.c`, `MiiStore.DEFAULTS` in 
 
 The launcher reads, checks and writes cheat files in the Mistel Native Cheat Format (`.mncf`, packs `.mncp`) with the Java library of
 [Mistel](https://github.com/davdxpx/mistel)'s `format/` folder by davdxpx and the Mistel contributors (MIT: "Copyright (c) 2026 davdxpx and the Mistel contributors"),
-copied unchanged into `android/app/src/main/java/io/github/davdxpx/mistel/` with its permission notice there (`LICENSE`) and the commit it came from (`MISTEL.sha256`).
+shipped unchanged in [dm/third_party/mistel/](../dm/third_party/mistel/README.md) with its permission notice there (`LICENSE`) and the commit it came from (`MISTEL.sha256`).
 Only that folder of Mistel is MIT; nothing of its GPL parts is in this repository. <!-- PEANUTS -->
 
 The launcher draws the Miis (`android/app/src/main/java/dev/peanuts/mii/`) with the colour tables and the face's layout of [vee](https://github.com/j0lol/vee) by Jo Null (MIT or Apache-2.0, used here under MIT: "Copyright (c) Jo Null"), which took them from the decompilation of the Wii U's face library (FFL), and `MiiPixels.java` ports the BC4, BC5 and BC7 decoders of [bcdec](https://github.com/iOrange/bcdec) by Sergii Kudlai (MIT: "Copyright (c) 2022 Sergii Kudlai"); the MIT permission notice is in [LICENSE](../LICENSE). The Mii parts themselves are read from the player's own firmware at run time and are no part of this code. Thanks to them. <!-- PEANUTS -->

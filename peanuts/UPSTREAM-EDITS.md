@@ -2797,7 +2797,7 @@ Left as they were: the hunks the check also flags that were unmarked before 0.1.
 `hle_fpslock.c` `limit_raw`, `loader.c` (two lines), `dm/host/tests/t_android_smap.c`, `dm/tools/docs_patches.py`, and the tests `test_android_soc.py`,
 `test_fpslocker_plan.py`, `test_game_profile.py`, `test_option_patch.py`, `test_vka_tex_registration.py`.
 
-### Cheats as .mncf: checked before they write, ready for game updates (2026-11-24, on Game page Part C and Mod menu Part F)
+### Cheats as .mncf: checked before they write, ready for game updates (2026-11-24, on 0.1.8)
 
 Every cheat file a player adds is kept as one file of the Mistel Native Cheat Format (`.mncf`, Mistel's `format/spec/mncf-1.md`) for all of a game's
 builds: an Atmosphère, Eden, Yuzu or Ryujinx file (a zip, a text file, a folder, upstream's export) is converted as it is added, with the game's own
@@ -2813,11 +2813,16 @@ words (`MncfWords`). An `.mncf` value gets Part F's number field, a code immedia
 | `android/app/src/main/java/dev/nxnative/android/ModCheats.java` | (Peanuts' own) | `install` converts earlier Atmosphère sources (`CheatSources.upgrade`) and merges the `.mncf` sources made ready for the build | allow-listed in `peanuts/upstream-unmarked.txt` |
 | `android/app/src/main/java/dev/nxnative/android/CheatsBridge.java` | (Peanuts' own, Part C) | `known`, `game`, `convert`, `prepare`, `merged(..., make)`; Export writes `.mncf` / `.mncp` | Peanuts' own file |
 | `android/NOTICE.md` | 1 | Mistel's MIT library and where it is | `<!-- PEANUTS -->` |
+| `dm/third_party/README.md` | 1 row | `mistel/`: Mistel's library, its commit, where it is used, its licence | `[PEANUTS]` in the row |
+| `android/app/build.gradle` | 1 | `java.srcDirs += '../../dm/third_party/mistel/java'`: the library is compiled with the app | `PEANUTS` |
 
-Peanuts-owned: Mistel's MIT library for `.mncf` under `android/app/src/main/java/io/github/davdxpx/mistel/` (copied unchanged by
-`peanuts/scripts/mncf-vendor.sh`, its `LICENSE` and `MISTEL.sha256` beside it), `MncfBuild`, `MncfConvert`, `MncfExport`, `MncfFacts`, `MncfMain`,
+Peanuts-owned: Mistel's MIT library for `.mncf` in `dm/third_party/mistel/`, shipped the way upstream ships other people's code (a folder with its
+`LICENSE` and a README, a row in `dm/third_party/README.md`, nothing downloaded): only the files of Mistel's `format/lib/java` the launcher needs,
+unmodified (59 of 64 at Mistel `f25485c`; `peanuts/scripts/mncf-vendor.sh` copies them and writes `MISTEL.sha256`, the README and the row's commit),
+`MncfBuild`, `MncfConvert`, `MncfExport`, `MncfFacts`, `MncfMain`,
 `MncfWords`, and the `.mncf` parts of `CheatSources`, `CheatImport`, `CheatImportUi`, `CheatsPage`, `CheatFile`, `CheatValues`, `CheatStatus`,
 `ModsTab`. `upstream-update.sh --check` now counts `android/app/src/jvmtest/java/dev/peanuts/` as Peanuts-owned, and `ModCheats.java` is on the
 allow-list: both were flagged since Part C. Tests: `peanuts/tests/test_cheat_loader.py` (`CheatLoaderJvmTest`: conversion, a pack's main, the build
 made ready and kept, another build by its patterns, a rewritten place, the number field, relations, export, packs, the facts of a file),
-`peanuts/tests/test_mod_cheats.py`, `peanuts/tests/test_mncf_vendor.py` (the copy unchanged, its MIT notice).
+`peanuts/tests/test_mod_cheats.py`, `peanuts/tests/test_mncf_vendor.py` (the copy unchanged, its MIT notice, the README, the row, the gradle line; with `MISTEL` set to a Mistel checkout,
+every file compared with that commit).

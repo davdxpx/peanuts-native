@@ -1641,6 +1641,18 @@ public final class Converter {
      */
     public static List<BuildExport> toAtmosphereAll(MncfFile f, Map<String, CodeModule> modules, String prefer,
             Choices choices, Map<String, String> preferCheats) {
+        return toAtmosphereAll(f, modules, prefer, choices, preferCheats, AtmosphereLimits.ATMOSPHERE);
+    }
+
+    /**
+     * Returns every build of a loaded file as an Atmosphère cheat file, as
+     * {@link #toAtmosphereAll(MncfFile, Map, String, Choices, Map)} does, in the limits of the
+     * host it is for.
+     *
+     * @param limits the host's limits; null for Atmosphère's
+     */
+    public static List<BuildExport> toAtmosphereAll(MncfFile f, Map<String, CodeModule> modules, String prefer,
+            Choices choices, Map<String, String> preferCheats, AtmosphereLimits limits) {
         List<BuildExport> out = new ArrayList<>();
         for (Map.Entry<String, Build> e : f.builds().entrySet()) {
             if (!e.getValue().modules().containsKey("main")) {
@@ -1648,8 +1660,8 @@ public final class Converter {
                 continue;
             }
             CodeModule module = modules == null ? null : modules.get(e.getKey());
-            out.add(new BuildExport(e.getKey(), toAtmosphere(f, e.getKey(), module, prefer, choices, preferCheats),
-                    null));
+            out.add(new BuildExport(e.getKey(),
+                    toAtmosphere(f, e.getKey(), module, prefer, choices, preferCheats, limits), null));
         }
         return out;
     }
@@ -1686,10 +1698,80 @@ public final class Converter {
         return toAtmosphere(f, buildKey, module, prefer, choices, null);
     }
 
+    /**
+     * What one Atmosphère cheat file may hold, beyond which a host refuses the whole file; null
+     * is no limit. {@link #ATMOSPHERE} are the limits of Atmosphère's dmnt. A host that takes
+     * more, such as an emulator's own cheat engine, gives its own, or {@link #NONE} (spec,
+     * section 15). Immutable.
+     */
+    public static final class AtmosphereLimits {
+        /**
+         * Atmosphère's: 127 entries with code besides the master, of 256 words each, a file of
+         * at most 65,535 bytes, names of at most 63 bytes.
+         */
+        public static final AtmosphereLimits ATMOSPHERE = new AtmosphereLimits(127, 0x100, 0xFFFF, 63);
+        /** No limits. */
+        public static final AtmosphereLimits NONE = new AtmosphereLimits(null, null, null, null);
+
+        private final Integer entries;
+        private final Integer words;
+        private final Integer size;
+        private final Integer name;
+
+        /**
+         * Makes limits.
+         *
+         * @param entries entries with code besides the master; null for any number
+         * @param words code words of one entry, and of the master entry; null for any number
+         * @param size bytes of the file; null for any size
+         * @param name bytes of a name in UTF-8; null for names of any length
+         * @throws IllegalArgumentException for a limit below 1
+         */
+        public AtmosphereLimits(Integer entries, Integer words, Integer size, Integer name) {
+            check("entries", entries);
+            check("words", words);
+            check("size", size);
+            check("name", name);
+            this.entries = entries;
+            this.words = words;
+            this.size = size;
+            this.name = name;
+        }
+
+        private static void check(String key, Integer v) {
+            if (v != null && v < 1) {
+                throw new IllegalArgumentException("the limit " + key
+                        + " is a whole number of at least 1, or null, not " + v);
+            }
+        }
+
+        /** Returns the entries with code a file holds besides the master, or null for any number. */
+        public Integer entries() {
+            return entries;
+        }
+
+        /** Returns the code words of one entry, or null for any number. */
+        public Integer words() {
+            return words;
+        }
+
+        /** Returns the bytes of the file, or null for any size. */
+        public Integer size() {
+            return size;
+        }
+
+        /** Returns the bytes of a name in UTF-8, or null for names of any length. */
+        public Integer name() {
+            return name;
+        }
+    }
+
     /** Entries of an Atmosphère file besides the master: dmnt holds 0x80, the first the master. */
     static final int ATM_ENTRIES = 127;
     /** Words of one entry. */
     static final int ATM_WORDS = 0x100;
+    /** What an EdiZon section marker adds to the group's name. */
+    private static final int SECTION_SIZE = "--SectionStart:--".length();
 
     private static int wordCount(List<String> lines) {
         int n = 0;
@@ -1700,20 +1782,76 @@ public final class Converter {
     }
 
     /**
-     * Returns the cheats of a loaded file as an Atmosphère cheat file for one build, as
-     * {@link #toAtmosphere(MncfFile, String, CodeModule, String, Choices)} does, with raw or core
-     * chosen for single cheats, such as one whose value the player set. The file keeps
-     * Atmosphère's limits: one master entry with the code of every master cheat, and up to 127
-     * other entries of up to 256 words each; what does not fit is left out with
-     * {@code atmosphere:too-many} or {@code atmosphere:too-long}.
+     * Returns a name as an Atmosphère file holds it: the bracket that would end it early ("]",
+     * for a master "}") becomes ")", a control character or line break a space, and it is cut
+     * to limit bytes of UTF-8 at a character boundary.
      *
-     * @param preferCheats "raw" or "core" by cheat id, where a cheat should differ from prefer;
-     *     may be null
-     * @throws IllegalArgumentException as the other forms do, or for a preference that is neither
-     *     "raw" nor "core"
+     * @param limit bytes of UTF-8; null for no cut
      */
-    public static Export toAtmosphere(MncfFile f, String buildKey, CodeModule module, String prefer,
-            Choices choices, Map<String, String> preferCheats) {
+    public static String atmosphereName(String name, boolean master, Integer limit) {
+        int close = master ? '}' : ']';
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < name.length(); ) {
+            int cp = name.codePointAt(i);
+            i += Character.charCount(cp);
+            if (cp == close) {
+                out.append(')');
+            } else if (cp < 0x20 || cp == 0x7F || cp == 0x85 || cp == 0x2028 || cp == 0x2029) {
+                out.append(' ');
+            } else {
+                out.appendCodePoint(cp);
+            }
+        }
+        return limit == null ? out.toString() : cut(out.toString(), limit);
+    }
+
+    private static String cut(String text, int limit) {
+        int bytes = 0;
+        for (int i = 0; i < text.length(); ) {
+            int cp = text.codePointAt(i);
+            int n = cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+            if (bytes + n > limit) {
+                return text.substring(0, i);
+            }
+            bytes += n;
+            i += Character.charCount(cp);
+        }
+        return text;
+    }
+
+    private static int utf8Length(String s) {
+        return s.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+    }
+
+    /**
+     * An EdiZon section marker, --SectionStart:Name-- or --SectionEnd:Name--: an entry without
+     * code, which takes no slot in dmnt. The group's name is cut alike in both, so they pair.
+     */
+    private static String section(String kind, String group, Integer limit) {
+        return "--Section" + kind + ":" + atmosphereName(group, false, limit == null ? null : limit - SECTION_SIZE)
+                + "--";
+    }
+
+    /** The bytes an entry adds to the text writeFile makes: its name line, its code lines, a blank line. */
+    private static int entrySize(String name, List<String> lines) {
+        int n = utf8Length(name) + 4;
+        for (String line : lines) {
+            n += line.length() + 1;
+        }
+        return n;
+    }
+
+    /** The name, or with " (2)", " (3)" and so on where an entry already has it: dmnt keeps states by name. */
+    private static String unique(String name, Set<String> used, Integer limit) {
+        String out = name;
+        for (int k = 2; used.contains(out); k++) {
+            String suffix = " (" + k + ")";
+            out = (limit == null ? name : cut(name, limit - suffix.length())) + suffix;
+        }
+        return out;
+    }
+
+    private static Map<String, String> modes(String prefer, Map<String, String> preferCheats) {
         Map<String, String> modes = preferCheats == null ? Collections.<String, String>emptyMap() : preferCheats;
         List<String> all = new ArrayList<>();
         all.add(prefer);
@@ -1723,6 +1861,40 @@ public final class Converter {
                 throw new IllegalArgumentException("prefer is \"raw\" or \"core\", not " + Py.repr(mode));
             }
         }
+        return modes;
+    }
+
+    /**
+     * Returns the cheats of a loaded file as an Atmosphère cheat file for one build, as
+     * {@link #toAtmosphere(MncfFile, String, CodeModule, String, Choices)} does, with raw or core
+     * chosen for single cheats, such as one whose value the player set, in Atmosphère's limits.
+     *
+     * @param preferCheats "raw" or "core" by cheat id, where a cheat should differ from prefer;
+     *     may be null
+     * @throws IllegalArgumentException as the other forms do, or for a preference that is neither
+     *     "raw" nor "core"
+     */
+    public static Export toAtmosphere(MncfFile f, String buildKey, CodeModule module, String prefer,
+            Choices choices, Map<String, String> preferCheats) {
+        return toAtmosphere(f, buildKey, module, prefer, choices, preferCheats, AtmosphereLimits.ATMOSPHERE);
+    }
+
+    /**
+     * Returns the cheats of a loaded file as an Atmosphère cheat file for one build, as
+     * {@link #toAtmosphere(MncfFile, String, CodeModule, String, Choices, Map)} does, in the
+     * limits of the host it is for. The file keeps them: one master entry with the code of every
+     * master cheat, then the other cheats in file order, each after the cheats it requires, groups
+     * in EdiZon section markers, names as dmnt reads them. What does not fit is left out with
+     * {@code atmosphere:too-many}, {@code atmosphere:too-long} or {@code atmosphere:too-big},
+     * and a cheat that requires a cheat left out with {@code requires:<id>}.
+     *
+     * @param limits the host's limits; null for Atmosphère's
+     * @throws IllegalArgumentException as the other forms do
+     */
+    public static Export toAtmosphere(MncfFile f, String buildKey, CodeModule module, String prefer,
+            Choices choices, Map<String, String> preferCheats, AtmosphereLimits limits) {
+        Map<String, String> modes = modes(prefer, preferCheats);
+        AtmosphereLimits lim = limits == null ? AtmosphereLimits.ATMOSPHERE : limits;
         Build build = f.builds().get(buildKey);
         String mainId;
         if (build != null) {
@@ -1737,13 +1909,254 @@ public final class Converter {
                     + ", and no module of it is given");
         }
         Choices chosen = choices != null ? choices : Choices.none();
-        Map<String, String> written = new LinkedHashMap<>();
-        Map<String, String> skipped = new LinkedHashMap<>();
-        Map<String, String> reasons = new LinkedHashMap<>();
-        List<Atmosphere.Out> entries = new ArrayList<>();
-        String group = null;
-        String master = null;
-        List<String> masterLines = new ArrayList<>();
+        Part part = new Part(lower(f, buildKey, module, prefer, chosen, modes, lim));
+        List<Atmosphere.Out> entries = assemble(Collections.singletonList(part), lim);
+        String name = shortBuildId(mainId) + ".txt";
+        return new Export(name, Atmosphere.writeFile(entries), part.written, part.skipped, part.reasons);
+    }
+
+    private static String shortBuildId(String id) {
+        return id.substring(0, Math.min(16, id.length())).toUpperCase(Locale.ROOT);
+    }
+
+    /**
+     * One loaded file to write back together with others ({@link #toAtmosphereMerged}): the
+     * player's choices for it, and raw or core for its cheats. Immutable.
+     */
+    public static final class BackSource {
+        private final MncfFile file;
+        private final Choices choices;
+        private final String prefer;
+        private final Map<String, String> preferCheats;
+
+        /**
+         * Makes a source.
+         *
+         * @param choices the values the player chose; may be null
+         * @param prefer "raw" or "core"
+         * @param preferCheats "raw" or "core" by cheat id; may be null
+         */
+        public BackSource(MncfFile file, Choices choices, String prefer, Map<String, String> preferCheats) {
+            this.file = file;
+            this.choices = choices;
+            this.prefer = prefer;
+            this.preferCheats = preferCheats == null ? null
+                    : Collections.unmodifiableMap(new LinkedHashMap<>(preferCheats));
+        }
+
+        /** Returns a source with its raw code and the defaults. */
+        public static BackSource of(MncfFile file) {
+            return new BackSource(file, null, "raw", null);
+        }
+
+        /** Returns the file. */
+        public MncfFile file() {
+            return file;
+        }
+
+        /** Returns the values the player chose, or null. */
+        public Choices choices() {
+            return choices;
+        }
+
+        /** Returns "raw" or "core". */
+        public String prefer() {
+            return prefer;
+        }
+
+        /** Returns "raw" or "core" by cheat id, or null. */
+        public Map<String, String> preferCheats() {
+            return preferCheats;
+        }
+    }
+
+    /**
+     * One build as one Atmosphère cheat file with the cheats of several files, or the reason a
+     * build cannot be one. The lists have an item for each source, in their order. Immutable.
+     */
+    public static final class MergedExport {
+        private final String buildId;
+        private final String fileName;
+        private final String text;
+        private final List<String> builds;
+        private final List<Map<String, String>> written;
+        private final List<Map<String, String>> skipped;
+        private final List<Map<String, String>> reasons;
+        private final String reason;
+
+        MergedExport(String buildId, String text, List<String> builds, List<Part> parts, String reason) {
+            this.buildId = buildId;
+            this.fileName = buildId == null ? null : buildId + ".txt";
+            this.text = text;
+            this.builds = Collections.unmodifiableList(new ArrayList<>(builds));
+            List<Map<String, String>> w = new ArrayList<>();
+            List<Map<String, String>> s = new ArrayList<>();
+            List<Map<String, String>> r = new ArrayList<>();
+            for (Part p : parts) {
+                w.add(Collections.unmodifiableMap(new LinkedHashMap<>(p.written)));
+                s.add(Collections.unmodifiableMap(new LinkedHashMap<>(p.skipped)));
+                r.add(Collections.unmodifiableMap(new LinkedHashMap<>(p.reasons)));
+            }
+            this.written = Collections.unmodifiableList(w);
+            this.skipped = Collections.unmodifiableList(s);
+            this.reasons = Collections.unmodifiableList(r);
+            this.reason = reason;
+        }
+
+        /** Returns the first 16 digits of the build ID of the main module, upper case, or null. */
+        public String buildId() {
+            return buildId;
+        }
+
+        /** Returns the file name: the build ID and ".txt", or null when the build cannot be a file. */
+        public String fileName() {
+            return fileName;
+        }
+
+        /** Returns the text of the cheat file, or null. */
+        public String text() {
+            return text;
+        }
+
+        /** Returns each source's key of the build, null where a source does not name it. */
+        public List<String> builds() {
+            return builds;
+        }
+
+        /** Returns for each source the cheats written, by id: "raw" or "core". */
+        public List<Map<String, String>> written() {
+            return written;
+        }
+
+        /** Returns for each source the cheats left out, by id, with why. */
+        public List<Map<String, String>> skipped() {
+            return skipped;
+        }
+
+        /** Returns for each source the cheats left out, by id, with the stable reason (spec, section 15). */
+        public List<Map<String, String>> reasons() {
+            return reasons;
+        }
+
+        /** Returns null, or {@code atmosphere:module} for a build that names no main module. */
+        public String reason() {
+            return reason;
+        }
+    }
+
+    /**
+     * Returns several loaded files of one game as Atmosphère cheat files, one for each build. A
+     * host reads one cheat file a build, so every file's cheats for a build go into one, in one
+     * set of limits: one master entry with the code of every master cheat, then each file's
+     * cheats, in the order of the sources. Builds are matched by the first 16 digits of the build
+     * ID of their main module. A build that only a module names is written from what the files
+     * can place without their own offsets for it, as is a build that one file names for the
+     * others. The files come in the order their builds first appear, then those of the modules;
+     * a build that names no main module comes as one with reason {@code atmosphere:module}.
+     *
+     * @param modules the main module of each build, by build ID, for the cheats that find their
+     *     place by a pattern; may be null
+     * @param limits the host's limits; null for Atmosphère's
+     * @throws IllegalArgumentException for a preference that is neither "raw" nor "core"
+     */
+    public static List<MergedExport> toAtmosphereMerged(List<BackSource> sources, Map<String, CodeModule> modules,
+            AtmosphereLimits limits) {
+        AtmosphereLimits lim = limits == null ? AtmosphereLimits.ATMOSPHERE : limits;
+        Map<String, CodeModule> byId = new LinkedHashMap<>();
+        if (modules != null) {
+            for (Map.Entry<String, CodeModule> e : modules.entrySet()) {
+                byId.put(shortBuildId(e.getKey()), e.getValue());
+            }
+        }
+        for (BackSource s : sources) {
+            modes(s.prefer(), s.preferCheats());
+        }
+        // Each item: a build ID, or null with the source and key of a build without main.
+        List<Object[]> order = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (int i = 0; i < sources.size(); i++) {
+            for (Map.Entry<String, Build> e : sources.get(i).file().builds().entrySet()) {
+                String main = e.getValue().modules().get("main");
+                if (main == null) {
+                    order.add(new Object[] {null, i, e.getKey()});
+                } else if (seen.add(shortBuildId(main))) {
+                    order.add(new Object[] {shortBuildId(main)});
+                }
+            }
+        }
+        for (String id : byId.keySet()) {
+            if (seen.add(id)) {
+                order.add(new Object[] {id});
+            }
+        }
+        List<MergedExport> out = new ArrayList<>();
+        for (Object[] item : order) {
+            String id = (String) item[0];
+            List<String> builds = new ArrayList<>();
+            if (id == null) {
+                for (int j = 0; j < sources.size(); j++) {
+                    builds.add(j == (Integer) item[1] ? (String) item[2] : null);
+                }
+                out.add(new MergedExport(null, null, builds, Collections.<Part>emptyList(), "atmosphere:module"));
+                continue;
+            }
+            List<Part> parts = new ArrayList<>();
+            for (BackSource s : sources) {
+                String key = null;
+                for (Map.Entry<String, Build> e : s.file().builds().entrySet()) {
+                    String main = e.getValue().modules().get("main");
+                    if (shortBuildId(main == null ? "" : main).equals(id)) {
+                        key = e.getKey();
+                        break;
+                    }
+                }
+                builds.add(key);
+                Choices chosen = s.choices() != null ? s.choices() : Choices.none();
+                parts.add(new Part(lower(s.file(), key, byId.get(id), s.prefer(), chosen,
+                        modes(s.prefer(), s.preferCheats()), lim)));
+            }
+            out.add(new MergedExport(id, Atmosphere.writeFile(assemble(parts, lim)), builds, parts, null));
+        }
+        return out;
+    }
+
+    /** A cheat as Atmosphère code lines for one build, or the reason it cannot be. */
+    private static final class Lowered {
+        final Cheat cheat;
+        final String how;
+        final List<String> lines;
+        final String why;
+        final String reason;
+
+        Lowered(Cheat cheat, String how, List<String> lines, String why, String reason) {
+            this.cheat = cheat;
+            this.how = how;
+            this.lines = lines;
+            this.why = why;
+            this.reason = reason;
+        }
+    }
+
+    /** The lowered cheats of one file, the master cheats first, and what became of them. */
+    private static final class Part {
+        final List<Lowered> lowered;
+        final Map<String, String> written = new LinkedHashMap<>();
+        final Map<String, String> skipped = new LinkedHashMap<>();
+        final Map<String, String> reasons = new LinkedHashMap<>();
+
+        Part(List<Lowered> lowered) {
+            this.lowered = lowered;
+        }
+
+        void leaveOut(Cheat c, String why, String code) {
+            skipped.put(c.id(), why);
+            reasons.put(c.id(), code);
+        }
+    }
+
+    /** Each cheat of a file as Atmosphère code lines for one build, or why not, the masters first. */
+    private static List<Lowered> lower(MncfFile f, String buildKey, CodeModule module, String prefer, Choices chosen,
+            Map<String, String> modes, AtmosphereLimits limits) {
         List<Cheat> cheats = new ArrayList<>(f.cheats());
         Collections.sort(cheats, new Comparator<Cheat>() {
             @Override
@@ -1751,10 +2164,10 @@ public final class Converter {
                 return Boolean.compare(!a.isMaster(), !b.isMaster());
             }
         });
+        List<Lowered> out = new ArrayList<>();
         for (Cheat c : cheats) {
             if (c.problem() != null) {
-                skipped.put(c.id(), c.problem());
-                reasons.put(c.id(), c.problem());
+                out.add(new Lowered(c, null, null, c.problem(), c.problem()));
                 continue;
             }
             Model.Raw raw = null;
@@ -1766,20 +2179,20 @@ public final class Converter {
             }
             List<String> rawLines = null;
             if (raw != null) {
+                // Words apart by plain spaces, as dmnt reads white space.
                 rawLines = new ArrayList<>();
                 for (String line : Py.splitLines(Py.strip(raw.code))) {
                     if (!Py.strip(line).isEmpty()) {
-                        rawLines.add(Py.strip(line));
+                        rawLines.add(String.join(" ", Py.splitSpace(line)));
                     }
                 }
             }
-            List<String> lines;
-            String how;
             if (raw == null && c.ops().isEmpty()) {
-                skipped.put(c.id(), "only raw code, for other builds");
-                reasons.put(c.id(), "build-unknown");
+                out.add(new Lowered(c, null, null, "only raw code, for other builds", "build-unknown"));
                 continue;
             }
+            List<String> lines;
+            String how;
             String mode = modes.containsKey(c.id()) ? modes.get(c.id()) : prefer;
             if (raw != null && "raw".equals(mode)) {
                 lines = rawLines;
@@ -1787,63 +2200,218 @@ public final class Converter {
             } else {
                 try {
                     List<Long> words = coreWords(c, buildKey, module, chosen);
-                    if (words.size() > ATM_WORDS) {
-                        throw new Atmosphere.Unclear(words.size() + " words, more than an Atmosph\u00E8re entry holds",
+                    if (limits.words() != null && words.size() > limits.words()) {
+                        throw new Atmosphere.Unclear(words.size() + " words, more than an entry holds",
                                 "atmosphere:too-long");
                     }
                     lines = Atmosphere.formatWords(words);
                     how = "core";
                 } catch (Atmosphere.Unclear u) {
                     if (raw == null) {
-                        skipped.put(c.id(), u.why);
-                        reasons.put(c.id(), u.code != null ? u.code : "atmosphere:unclear");
+                        out.add(new Lowered(c, null, null, u.why, u.code != null ? u.code : "atmosphere:unclear"));
                         continue;
                     }
                     lines = rawLines;
                     how = "raw";
                 }
             }
-            if (wordCount(lines) > ATM_WORDS) {
-                skipped.put(c.id(), wordCount(lines) + " words, more than an Atmosph\u00E8re entry holds");
-                reasons.put(c.id(), "atmosphere:too-long");
+            if (limits.words() != null && wordCount(lines) > limits.words()) {
+                out.add(new Lowered(c, null, null, wordCount(lines) + " words, more than an entry holds",
+                        "atmosphere:too-long"));
+                continue;
+            }
+            out.add(new Lowered(c, how, lines, null, null));
+        }
+        return out;
+    }
+
+    /** The lowered cheats in file order, except that a cheat comes after those of them it requires. */
+    private static List<Lowered> afterRequirements(List<Lowered> items) {
+        Set<String> ids = new HashSet<>();
+        for (Lowered lo : items) {
+            ids.add(lo.cheat.id());
+        }
+        Set<String> done = new HashSet<>();
+        List<Lowered> out = new ArrayList<>();
+        List<Lowered> todo = new ArrayList<>(items);
+        while (!todo.isEmpty()) {
+            int pick = 0;
+            for (int i = 0; i < todo.size(); i++) {
+                boolean ready = true;
+                for (String r : todo.get(i).cheat.requires()) {
+                    if (!done.contains(r) && ids.contains(r)) {
+                        ready = false;
+                        break;
+                    }
+                }
+                if (ready) {
+                    pick = i;
+                    break;
+                }
+            }
+            Lowered lo = todo.remove(pick);
+            done.add(lo.cheat.id());
+            out.add(lo);
+        }
+        return out;
+    }
+
+    private static String missingRequirement(Part part, Cheat c) {
+        for (String r : c.requires()) {
+            if (part.reasons.containsKey(r)) {
+                return r;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The entries of one Atmosphère file from the lowered cheats of one or more files, in the
+     * order and limits of section 15.
+     */
+    private static List<Atmosphere.Out> assemble(List<Part> parts, AtmosphereLimits limits) {
+        for (Part part : parts) {
+            for (Lowered lo : part.lowered) {
+                if (lo.reason != null) {
+                    part.leaveOut(lo.cheat, lo.why, lo.reason);
+                }
+            }
+        }
+        List<Object[]> order = new ArrayList<>();          // part index, lowered
+        for (int k = 0; k < parts.size(); k++) {
+            for (Lowered lo : parts.get(k).lowered) {
+                if (lo.cheat.isMaster() && lo.reason == null) {
+                    order.add(new Object[] {k, lo});
+                }
+            }
+        }
+        for (int k = 0; k < parts.size(); k++) {
+            List<Lowered> others = new ArrayList<>();
+            for (Lowered lo : parts.get(k).lowered) {
+                if (!lo.cheat.isMaster() && lo.reason == null) {
+                    others.add(lo);
+                }
+            }
+            for (Lowered lo : afterRequirements(others)) {
+                order.add(new Object[] {k, lo});
+            }
+        }
+        List<Object[]> placed = new ArrayList<>();         // part index, lowered, name (null for a master)
+        Set<String> used = new HashSet<>();
+        String masterName = null;
+        int masterWords = 0;
+        int count = 0;
+        long size = 0;                                      // bytes of the text so far plus one
+        String group = null;
+        for (Object[] item : order) {
+            int k = (Integer) item[0];
+            Lowered lo = (Lowered) item[1];
+            Cheat c = lo.cheat;
+            Part part = parts.get(k);
+            String missing = missingRequirement(part, c);
+            if (missing != null) {
+                part.leaveOut(c, "requires " + missing + ", which is left out", "requires:" + missing);
                 continue;
             }
             if (c.isMaster()) {
-                // Atmosphère runs one master entry: the code of every master cheat goes into it, in file order.
-                if (wordCount(masterLines) + wordCount(lines) > ATM_WORDS) {
-                    skipped.put(c.id(), "the master entry would hold more than 256 words");
-                    reasons.put(c.id(), "atmosphere:too-long");
-                    continue;
+                // Atmosphère runs one master entry: the code of every master cheat goes into it, in order.
+                String name = masterName != null ? masterName : atmosphereName(c.name(), true, limits.name());
+                long add = masterName != null ? 0 : utf8Length(name) + 4;
+                for (String line : lo.lines) {
+                    add += line.length() + 1;
                 }
-                if (master == null) {
-                    master = c.name();
+                if (limits.words() != null && masterWords + wordCount(lo.lines) > limits.words()) {
+                    part.leaveOut(c, "the master entry would hold more than " + limits.words() + " words",
+                            "atmosphere:too-long");
+                } else if (limits.size() != null && size + add - 1 > limits.size()) {
+                    part.leaveOut(c, "the file would be more than " + limits.size() + " bytes", "atmosphere:too-big");
+                } else {
+                    masterName = name;
+                    masterWords += wordCount(lo.lines);
+                    size += add;
+                    placed.add(new Object[] {k, lo, null});
+                    part.written.put(c.id(), lo.how);
                 }
-                masterLines.addAll(lines);
-                written.put(c.id(), how);
                 continue;
             }
-            // A new group starts with its name as an empty entry; a group is ended by an entry with only 20000001.
             String cheatGroup = c.group() == null || c.group().isEmpty() ? null : c.group();
-            List<Atmosphere.Out> marks = new ArrayList<>();
+            List<String> marks = new ArrayList<>();
             if (!java.util.Objects.equals(cheatGroup, group)) {
-                marks.add(cheatGroup != null ? new Atmosphere.Out(cheatGroup, false, Collections.<String>emptyList())
-                        : new Atmosphere.Out(group, false, Collections.singletonList("20000001")));
+                if (group != null) {
+                    marks.add(section("End", group, limits.name()));
+                }
+                if (cheatGroup != null) {
+                    marks.add(section("Start", cheatGroup, limits.name()));
+                }
             }
-            if (entries.size() + marks.size() + 1 > ATM_ENTRIES) {
-                skipped.put(c.id(), "more entries than an Atmosph\u00E8re file holds");
-                reasons.put(c.id(), "atmosphere:too-many");
+            String name = unique(atmosphereName(c.name(), false, limits.name()), used, limits.name());
+            long add = entrySize(name, lo.lines);
+            for (String m : marks) {
+                add += entrySize(m, Collections.<String>emptyList());
+            }
+            if (limits.entries() != null && count + 1 > limits.entries()) {
+                part.leaveOut(c, "more than " + limits.entries() + " entries", "atmosphere:too-many");
+            } else if (limits.size() != null && size + add - 1 > limits.size()) {
+                part.leaveOut(c, "the file would be more than " + limits.size() + " bytes", "atmosphere:too-big");
+            } else {
+                count++;
+                size += add;
+                group = cheatGroup;
+                used.add(name);
+                placed.add(new Object[] {k, lo, name});
+                part.written.put(c.id(), lo.how);
+            }
+        }
+        // A cheat placed before a cheat it requires, in a ring of requirements, goes again where that one is left out.
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i < placed.size(); i++) {
+                Part part = parts.get((Integer) placed.get(i)[0]);
+                Lowered lo = (Lowered) placed.get(i)[1];
+                String missing = missingRequirement(part, lo.cheat);
+                if (missing != null) {
+                    placed.remove(i);
+                    part.written.remove(lo.cheat.id());
+                    part.leaveOut(lo.cheat, "requires " + missing + ", which is left out", "requires:" + missing);
+                    changed = true;
+                    break;
+                }
+            }
+        }
+        List<Atmosphere.Out> entries = new ArrayList<>();
+        List<String> masterLines = new ArrayList<>();
+        boolean anyMaster = false;
+        for (Object[] p : placed) {
+            if (p[2] == null) {
+                anyMaster = true;
+                masterLines.addAll(((Lowered) p[1]).lines);
+            }
+        }
+        if (anyMaster) {
+            entries.add(new Atmosphere.Out(masterName, true, masterLines));
+        }
+        group = null;
+        for (Object[] p : placed) {
+            if (p[2] == null) {
                 continue;
             }
-            entries.addAll(marks);
-            group = cheatGroup;
-            entries.add(new Atmosphere.Out(c.name(), false, lines));
-            written.put(c.id(), how);
+            Lowered lo = (Lowered) p[1];
+            String cheatGroup = lo.cheat.group() == null || lo.cheat.group().isEmpty() ? null : lo.cheat.group();
+            if (!java.util.Objects.equals(cheatGroup, group)) {
+                if (group != null) {
+                    entries.add(new Atmosphere.Out(section("End", group, limits.name()), false,
+                            Collections.<String>emptyList()));
+                }
+                if (cheatGroup != null) {
+                    entries.add(new Atmosphere.Out(section("Start", cheatGroup, limits.name()), false,
+                            Collections.<String>emptyList()));
+                }
+                group = cheatGroup;
+            }
+            entries.add(new Atmosphere.Out((String) p[2], false, lo.lines));
         }
-        if (master != null) {
-            entries.add(0, new Atmosphere.Out(master, true, masterLines));
-        }
-        String name = mainId.substring(0, Math.min(16, mainId.length())).toUpperCase(Locale.ROOT) + ".txt";
-        return new Export(name, Atmosphere.writeFile(entries), written, skipped, reasons);
+        return entries;
     }
 
     private static long base(Model.Location loc, String buildKey, CodeModule module) throws Atmosphere.Unclear {

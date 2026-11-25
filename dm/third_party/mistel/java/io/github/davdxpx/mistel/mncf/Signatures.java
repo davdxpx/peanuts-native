@@ -6,7 +6,9 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -114,8 +116,28 @@ public final class Signatures {
      * @param trust the trusted keys, or null for none
      */
     public static SignatureResult check(byte[] data, TrustList trust) {
+        return check(data, trust, null);
+    }
+
+    /**
+     * Checks the signature lines of a file's or a pack manifest's bytes against the trust list
+     * and the public keys of its signers key (section 12). A line by a key of the signers that
+     * the reader does not trust is checked with that key: it counts as unknown-key where it
+     * verifies, and as invalid where it does not. When lines disagree, invalid wins over revoked,
+     * revoked over verified, and verified over unknown-key.
+     *
+     * @param trust the trusted keys, or null for none
+     * @param signers the 32-byte public keys of the signers key, or null for none
+     */
+    public static SignatureResult check(byte[] data, TrustList trust, List<byte[]> signers) {
         if (trust == null) {
             trust = new TrustList();
+        }
+        Map<String, byte[]> own = new LinkedHashMap<>();
+        if (signers != null) {
+            for (byte[] key : signers) {
+                own.put(keyId(key), key.clone());
+            }
         }
         Split split = split(data);
         List<String> none = new ArrayList<>();
@@ -126,8 +148,9 @@ public final class Signatures {
             return new SignatureResult(SignatureResult.INVALID, none, none);
         }
         List<String> results = new ArrayList<>();
-        List<String> signers = new ArrayList<>();
+        List<String> names = new ArrayList<>();
         List<String> keyIds = new ArrayList<>();
+        Map<String, byte[]> verified = new LinkedHashMap<>();
         for (byte[] raw : split.lines) {
             // A signature line is ASCII; any other byte keeps it from matching, as in a bytes pattern.
             String line = new String(raw, StandardCharsets.ISO_8859_1);
@@ -154,10 +177,20 @@ public final class Signatures {
                 for (TrustList.Key key : trust.keys(kid)) {
                     if (Ed25519.verify(key.publicKey, split.signed, sig)) {
                         good.add(key.name);
+                        if (!verified.containsKey(kid)) {
+                            verified.put(kid, key.publicKey);
+                        }
                     }
                 }
                 results.add(good.isEmpty() ? SignatureResult.INVALID : SignatureResult.VERIFIED);
-                signers.addAll(good);
+                names.addAll(good);
+            } else if (own.containsKey(kid)) {
+                // A key of the file's own signers: not trusted, but a line it does not verify is bad.
+                boolean ok = Ed25519.verify(own.get(kid), split.signed, sig);
+                results.add(ok ? SignatureResult.UNKNOWN_KEY : SignatureResult.INVALID);
+                if (ok && !verified.containsKey(kid)) {
+                    verified.put(kid, own.get(kid));
+                }
             } else {
                 results.add(SignatureResult.UNKNOWN_KEY);
             }
@@ -165,7 +198,8 @@ public final class Signatures {
         for (String result : new String[] {SignatureResult.INVALID, SignatureResult.REVOKED,
                 SignatureResult.VERIFIED, SignatureResult.UNKNOWN_KEY}) {
             if (results.contains(result)) {
-                return new SignatureResult(result, result.equals(SignatureResult.VERIFIED) ? signers : none, keyIds);
+                return new SignatureResult(result, result.equals(SignatureResult.VERIFIED) ? names : none, keyIds,
+                        verified);
             }
         }
         return new SignatureResult(SignatureResult.UNSIGNED, none, none);

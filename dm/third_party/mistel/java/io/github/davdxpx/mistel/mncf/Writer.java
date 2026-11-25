@@ -12,12 +12,13 @@ import java.util.regex.Pattern;
  * Writes .mncf text: any document as {@link Mncf#load} reads it (a map of TOML values), in one
  * fixed layout.
  *
- * <p>The layout follows the spec's examples: the file's own keys, then [game], the builds, the
- * choice lists, every cheat with its values and operations as indented sub-tables, the presets
- * and the translations. Keys come in the order the spec lists them, and keys it does not define
- * after them in their own order. Locations, offsets, addresses and path steps are written in
- * hexadecimal, other whole numbers in decimal up to 0xFFFF and in hexadecimal above. Writing a
- * file that was read gives the same file again, without its signature lines.
+ * <p>The layout follows the spec's examples: the file's own keys, its [update] and change
+ * entries, then [game], the builds, the choice lists, every cheat with its values and operations
+ * as indented sub-tables, the presets and the translations. Keys come in the order the spec
+ * lists them, and keys it does not define after them in their own order. Locations, offsets,
+ * addresses and path steps are written in hexadecimal, other whole numbers in decimal up to
+ * 0xFFFF and in hexadecimal above. Writing a file that was read gives the same file again,
+ * without its signature lines.
  *
  * <p>A document holds maps, lists, strings, whole numbers (Long, or BigInteger at 2^63 and
  * above), doubles and booleans. A float is written as the shortest text that reads back as the
@@ -25,9 +26,13 @@ import java.util.regex.Pattern;
  */
 public final class Writer {
 
-    private static final List<String> TOP =
-            Values.list("format", "name", "authors", "about", "file_version", "language", "origin", "extensions");
-    private static final List<String> TABLES = Values.list("game", "builds", "choices", "cheat", "preset", "i18n");
+    private static final List<String> TOP = Values.list("format", "name", "id", "authors", "about", "file_version",
+            "language", "origin", "extensions", "signers");
+    private static final List<String> TABLES =
+            Values.list("update", "changes", "game", "builds", "choices", "cheat", "preset", "i18n");
+    private static final List<String> UPDATE = Values.list("url");
+    private static final List<String> CHANGES =
+            Values.list("version", "date", "text", "added", "fixed", "removed", "renamed");
     private static final List<String> GAME = Values.list("platform", "id", "name");
     private static final List<String> BUILD = Values.list("version", "modules");
     private static final List<String> CHEAT = Values.list("id", "name", "about", "group", "tags", "default", "master",
@@ -60,6 +65,7 @@ public final class Writer {
         INLINE.put("origin", Values.list("format", "name", "site"));
         INLINE.put("extensions", Values.list("required", "optional"));
         INLINE.put("modules", Collections.<String>emptyList());
+        INLINE.put("renamed", Collections.<String>emptyList());
     }
 
     private Writer() {
@@ -71,9 +77,9 @@ public final class Writer {
     }
 
     /**
-     * Returns the text of a document. A key of the layout's own tables (game, builds, choices,
-     * cheat, preset, i18n) whose value does not have the shape the layout writes is written as
-     * a plain value, with the file's own keys.
+     * Returns the text of a document. A key of the layout's own tables (update, changes, game,
+     * builds, choices, cheat, preset, i18n) whose value does not have the shape the layout writes
+     * is written as a plain value, with the file's own keys.
      *
      * @throws IllegalArgumentException for a value that has no TOML form
      */
@@ -90,6 +96,14 @@ public final class Writer {
         for (String k : TABLES) {
             if (doc.containsKey(k) && shaped(k, doc.get(k))) {
                 shaped.put(k, doc.get(k));
+            }
+        }
+        if (shaped.containsKey("update")) {
+            plain(out, "[update]", map(shaped.get("update")), UPDATE);
+        }
+        if (shaped.containsKey("changes")) {
+            for (Object c : (List<?>) shaped.get("changes")) {
+                plain(out, "[[changes]]", map(c), CHANGES);
             }
         }
         if (shaped.containsKey("game")) {
@@ -155,6 +169,15 @@ public final class Writer {
             out.remove(0);
         }
         return String.join("\n", out) + "\n";
+    }
+
+    /** A table of values under its header, tables in it as inline tables. */
+    private static void plain(List<String> out, String header, Map<String, Object> table, List<String> order) {
+        out.add("");
+        out.add(header);
+        for (String k : ordered(table, order)) {
+            out.add(valueLine(k, table.get(k), ""));
+        }
     }
 
     private static void cheat(List<String> out, Map<String, Object> c) {
@@ -276,11 +299,12 @@ public final class Writer {
     }
 
     /**
-     * Whether a top-level table of the layout has the shape the layout writes: cheat and preset
-     * an array of tables, builds and choices a table of tables, game and i18n a table.
+     * Whether a top-level table of the layout has the shape the layout writes: cheat, preset and
+     * changes an array of tables, builds and choices a table of tables, update, game and i18n a
+     * table.
      */
     private static boolean shaped(String k, Object v) {
-        if (k.equals("cheat") || k.equals("preset")) {
+        if (k.equals("cheat") || k.equals("preset") || k.equals("changes")) {
             return isTableArray(v);
         }
         if (k.equals("builds") || k.equals("choices")) {

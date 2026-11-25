@@ -44,7 +44,7 @@ class ModCheats(unittest.TestCase):
         src = cls.tmp / 'src/dev/nxnative/android'; src.mkdir(parents=True)
         (src / 'ModCheatsTest.java').write_text(RUNNER, encoding='utf-8')
         cls.out = cls.tmp / 'out'
-        mistel = sorted((MODS.parents[2] / 'io/github/davdxpx/mistel').rglob('*.java'))   # Mistel's .mncf library: the sources are .mncf files
+        mistel = sorted((REPO / 'dm/third_party/mistel/java').rglob('*.java'))   # Mistel's .mncf library: the sources are .mncf files
         subprocess.run(["javac", "-nowarn", "-encoding", "UTF-8", "-d", str(cls.out), *map(str, mistel), str(PKG / "Cheats.java"), str(PKG / "Json.java"), str(PKG / "ModCheats.java"),
                         *[str(MODS / f) for f in ("CheatFile.java", "CheatImport.java", "CheatSources.java", "CheatValues.java", "CheatStatus.java", "MncfBuild.java", "MncfConvert.java", "MncfExport.java", "MncfFacts.java", "MncfMain.java", "MncfWords.java")],
                         str(src / "ModCheatsTest.java")], check=True)
