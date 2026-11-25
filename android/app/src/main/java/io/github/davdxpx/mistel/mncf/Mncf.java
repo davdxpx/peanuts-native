@@ -52,7 +52,8 @@ public final class Mncf {
     }
 
     /**
-     * Reads and checks an .mncf file and its signature lines.
+     * Reads and checks an .mncf file and its signature lines, against the trusted keys and the
+     * keys of the file's signers (section 12).
      *
      * @param data the bytes of the file, at most {@link #MAX_FILE} of them
      * @param trust the keys the reader trusts, or null for none
@@ -66,9 +67,9 @@ public final class Mncf {
         byte[] copy = data.clone();
         String text = decode(copy);
         Map<String, Object> doc = parseToml(text, "toml");
-        SignatureResult signature = Signatures.check(copy, trust);
-        byte[] signed = Signatures.split(copy).signed;
         MncfFile.Parts parts = Schema.buildFile(doc);
+        SignatureResult signature = Signatures.check(copy, trust, parts.signers);
+        byte[] signed = Signatures.split(copy).signed;
         return new MncfFile(copy, signed, signature, parts);
     }
 

@@ -20,6 +20,10 @@ public final class MncfFile {
     private final List<String> authors;
     private final String about;
     private final String fileVersion;
+    private final String id;
+    private final List<byte[]> signers;
+    private final Update update;
+    private final List<Release> changes;
     private final String language;
     private final Map<String, Object> origin;
     private final List<String> required;
@@ -41,6 +45,10 @@ public final class MncfFile {
         List<String> authors = new ArrayList<>();
         String about;
         String fileVersion;
+        String id;
+        List<byte[]> signers = new ArrayList<>();
+        Update update;
+        List<Release> changes = new ArrayList<>();
         String language = "en";
         Map<String, Object> origin;
         List<String> required = new ArrayList<>();
@@ -65,6 +73,10 @@ public final class MncfFile {
         this.authors = Collections.unmodifiableList(new ArrayList<>(p.authors));
         this.about = p.about;
         this.fileVersion = p.fileVersion;
+        this.id = p.id;
+        this.signers = copies(p.signers);
+        this.update = p.update;
+        this.changes = Collections.unmodifiableList(new ArrayList<>(p.changes));
         this.language = p.language;
         this.origin = p.origin;
         this.required = Collections.unmodifiableList(new ArrayList<>(p.required));
@@ -79,6 +91,14 @@ public final class MncfFile {
         this.presets = Collections.unmodifiableList(new ArrayList<>(p.presets));
         this.i18n = p.i18n;
         this.warnings = Collections.unmodifiableList(new ArrayList<>(p.warnings));
+    }
+
+    static List<byte[]> copies(List<byte[]> keys) {
+        List<byte[]> out = new ArrayList<>();
+        for (byte[] k : keys) {
+            out.add(k.clone());
+        }
+        return out;
     }
 
     /** Returns a copy of the file's bytes. */
@@ -131,9 +151,35 @@ public final class MncfFile {
         return about;
     }
 
-    /** Returns the file's own version, or null. */
+    /**
+     * Returns the file's own version, or null. With [update] or [[changes]] it is a version of
+     * section 17.1, which {@link Updates#compare} compares.
+     */
     public String fileVersion() {
         return fileVersion;
+    }
+
+    /** Returns the identity of the file across all its versions (section 17.1), or null. */
+    public String id() {
+        return id;
+    }
+
+    /**
+     * Returns the 32-byte public keys of the file's signers key (section 12), in file order, as
+     * copies; empty when it has none or the key was ignored.
+     */
+    public List<byte[]> signers() {
+        return copies(signers);
+    }
+
+    /** Returns where the newest version of the file is ([update], section 17.3), or null. */
+    public Update update() {
+        return update;
+    }
+
+    /** Returns the change entries ([[changes]], section 17.1) that are valid, newest first. */
+    public List<Release> changes() {
+        return changes;
     }
 
     /** Returns the language of the file's texts; "en" when the file names none. */
@@ -196,7 +242,9 @@ public final class MncfFile {
 
     /**
      * Returns the warnings: unknown-key:&lt;key&gt; for a key outside a cheat that the format does
-     * not define, preset:&lt;id&gt; for a preset that was dropped, and i18n for a broken i18n table.
+     * not define, preset:&lt;id&gt; for a preset that was dropped, i18n for a broken i18n table,
+     * signers for a signers key that was ignored, and id, update, changes and
+     * changes:&lt;version or position&gt; for the keys of section 17.1 that were left out.
      */
     public List<String> warnings() {
         return warnings;
