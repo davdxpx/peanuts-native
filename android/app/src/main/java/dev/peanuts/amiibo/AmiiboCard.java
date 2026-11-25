@@ -20,7 +20,7 @@ import java.util.List;
 import dev.peanuts.ingame.Look;
 
 /**
- * The card over the game while it looks for an amiibo (the canvas boards 01 to 03), at the bottom of the screen the game runs on, in the in-game panel's
+ * The card over the game while it looks for an amiibo, at the bottom of the screen the game runs on, in the in-game panel's
  * look: one of the player's own amiibo that fits (or was the last placed in this game) with A Place and B Not now; several as a short row, the last placed
  * first, picked with left and right; none of the player's own: Choose an amiibo, which opens the quick menu's amiibo tab. It slides in and out calmly;
  * the keys come from AmiiboWatch while it shows. A tap works too: a tile picks, the buttons do what their keys do.

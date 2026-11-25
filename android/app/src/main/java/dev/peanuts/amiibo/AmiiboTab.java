@@ -34,7 +34,7 @@ import dev.peanuts.ingame.Look;
 import dev.peanuts.mods.ModsTab;
 
 /**
- * The quick menu's amiibo tab (the canvas boards 04 to 06; dev.nxnative.android.ModsPanel puts it between Mods and Controls for a game that uses amiibo):
+ * The quick menu's amiibo tab (dev.nxnative.android.ModsPanel puts it between Mods and Controls for a game that uses amiibo):
  * what the stand has (the game looking, an amiibo ready or on it), a search over every amiibo, the player's own that fit the game and every one that fits it,
  * and "When a game looks for an amiibo". A pick while the game looks places it at once with the show; otherwise it is ready for the game's next search.
  * X Take off in the header clears the stand. The rail lights this tab while the game looks (AmiiboWatch, InGamePanel).

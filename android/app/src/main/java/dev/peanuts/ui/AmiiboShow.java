@@ -18,7 +18,7 @@ import android.view.animation.LinearInterpolator;
 import android.widget.FrameLayout;
 
 /**
- * "Peanuts Native × amiibo" (about 2.3 s, the canvas board 11): an amiibo placed from the card or the quick menu's tab. The game dims softly (eased in over
+ * "Peanuts Native × amiibo" (about 2.3 s): an amiibo placed from the card or the quick menu's tab. The game dims softly (eased in over
  * DIM_IN, never at once) and a stand fades in and its banana ring pulses once; the app's own peanut (PeanutArt, the one of About and the shader screen) drops straight onto it; it lands with one firm
  * tick through the in-game haptics (MenuFeel's setting), its seam runs down and the halves open; the amiibo's picture rises out of the kernel's light (the
  * game gets the tag here: {@code atCrack}); then the amiibo stands on the ring with the line and its name for a good second (RISE_END to END), its base on
