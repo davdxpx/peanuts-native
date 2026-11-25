@@ -86,6 +86,13 @@ replaced (never read: the import goes through), in the update's RomFS header, in
 hash level, in its fs header, in an LZ4 base's stored bytes and in an add-on: each refused with the file and its role, no `.nup`. `nsp_test`, `ncz_test`,
 `xci_test` and `nup_meta_test` (whose NCA has no hash layers this reader knows) pass as before.
 
+Cost, on an AYN Thor (2026-11-25, `nximport_cli nup` from internal storage, each run after `sync` and a pause): Pokémon Legends: Z-A, the base (4.3 GB),
+update 2.0.2 (2.1 GB) and a DLC into a 6.03 GB `.nup` took 11.6 and 12.7 s with the check, 10.9 and 11.7 s without it (upstream main), about a second more.
+Both `.nup`s were the same byte for byte. Peak memory went from 261 to 281 MiB: the last hash level stays in memory (32 bytes per 16 KiB block). Without the
+`sync`, the write-back of the previous run's `.nup` made both swing between 13 and 24 s. `nximport_cli check` read the three files whole in 15 s, all good.
+The update with one byte changed in its middle: upstream main wrote a `.nup` from it in 15.3 s; this importer stopped with
+`…v2.0.2 (damaged copy).nsp: the update v393216 is damaged or incomplete: the bytes at 0x1627d8000 of its RomFS do not match their checksum`, no `.nup`.
+
 ## Java side (this is the class the JNI binds to)
 
 ```java

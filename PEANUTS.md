@@ -435,3 +435,5 @@ The script fetches, rebases `peanuts` onto the target, then checks that every `P
   card says so without Retry (`dev.peanuts.build.DamagedFile`, `FILE_DAMAGED`). A `.nup` imported before this check: the shader split's FlatBuffers readers
   check their offsets, and an index outside its file ends the split with "the game file is damaged" (`PrepareText` `CAUSE_DAMAGED`, no Retry). Tests:
   `dm/peanuts/import/tests/verify_test.c`, `peanuts/tests/test_damaged_game_files.py`, `PrepareTextJvmTest`. `peanuts/UPSTREAM-EDITS.md` Round 64.
+  On an AYN Thor (2026-11-25): Z-A base + 2.0.2 + DLC imports in about a second more (11.6/12.7 s against 10.9/11.7 s, the same `.nup`), and a copy of
+  2.0.2 with one byte changed stops with its name, where upstream main wrote a `.nup` from it. Numbers: `dm/peanuts/import/HOOKS.md`.
