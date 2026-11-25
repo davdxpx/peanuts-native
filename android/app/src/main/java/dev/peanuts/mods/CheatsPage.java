@@ -82,7 +82,7 @@ public final class CheatsPage {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.topMargin = PUi.dp(a, 12);
         box.addView(ui.section("Mods & Cheats"), lp);
-        View row = ui.setting("", "Mods & Cheats", summary(a, g), Feel.row(v -> { gameScroll = scrollY(a); open(a, g, CHEATS, again); }));
+        View row = ui.setting("", "Mods & Cheats", summary(a, g, again), Feel.row(v -> { gameScroll = scrollY(a); open(a, g, CHEATS, again); }));
         if (row instanceof LinearLayout && ((LinearLayout) row).getChildAt(0) instanceof TextView) Icons.tile((TextView) ((LinearLayout) row).getChildAt(0), "mods");
         box.addView(row);
         return box;
@@ -144,11 +144,11 @@ public final class CheatsPage {
         dev.peanuts.settings.ModsSection.listChanged = null;
     }
 
-    /** The tile of the area Mods &amp; Cheats: what the game has (as the Game tab's row said it), or what to do first */
-    public static CharSequence tileLine(Activity a, String titleId, String name, String gameDir, String packDir) {
+    /** The tile of the area Mods &amp; Cheats: what the game has (as the Game tab's row said it), or what to do first; again: the game's page built again */
+    public static CharSequence tileLine(Activity a, String titleId, String name, String gameDir, String packDir, Runnable again) {
         Game g = new Game(titleId, name, gameDir, packDir);
         dev.peanuts.settings.ModsSection.due(a, titleId, name, gameDir, packDir);   // a build with mods that is due starts as when the row showed
-        return summary(a, g);
+        return summary(a, g, again);
     }
 
     static void open(Activity a, Game g, String which, Runnable again) {
@@ -209,6 +209,7 @@ public final class CheatsPage {
         final List<CheatSources.Source> sources;
         final Set<String> on;
         final boolean appHas, appOn;
+        final boolean converting;   // earlier files of the game are being made .mncf (CheatsPage.convert): their sources show in progress
 
         Model(Context c, Game g) {
             this.g = g;
@@ -218,7 +219,8 @@ public final class CheatsPage {
             version = build == null ? null : CheatsBridge.version(g.titleId, build);
             textEnd = CheatsBridge.textEnd(g.packDir);
             CheatsBridge.wanted(c, g.titleId, CheatsBridge.master(c, g.titleId));   // the earlier state moved over once (the app's switch)
-            CheatsBridge.convert(c, g.titleId, g.name, g.packDir);   // upstream's imports and an earlier version's Atmosphère sources made .mncf, with the pack's main
+            // upstream's imports and an earlier version's Atmosphère sources are made .mncf off the UI thread (convert), once a run of the app
+            converting = CheatsBridge.unconverted(c, g.titleId) && (g.titleId.equals(CheatsPage.converting) || !tried.contains(g.titleId));
             merged = build == null ? null : CheatsBridge.merged(c, g.titleId, g.gameDir, g.packDir, build, textEnd, false);   // the kept ones (prepare makes the others)
             sources = CheatSources.list(folder);
             on = CheatsBridge.on(c, g.titleId);
@@ -252,9 +254,11 @@ public final class CheatsPage {
 
     static String count(int n, String one) { return n + " " + one + (n == 1 ? "" : "s"); }
 
-    private static CharSequence summary(Activity a, Game g) {
+    private static CharSequence summary(Activity a, Game g, Runnable again) {
         try {
             Model m = new Model(a, g);
+            convert(a, m, again);
+            if (m.converting) return "Making the cheats ready";
             int mods = modsCount(a, g);
             if (m.build == null) return "Build the game first: cheats are made for one build of it";
             int n = m.cheats(), on = m.onCount();
@@ -422,6 +426,32 @@ public final class CheatsPage {
     }
 
     private static String preparing;   // the title whose sources are being made ready for its build (off the UI thread)
+    private static String converting;   // the title whose earlier files are being made .mncf (off the UI thread)
+    private static final Set<String> tried = new java.util.HashSet<>();   // titles converted in this run of the app: a file that cannot be is tried again at the next run, not at once
+
+    /**
+     * A game's earlier files made .mncf (CheatsBridge.convert: upstream's imports, an earlier version's Atmosphère sources) off the UI thread: it reads the game's
+     * main and looks up every cheat's place, up to a minute for a large game, once after an update of the app. Meanwhile the row says so and the source shows in
+     * progress; then the page, or else the game's page (again), is built again
+     */
+    private static void convert(Activity a, Model m, Runnable again) {
+        if (!m.converting || converting != null) return;
+        Game g = m.g;
+        converting = g.titleId;
+        tried.add(g.titleId);
+        android.content.Context app = a.getApplicationContext();
+        new Thread(() -> {
+            try { CheatsBridge.convert(app, g.titleId, g.name, g.packDir); }
+            catch (RuntimeException e) { android.util.Log.w("peanuts", "cheats: earlier files of " + g.titleId + " not made .mncf: " + e); }
+            finally {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                    converting = null;
+                    if (openFor != null && openFor.titleId.equals(g.titleId)) rebuild();
+                    else if (again != null && !a.isFinishing() && !a.isDestroyed()) again.run();
+                });
+            }
+        }, "peanuts-cheats-convert").start();
+    }
 
     /** Sources not made ready for the build yet: made ready off the UI thread, then the page again (once a title at a time) */
     private static void prepare(Activity a, Model m) {
@@ -456,6 +486,7 @@ public final class CheatsPage {
         if (m.appHas) { CheatSources.Block b = m.block(CheatSources.APP); any |= source(a, content, m, b, null, b != null ? b.name : "Comes with the app"); }
         for (CheatSources.Source s : m.sources) any |= source(a, content, m, m.block(s.id), s, s.name);
         for (CheatSources.Block b : blocks) if (b.id.startsWith("mod:")) any |= source(a, content, m, b, null, b.name);
+        convert(a, m, null);
         prepare(a, m);
         if (!any) {
             LinearLayout card = PUi.add(content, PUi.listCard(a), 12);
@@ -472,6 +503,20 @@ public final class CheatsPage {
     private static boolean source(Activity a, LinearLayout content, Model m, CheatSources.Block b, CheatSources.Source s, String name) {
         boolean app = s == null && b != null && b.id.equals(CheatSources.APP), mod = b != null && b.id.startsWith("mod:");
         boolean enabled = s != null ? s.enabled : app ? m.appOn : true;
+        if (s != null && b == null && m.converting && CheatSources.unconverted(s)) {   // an earlier version's file being made .mncf (convert): in progress
+            LinearLayout card = PUi.add(content, PUi.listCard(a), 16);
+            PUi.Setting head = new PUi.Setting(a, "", name, null).value(PUi.joined("Cheats for " + m.versionWords(), shortBuild(m.build)));
+            rowLook(head.view, "folder");
+            head.view.addView(chip(a, enabled ? fromWords(s.from) : "Off", false), chipLp(a));
+            card.addView(head.view);
+            android.widget.ProgressBar bar = PUi.progress(a);
+            bar.setIndeterminate(true);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.setMargins(PUi.dp(a, 58), 0, PUi.dp(a, 12), PUi.dp(a, 6));
+            card.addView(bar, lp);
+            card.addView(cardLine(a, "Becoming a Mistel cheat file, once after this update of Peanuts. Its cheats show here when that is done."));
+            return true;
+        }
         Set<String> otherBuilds = new LinkedHashSet<>();
         if (s != null) for (String bid : s.builds()) if (!bid.equals(m.build)) otherBuilds.add(bid);
         if (b == null && otherBuilds.isEmpty()) return false;

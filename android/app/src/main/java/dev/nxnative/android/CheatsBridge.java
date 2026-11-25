@@ -116,12 +116,20 @@ public final class CheatsBridge {
         return new MncfConvert.Known(titleId, gameName, author, pack != null && dev.peanuts.mods.MncfMain.has(pack) ? build : null, versions, MncfConvert.of(pack));
     }
 
-    /** Upstream's imported files and an earlier version's Atmosphère sources made .mncf now (CheatSources.migrate, upgrade), with what the app knows of the game */
-    public static void convert(Context c, String titleId, String gameName, String packDir) {
+    /** Whether the game has files to make .mncf first: upstream's imported files, an earlier version's Atmosphère sources (convert does it) */
+    public static boolean unconverted(Context c, String titleId) {
         File folder = folder(c, titleId);
         boolean any = new File(folder, "imported").isDirectory();
         for (CheatSources.Source s : CheatSources.list(folder)) any |= CheatSources.unconverted(s);
-        if (any) migrate(folder, known(c, titleId, gameName, packDir));
+        return any;
+    }
+
+    /**
+     * Upstream's imported files and an earlier version's Atmosphère sources made .mncf now (CheatSources.migrate, upgrade), with what the app knows of the game.
+     * Never on the main thread: it reads the game's main and looks up every cheat's place in it, up to a minute for a large game (CheatsPage.convert)
+     */
+    public static void convert(Context c, String titleId, String gameName, String packDir) {
+        if (unconverted(c, titleId)) migrate(folder(c, titleId), known(c, titleId, gameName, packDir));
     }
 
     /** The game for the .mncf sources (MncfBuild.Game): its build that runs, that build's version, its pack (the game's own main) */

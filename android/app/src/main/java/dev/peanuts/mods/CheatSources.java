@@ -34,6 +34,9 @@ public final class CheatSources {
     private CheatSources() {}
 
     public static final String APP = ".app", STATE = "source.tsv", APP_STATE = ".app.tsv", MNCF = "cheats.mncf";
+
+    /** One conversion at a time: the page's (off the UI thread) and a start's write the same sources, so the second waits and finds them done */
+    private static final Object CONVERTING = new Object();
     public static final String FROM_ZIP = "zip", FROM_FILE = "file", FROM_FOLDER = "folder", FROM_EARLIER = "earlier", FROM_APP = "app", FROM_MOD = "mod";
 
     /** One source */
@@ -244,6 +247,10 @@ public final class CheatSources {
      * the merge meanwhile
      */
     public static int upgrade(File folder, MncfConvert.Known k) {
+        synchronized (CONVERTING) { return upgradeNow(folder, k); }
+    }
+
+    private static int upgradeNow(File folder, MncfConvert.Known k) {
         int n = 0;
         for (Source s : list(folder)) {
             Map<String, File> txt = s.txtFiles();
@@ -296,6 +303,10 @@ public final class CheatSources {
      * with what k knows), by their names' order, then removed. Returns the new sources (empty: nothing to move)
      */
     public static List<Source> migrate(File folder, long now, MncfConvert.Known k) throws IOException {
+        synchronized (CONVERTING) { return migrateNow(folder, now, k); }
+    }
+
+    private static List<Source> migrateNow(File folder, long now, MncfConvert.Known k) throws IOException {
         List<Source> out = new ArrayList<>();
         File[] l = new File(folder, "imported").listFiles((d, n) -> n.toLowerCase(Locale.ROOT).endsWith(".txt"));
         if (l == null) return out;
