@@ -4,7 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 /**
- * Smoother next start (experimental; the quick menu's Peanuts tab, the canvas page "In-game menus", board "Peanuts-Tab"): while a game runs, Peanuts counts
+ * Smoother next start (experimental; a switch per game in the quick menu's Peanuts tab): while a game runs, Peanuts counts
  * its stutters and learns the shaders the host had to build during play, so that the next start's shader preparation builds them before play begins and the
  * same hitch does not come twice.
  * <p>
