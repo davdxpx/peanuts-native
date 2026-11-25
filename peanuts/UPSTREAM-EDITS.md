@@ -2821,3 +2821,29 @@ Peanuts-owned: Mistel's MIT library for `.mncf` under `android/app/src/main/java
 allow-list: both were flagged since Part C. Tests: `peanuts/tests/test_cheat_loader.py` (`CheatLoaderJvmTest`: conversion, a pack's main, the build
 made ready and kept, another build by its patterns, a rewritten place, the number field, relations, export, packs, the facts of a file),
 `peanuts/tests/test_mod_cheats.py`, `peanuts/tests/test_mncf_vendor.py` (the copy unchanged, its MIT notice).
+
+### New versions of a cheat file: found at the author's address, installed with one tap, nothing the player set lost (2026-11-25, on Cheats as .mncf)
+
+A cheat file that names the address of its newest version (`[update]`, Mistel's spec, section 17) can bring the player the version its author
+made for a game update. Peanuts asks once per file and host whether it may look there on its own (at most once a day, and when a game update stops
+the file's cheats); without a yes it looks only when the player taps Check for updates. The request is the spec's: the address as written, the
+User-Agent `mncf-update/1`, no cookies, no cache, nothing about the player, https and at most five https redirects, never an address of the device or
+its network (`dev.peanuts.mods.CheatUpdates.Https`). A new version is taken only as Mistel's `Updates.check` says (the same game and id, a higher
+version, the same signer) and kept beside the source until the player installs it from the update screen, which shows the notes since their version,
+the cheats it brings and fixed, the numbers that no longer fit and the cheats that are gone. The version it replaces stays, for Back to version N.
+Everything the player set moves by cheat id, following the file's renames (`Updates.carry`): the merged file names cheats by their names, so the state
+waits in the source's `carry.tsv` until the new file is in the merge. A file the player adds by hand that has the id of one they have opens the same
+screen; a pack's files get new versions with their pack, kept under `<cheats folder>/packs/`. Peanuts only ever follows the address the author put
+into a file the player chose; it offers no cheats of its own.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `android/app/src/main/java/dev/nxnative/android/GameActivity.java` | 1 (Part C's block) | `cheatsEnv` keeps the toggles when a new version moved one without changing their count | inside Part C's `PEANUTS begin/end` |
+| `android/app/src/main/java/dev/nxnative/android/ModCheats.java` | (Peanuts' own) | `install` puts a new version's kept state under its cheats' names (`CheatUpdates.applyPending`) and clears the New and Fixed marks | allow-listed in `peanuts/upstream-unmarked.txt` |
+| `android/app/src/main/java/dev/nxnative/android/CheatsBridge.java` | (Peanuts' own) | `merged` does the same for the page | Peanuts' own file |
+
+Peanuts-owned: `dev.peanuts.mods.CheatUpdates` (no Android classes) and `CheatUpdatesUi`, and the update parts of `CheatsPage` (the card's line,
+the sheet's Versions rows, the New and Fixed marks), `CheatImportUi` (the question after adding, a file or pack of an id the player has), `CheatPick`
+and `CheatImport` (a pack's bytes kept), `MncfBuild` (a refused cheat without a name read keeps its id as its name, which crashed the page),
+`MncfExport` (`atmosphere:too-big`, which Mistel's converter gives itself since davdxpx/mistel#17). Tests: `peanuts/tests/test_cheat_loader.py`
+(`CheatLoaderJvmTest.updates`, `packUpdates`), `peanuts/tests/test_mod_cheats.py`.

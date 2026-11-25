@@ -457,10 +457,11 @@ public final class CheatsPage {
         for (CheatSources.Source s : m.sources) any |= source(a, content, m, m.block(s.id), s, s.name);
         for (CheatSources.Block b : blocks) if (b.id.startsWith("mod:")) any |= source(a, content, m, b, null, b.name);
         prepare(a, m);
+        CheatUpdatesUi.auto(a, m);   // new versions of the files whose player allowed it: once a day, or now when a game update stopped their cheats
         if (!any) {
             LinearLayout card = PUi.add(content, PUi.listCard(a), 12);
             PUi.Setting none = new PUi.Setting(a, "", "No cheats yet", Feel.row(v -> CheatImportUi.add(a, g.titleId)))
-                    .value("Add a Mistel cheat file (.mncf), or a zip, a text file or a folder with cheats for " + m.versionWords() + " (build " + shortBuild(m.build) + "). Peanuts never downloads any.");
+                    .value("Add a Mistel cheat file (.mncf), or a zip, a text file or a folder with cheats for " + m.versionWords() + " (build " + shortBuild(m.build) + "). Peanuts never offers any of its own.");
             rowLook(none.view, "folder");
             explainOnFocus(none.view, () -> BottomScreen.explain(a, null));
             card.addView(none.view);
@@ -492,6 +493,7 @@ public final class CheatsPage {
         card.addView(head.view);
         MncfBuild.Ready ready = b == null ? null : b.parsed.mncf;
         if (ready != null && ready.verified()) card.addView(cardLine(a, "Signed by " + ready.signer + ": its file is as they made it."));
+        if (s != null) CheatUpdatesUi.cardLine(a, card, m, b, s);   // a new version ready, or a game update stopped its cheats (Mistel's spec, section 17)
         if (b != null && b.pending) { card.addView(cardLine(a, "Looking up its cheats in " + m.versionWords() + ".")); return true; }
         if (b != null && b.error != null) { card.addView(cardLine(a, "Its file cannot be read: it is damaged or of a newer kind. Remove it, or add a newer copy.")); return true; }
         if (p != null && !p.credits.isEmpty()) card.addView(cardLine(a, "Credit: " + CheatFile.credit(p)));
@@ -550,6 +552,7 @@ public final class CheatsPage {
         LinearLayout chips = PUi.row(a);
         chips.setPadding(0, PUi.dp(a, 4), 0, 0);
         chips(a, chips, c);
+        marks(a, chips, m, b, c);
         col.addView(chips);
         row.addView(col, PUi.weight());
         Switch sw = new Switch(a);
@@ -587,6 +590,16 @@ public final class CheatsPage {
         if (c.mncf != null && c.reason() == null) for (String t : c.mncf.tags) {
             String w = t.equals("may_crash") ? "May crash the game" : t.equals("touches_save") ? "Changes your save" : null;
             if (w != null) { LinearLayout.LayoutParams lp = PUi.wrap(); lp.leftMargin = PUi.dp(a, 6); chips.addView(chip(a, w, false), lp); }
+        }
+    }
+
+    /** New or Fixed in front of a cheat's chips: what the last new version of its file brought, until the next start (CheatUpdates.marks) */
+    private static void marks(Context a, LinearLayout chips, Model m, CheatSources.Block b, CheatFile.Cheat c) {
+        if (c.mncf == null) return;
+        for (CheatSources.Source s : m.sources) {
+            if (!s.id.equals(b.id)) continue;
+            String mark = CheatUpdates.marks(s, false).contains(c.mncf.id) ? "New" : CheatUpdates.marks(s, true).contains(c.mncf.id) ? "Fixed" : null;
+            if (mark != null) { LinearLayout.LayoutParams lp = PUi.wrap(); lp.rightMargin = PUi.dp(a, 6); chips.addView(chip(a, mark, true), 0, lp); }
         }
     }
 
@@ -642,6 +655,8 @@ public final class CheatsPage {
             Object site = origin == null ? null : origin.get("site"), orig = origin == null ? null : origin.get("name");
             if (orig != null || site != null) PUi.add(box, PUi.small(a, "Added from " + (orig != null ? orig : site) + (orig != null && site != null ? ", from " + site : "") + "."), 8);
         }
+        AlertDialog[] shown = new AlertDialog[1];
+        if (s != null) CheatUpdatesUi.sheet(a, m, s, box, shown);   // Check for updates, Look on its own, Back to version N
         AlertDialog.Builder d = PUi.sheet(a, name, box).setNegativeButton("Close", null);
         d.setPositiveButton(on ? "Turn off" : "Turn on", Feel.confirm((x, w) -> {
             try {
@@ -655,6 +670,7 @@ public final class CheatsPage {
         }));
         if (s != null) d.setNeutralButton("Remove", (x, w) -> confirmRemove(a, m, s, p == null ? 0 : p.switchable()));
         AlertDialog ad = d.create();
+        shown[0] = ad;
         Feel.dialog(ad);
         ad.show();
     }
@@ -689,7 +705,7 @@ public final class CheatsPage {
     // ---- Views ----
 
     /** A row of PUi.Setting in the game page's measures (SettingsPage.likeUpstream's: a 36 dp tile, 52 dp high, a 15 sp title, the value whole) */
-    private static void rowLook(LinearLayout r, String icon) {
+    static void rowLook(LinearLayout r, String icon) {
         Context c = r.getContext();
         View tile = r.getChildAt(0);
         ViewGroup.LayoutParams lp = tile.getLayoutParams();
@@ -724,7 +740,7 @@ public final class CheatsPage {
         return lp;
     }
 
-    private static TextView cardLine(Context c, CharSequence s) {
+    static TextView cardLine(Context c, CharSequence s) {
         TextView t = PUi.small(c, s);
         t.setPadding(PUi.dp(c, 58), 0, PUi.dp(c, 12), PUi.dp(c, 8));
         return t;

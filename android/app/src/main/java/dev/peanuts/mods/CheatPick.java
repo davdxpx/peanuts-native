@@ -53,6 +53,7 @@ public final class CheatPick {
             try {
                 List<String> paths = new ArrayList<>();
                 List<CheatImport.In> in;
+                byte[] pack = null;   // an .mncp's bytes: kept with its files for its new versions
                 if (folder) {
                     String path = path("treeToPath", u);
                     if (path == null || !new File(path).isDirectory()) throw new IOException("That folder is not on the phone's storage (a cloud provider, say). Pick one on the phone or its SD card.");
@@ -70,6 +71,7 @@ public final class CheatPick {
                         List<String> broken = new ArrayList<>();
                         paths = new ArrayList<>();
                         in = CheatImport.fromPack(b, paths, broken);
+                        pack = b;
                         if (!broken.isEmpty()) android.util.Log.w("peanuts", "cheats: the pack's files left out: " + broken);
                     }
                 } else {
@@ -84,6 +86,7 @@ public final class CheatPick {
                     paths.add(n);
                 }
                 r.found = CheatImport.read(in, paths, titleId, builds, r.name);
+                r.found.packData = pack;
             } catch (IOException | RuntimeException e) {
                 r.error = e instanceof IOException && e.getMessage() != null && e.getMessage().endsWith(".") ? e.getMessage() : "It could not be read. Nothing was added.";
                 android.util.Log.w("peanuts", "cheats: reading a pick: " + e);

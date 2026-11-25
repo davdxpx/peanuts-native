@@ -80,6 +80,7 @@ public final class CheatImport {
         public final List<String> noBuild = new ArrayList<>();   // cheat files that name no build (their paths)
         public final List<MncfHit> mncf = new ArrayList<>(), mncfOtherGame = new ArrayList<>(), mncfBroken = new ArrayList<>();   // .mncf files: the game's, another game's, unreadable ones
         public boolean pack;                                      // a pick with pack.toml at its root: an .mncp, read again whole (fromPack)
+        public byte[] packData;                                   // its bytes, kept when its manifest has an id, for its new versions (CheatUpdates.keep)
         public boolean mod;                                       // romfs or exefs folders in it: a mod
         public String name;                                       // the source's name
 

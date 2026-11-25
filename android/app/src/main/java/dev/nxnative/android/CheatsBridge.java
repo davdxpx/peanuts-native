@@ -162,7 +162,11 @@ public final class CheatsBridge {
     public static CheatSources.Merged merged(Context c, String titleId, String gameDir, String packDir, String build, long textEnd, boolean make) {
         String app = appText(packDir, build);
         List<ModCheats.ModFile> mods = ModCheats.of(modDirs(gameDir, titleId, packDir), build, null);
-        return CheatSources.merge(ModCheats.blocks(app == null ? "" : app, folder(c, titleId), game(titleId, build, packDir), mods, textEnd, make));
+        CheatSources.Merged m = CheatSources.merge(ModCheats.blocks(app == null ? "" : app, folder(c, titleId), game(titleId, build, packDir), mods, textEnd, make));
+        // What the player set for a file that got a new version, kept by cheat id, under the cheats' names once the new file is in the merge (CheatUpdates)
+        Set<String> on = Prefs.cheatsOn(c, titleId);
+        if (dev.peanuts.mods.CheatUpdates.applyPending(folder(c, titleId), m, on)) Prefs.cheatsOn(c, titleId, on);
+        return m;
     }
 
     /** Every source of the game made ready for the build (off the main thread): what a page shows as pending is listed once this is done */

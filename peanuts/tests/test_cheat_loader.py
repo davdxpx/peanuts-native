@@ -17,7 +17,8 @@ MODS = APP / 'main/java/dev/peanuts/mods'
 LAUNCHER = APP / 'main/java/dev/nxnative/android'
 TEST = APP / 'jvmtest/java/dev/peanuts/mods/CheatLoaderJvmTest.java'
 CORE = [MODS / 'CheatFile.java', MODS / 'CheatImport.java', MODS / 'CheatSources.java', MODS / 'CheatStatus.java', MODS / 'CheatValues.java',
-        MODS / 'MncfBuild.java', MODS / 'MncfConvert.java', MODS / 'MncfExport.java', MODS / 'MncfFacts.java', MODS / 'MncfMain.java', MODS / 'MncfWords.java']
+        MODS / 'MncfBuild.java', MODS / 'MncfConvert.java', MODS / 'MncfExport.java', MODS / 'MncfFacts.java', MODS / 'MncfMain.java', MODS / 'MncfWords.java',
+        MODS / 'CheatUpdates.java']
 MISTEL = APP / 'main/java/io/github/davdxpx/mistel'   # Mistel's MIT library for .mncf, copied unchanged (test_mncf_vendor.py)
 
 
@@ -25,7 +26,7 @@ def compile_mistel(out):
     """Mistel's library into out (its own code: its warnings are Mistel's to fix, so not -Werror here)"""
     subprocess.run(['javac', '-nowarn', '-encoding', 'UTF-8', '-d', str(out), *map(str, sorted(MISTEL.rglob('*.java')))], check=True, capture_output=True, text=True)
 UI_FILES = [MODS / 'CheatPick.java', LAUNCHER / 'CheatsBridge.java', MODS / 'CheatsPage.java', MODS / 'CheatImportUi.java',
-            MODS / 'ModsTab.java', LAUNCHER / 'ModsPanel.java']   # the words the player reads
+            MODS / 'ModsTab.java', LAUNCHER / 'ModsPanel.java', MODS / 'CheatUpdatesUi.java']   # the words the player reads
 
 
 @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'needs a JDK')

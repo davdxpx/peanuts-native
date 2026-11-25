@@ -149,6 +149,9 @@ final class ModCheats {
         List<CheatSources.Block> blocks = blocks(s, folder, g, mods, -1, true);
         if (notes != null) for (CheatSources.Block b : blocks) if (b.error != null) notes.add("the cheat file of " + b.name + " cannot be used (" + b.error + ")");
         CheatSources.Merged m = CheatSources.merge(blocks, dev.peanuts.mods.CheatValues.read(folder));   // with the numbers set in the game's Mods tab
+        // what the player set for a file that got a new version, by cheat id, under its cheats' names now (CheatUpdates); the new and fixed marks are seen
+        if (dev.peanuts.mods.CheatUpdates.applyPending(folder, m, on)) m = CheatSources.merge(blocks, dev.peanuts.mods.CheatValues.read(folder));
+        dev.peanuts.mods.CheatUpdates.seen(folder);
         legacyKeys(on, moved, m);
         if (!folder.isDirectory() && !folder.mkdirs()) throw new IOException("cannot create " + folder);
         File[] old = folder.listFiles((d, n) -> n.endsWith(".txt") || n.endsWith(".enabled"));

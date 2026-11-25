@@ -110,6 +110,8 @@ public final class CheatLoaderJvmTest {
         status();
         values(new File(root, "values-case"));
         mncf(new File(root, "mncf-case"));
+        updates(new File(root, "updates-case"));
+        packUpdates(new File(root, "pack-updates-case"));
         if (a.length > 1 && !a[1].isEmpty()) real(new File(a[1]));
         System.out.println("ok");
     }
@@ -585,6 +587,228 @@ public final class CheatLoaderJvmTest {
             "  expect = \"DE AD BE EF\"",
             "  bytes = \"00 00 00 00\"",
             "");
+
+    // ---- New versions of a file (CheatUpdates; Mistel's spec, section 17), with made-up files only ----
+
+    /** Version n of a made-up file: what changes between 1, 2 and 3 is said in each */
+    static String version(int n) {
+        List<String> l = new ArrayList<>(List.of(
+                "format = \"mncf/1\"",
+                "name = \"Versions\"",
+                "id = \"example.org/someone/versions\"",
+                "file_version = \"" + n + "\"",
+                "extensions = { optional = [\"arm64-imm/1\"] }",
+                "",
+                "[update]",
+                "url = \"https://example.org/someone/versions.mncf\""));
+        if (n >= 2) l.addAll(List.of("", "[[changes]]", "version = \"2\"", "date = \"2026-12-02\"", "text = \"Fits the new game version.\"",
+                "added = [\"extra\"]", "fixed = [\"coins\"]", "removed = [\"other\"]", "renamed = { count = \"amount\" }"));
+        if (n >= 3) l.addAll(List.of("", "[[changes]]", "version = \"3\"", "text = \"Tidier names.\""));
+        if (n >= 2) l.addAll(List.of("", "[i18n.de.changes.\"2\"]", "text = \"Passt zur neuen Spielversion.\""));
+        l.addAll(List.of("", "[game]", "platform = \"switch\"", "id = \"" + TID + "\"",
+                "", "[[cheat]]", "id = \"coins\"", "name = \"Coins by pattern\"",
+                "", "  [[cheat.patch]]", "  at = { module = \"main\", find = \"08 40 00 B9 23 01 00 94\" }", "  expect = \"08 40 00 B9\"", "  bytes = \"09 40 00 B9\"",
+                "", "[[cheat]]", "id = \"" + (n >= 2 ? "amount" : "count") + "\"", "name = \"" + (n >= 2 ? "An amount" : "A count") + "\"",
+                "", "  [cheat.values.n]", "  type = \"u16\"", "  min = 1", "  max = " + (n >= 2 ? 200 : 500), "  default = 5",
+                "", "  [[cheat.patch]]", "  at = { module = \"main\", find = \"00 00 80 52 00 00 80 52\" }", "  expect = \"00 00 80 52\"",
+                "  encode = { insn = \"movz\", width = 32, rd = 0, value = \"$n\" }"));
+        if (n == 1) l.addAll(List.of("", "[[cheat]]", "id = \"other\"", "name = \"The other one\"",
+                "", "  [[cheat.write]]", "  at = { region = \"heap\", offset = 0x100 }", "  type = \"u32\"", "  value = 1"));
+        else l.addAll(List.of("", "[[cheat]]", "id = \"extra\"", "name = \"Extra\"", "default = true",
+                "", "  [[cheat.write]]", "  at = { region = \"heap\", offset = 0x200 }", "  type = \"u32\"", "  value = 2"));
+        return String.join("\n", l) + "\n";
+    }
+
+    /** A stand-in for the address: the bytes it answers with, and what was asked */
+    static final class Answer implements CheatUpdates.Http {
+        byte[] data;
+        final List<String> asked = new ArrayList<>();
+        Answer(byte[] data) { this.data = data; }
+        @Override public byte[] get(String url, int max) throws java.io.IOException {
+            asked.add(url);
+            if (data == null) throw new java.io.IOException("no answer");
+            return data;
+        }
+    }
+
+    static void updates(File root) throws Exception {
+        File pk = pack(new File(root, "pack"), B, 0), folder = new File(root, "folder");
+        CheatSources.Source s = CheatSources.addMncf(folder, "versions", CheatSources.FROM_FILE, u(version(1)), 1);
+        MncfBuild.Game g = game(B, pk);
+
+        // The question once per file and host; looks on its own only after a yes, once a day
+        check("example.org".equals(CheatUpdates.host(s)) && CheatUpdates.allowed(s) == null, "the host, not asked yet");
+        check(!CheatUpdates.due(s, 10 * CheatUpdates.DAY, false), "not asked: no look on its own");
+        CheatUpdates.allowed(s, true);
+        check(Boolean.TRUE.equals(CheatUpdates.allowed(s)) && CheatUpdates.due(s, 10 * CheatUpdates.DAY, false), "allowed: due");
+
+        // What the player set on version 1: coins and the other one on, the count's number 300
+        CheatSources.Merged m1 = CheatSources.merge(CheatSources.blocks(folder, null, true, g, 0x8000, true));
+        Set<String> on = new java.util.LinkedHashSet<>(List.of("Coins by pattern", "The other one"));
+        CheatFile.Cheat count = null;
+        for (CheatSources.Row r : m1.rows) if (r.key.equals("A count")) count = r.cheat;
+        check(count != null, "the count is in the merge");
+        CheatValues.keep(folder, "A count", count, 300);
+
+        // The same version at the address: nothing to install; version 2: kept as the offer, not installed
+        Answer at = new Answer(u(version(1)));
+        CheatUpdates.Look same = CheatUpdates.look(s, at, 10 * CheatUpdates.DAY);
+        check(same.reason.equals("same") && at.asked.equals(List.of("https://example.org/someone/versions.mncf")), "the same version: " + same.reason);
+        check(!CheatUpdates.due(s, 10 * CheatUpdates.DAY + 1000, false) && CheatUpdates.due(s, 11 * CheatUpdates.DAY, false), "the look noted: once a day");
+        at.data = u(version(2));
+        CheatUpdates.Look found = CheatUpdates.look(s, at, 11 * CheatUpdates.DAY);
+        check(found.found() && "2".equals(found.version) && CheatUpdates.offered(s) != null, "version 2 found and kept as the offer: " + found.reason);
+        check(java.util.Arrays.equals(Files.readAllBytes(s.file().toPath()), u(version(1))), "nothing installed without the player");
+        at.data = null;
+        check(CheatUpdates.look(s, at, 12 * CheatUpdates.DAY).reason.equals("unreachable"), "no answer: unreachable");
+
+        // What the update screen shows
+        CheatUpdates.Offer o = CheatUpdates.offer(s, u(version(2)), m1, on, CheatValues.read(folder), B);
+        check(o.newer() && o.since.size() == 1 && o.since.get(0).version().equals("2") && "example.org".equals(o.host), "a newer version from example.org");
+        check(o.added.equals(List.of("Extra")) && o.fixed.equals(List.of("Coins by pattern")), "its marks: " + o.added + " " + o.fixed);
+        check(o.reset.equals(List.of("An amount")) && o.gone.equals(List.of("The other one")), "300 no longer fits, the other one is gone: " + o.reset + " " + o.gone);
+        check(CheatUpdates.text(o.next, o.since.get(0), java.util.Locale.GERMANY).equals("Passt zur neuen Spielversion.")
+                && CheatUpdates.text(o.next, o.since.get(0), java.util.Locale.UK).equals("Fits the new game version."), "the notes in the player's language");
+
+        // Installed: the old file kept, the old names out, what the player set by id until the new file is in the merge
+        CheatUpdates.Done d = CheatUpdates.install(folder, s, u(version(2)), m1, on);
+        check(d.version.equals("2") && d.reset.equals(List.of("An amount")) && d.gone.equals(List.of("The other one")), "installed");
+        check(on.isEmpty() && CheatValues.read(folder).isEmpty(), "the old names are out: " + on + " " + CheatValues.read(folder).keySet());
+        check(new File(s.dir, CheatUpdates.PREVIOUS).isFile() && new File(s.dir, CheatUpdates.CARRY).isFile() && CheatUpdates.offered(s) == null, "the files");
+        check(CheatUpdates.marks(s, false).equals(Set.of("extra")) && CheatUpdates.marks(s, true).equals(Set.of("coins")), "the marks");
+        check(Boolean.TRUE.equals(CheatUpdates.allowed(s)), "the same host: the answer stays");
+        CheatSources.Merged m2 = CheatSources.merge(CheatSources.blocks(folder, null, true, g, 0x8000, true));
+        check(CheatUpdates.applyPending(folder, m2, on), "put in place");
+        check(on.equals(Set.of("Coins by pattern", "Extra")) && CheatValues.read(folder).isEmpty() && !new File(s.dir, CheatUpdates.CARRY).isFile(),
+                "coins stays on, the new cheat is on as its file says, the number went back to the file's own: " + on + " " + CheatValues.read(folder).keySet());
+        check(!CheatUpdates.applyPending(folder, m2, on), "once");
+        CheatUpdates.seen(folder);
+        check(CheatUpdates.marks(s, false).isEmpty() && CheatUpdates.marks(s, true).isEmpty(), "the marks seen at the start");
+
+        // A number that fits moves with a renamed cheat
+        CheatFile.Cheat amount = null;
+        for (CheatSources.Row r : m2.rows) if (r.key.equals("An amount")) amount = r.cheat;
+        CheatValues.keep(folder, "An amount", amount, 150);
+        CheatUpdates.Done d3 = CheatUpdates.install(folder, s, u(version(3)), m2, on);
+        CheatUpdates.applyPending(folder, CheatSources.merge(CheatSources.blocks(folder, null, true, g, 0x8000, true)), on);
+        check(d3.reset.isEmpty() && CheatValues.read(folder).get("an amount").number == 150 && on.equals(Set.of("Coins by pattern", "Extra")), "150 stays: " + CheatValues.read(folder).keySet());
+
+        // Back to version 2: what the player set moves back, version 3 is not offered again, version 4 would be
+        CheatSources.Merged m3 = CheatSources.merge(CheatSources.blocks(folder, null, true, g, 0x8000, true));
+        on.remove("Extra");
+        CheatUpdates.Done b = CheatUpdates.back(folder, s, m3, on);
+        CheatUpdates.applyPending(folder, CheatSources.merge(CheatSources.blocks(folder, null, true, g, 0x8000, true)), on);
+        check(b.version.equals("2") && on.equals(Set.of("Coins by pattern")) && CheatValues.read(folder).get("an amount").number == 150 && CheatUpdates.previous(s) == null,
+                "back at 2: " + on + " " + CheatValues.read(folder).keySet());
+        check(CheatUpdates.look(s, new Answer(u(version(3))), 20 * CheatUpdates.DAY).reason.equals("left"), "the version left is not offered again");
+        check(CheatUpdates.look(s, new Answer(u(version(3).replace("file_version = \"3\"", "file_version = \"4\""))), 21 * CheatUpdates.DAY).found(), "a later one is");
+        check(CheatUpdates.look(s, new Answer(u(version(1))), 22 * CheatUpdates.DAY).reason.equals("older"), "an older one never replaces it");
+        check(CheatUpdates.look(s, new Answer(u(version(4).replace("example.org/someone/versions", "example.org/someone/other"))), 23 * CheatUpdates.DAY).reason.equals("update:id"),
+                "another file at the address is not taken");
+
+        // A file the player adds by hand that has the id: a version of this one; another host is asked about again
+        check(CheatUpdates.versionOf(folder, io.github.davdxpx.mistel.mncf.Mncf.load(u(version(1)))).id.equals(s.id), "the same id and game");
+        check(CheatUpdates.versionOf(folder, io.github.davdxpx.mistel.mncf.Mncf.load(u(HAND))) == null, "no id: a file of its own");
+        String moved = version(4).replace("https://example.org/someone/versions.mncf", "https://example.net/versions.mncf");
+        CheatUpdates.install(folder, s, u(moved), CheatSources.merge(CheatSources.blocks(folder, null, true, g, 0x8000, true)), on);
+        check(CheatUpdates.allowed(s) == null && "example.net".equals(CheatUpdates.host(s)), "a new host: asked again");
+
+        // When a game update stops the cheats: the moment to look
+        File po = pack(new File(root, "pack-other"), OTHER, 0x3000);
+        byte[] changed = Files.readAllBytes(new File(po, "main.patched.bin").toPath());
+        put(changed, 0x3000 + 0x1000, 0xB9004108L);   // the game update changed the code the coins cheat expects
+        Files.write(new File(po, "main.patched.bin").toPath(), changed);
+        CheatSources.Block stuckBlock = CheatSources.blocks(folder, null, true, game(OTHER, po), 0x8000, true).get(0);
+        check(CheatUpdates.stuck(stuckBlock, OTHER), "its pattern not found in the new build");
+        check(!CheatUpdates.stuck(CheatSources.blocks(folder, null, true, g, 0x8000, true).get(0), B), "found: not stuck");
+        check(CheatUpdates.due(s, 0, true) == false, "not allowed for the new host: no look on its own, the card offers one");
+
+        // What the player set for a cheat that cannot work in this build waits for a build where it can
+        on.clear();
+        on.add("Coins by pattern");
+        CheatSources.Merged before = CheatSources.merge(CheatSources.blocks(folder, null, true, g, 0x8000, true));
+        CheatUpdates.install(folder, s, u(version(4).replace("file_version = \"4\"", "file_version = \"5\"")), before, on);
+        MncfBuild.Game other = game(OTHER, po);
+        CheatUpdates.applyPending(folder, CheatSources.merge(CheatSources.blocks(folder, null, true, other, 0x8000, true)), on);
+        check(!on.contains("Coins by pattern") && new File(s.dir, CheatUpdates.CARRY).isFile(), "kept while the build cannot run it: " + on);
+        CheatUpdates.applyPending(folder, CheatSources.merge(CheatSources.blocks(folder, null, true, g, 0x8000, true)), on);
+        check(on.contains("Coins by pattern") && !new File(s.dir, CheatUpdates.CARRY).isFile(), "on again in a build that can: " + on);
+
+        // A cheat refused for a key the reader does not know before its name is read: listed by its id (it was a crash of the page)
+        File odd = new File(root, "odd");
+        CheatSources.addMncf(odd, "odd", CheatSources.FROM_FILE, u(HAND.replace("id = \"coins\"", "id = \"coins\"\nx-colour = 1")), 1);
+        CheatSources.Block ob = CheatSources.blocks(odd, null, true, g, 0x8000, true).get(0);
+        check(ob.parsed.cheats.get(0).name.equals("Coins by pattern") || ob.parsed.cheats.get(0).name.equals("coins"), "a refused cheat keeps a name: " + ob.parsed.cheats.get(0).name);
+
+        // The request: https only, never to this device or its network
+        for (String bad : new String[] {"http://example.org/x.mncf", "https://localhost/x.mncf", "https://127.0.0.1/x.mncf"}) {
+            boolean refused = false;
+            try { new CheatUpdates.Https().get(bad, 1000); } catch (java.io.IOException e) { refused = true; }
+            check(refused, "refused: " + bad);
+        }
+    }
+
+    /** A made-up pack: its manifest (version v, with an entry when v is 2) and its files, path to text */
+    static byte[] mncp(int v, Map<String, String> files) throws Exception {
+        StringBuilder m = new StringBuilder("format = \"mncf-pack/1\"\nname = \"Example pack\"\nid = \"example.org/someone/pack\"\nfile_version = \"" + v + "\"\n\n"
+                + "[update]\nurl = \"https://example.org/someone/pack.mncp\"\n");
+        if (v == 2) m.append("\n[[changes]]\nversion = \"2\"\ntext = \"B has a new place, C is gone, D is new.\"\nrenamed = { \"old/b.mncf\" = \"b.mncf\" }\n");
+        for (Map.Entry<String, String> e : files.entrySet()) m.append("\n[[file]]\npath = \"").append(e.getKey()).append("\"\nsha256 = \"").append(MncfBuild.sha256(u(e.getValue()))).append("\"\n");
+        java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream();
+        try (java.util.zip.ZipOutputStream z = new java.util.zip.ZipOutputStream(o)) {
+            z.putNextEntry(new java.util.zip.ZipEntry("pack.toml"));
+            z.write(u(m.toString()));
+            for (Map.Entry<String, String> e : files.entrySet()) { z.putNextEntry(new java.util.zip.ZipEntry(e.getKey())); z.write(u(e.getValue())); }
+        }
+        return o.toByteArray();
+    }
+
+    /** A pack's file: name n, a write cheat w (on by default when on), an id when named */
+    static String packFile(String n, String id, String w, boolean on) {
+        return "format = \"mncf/1\"\nname = \"" + n + "\"\n" + (id == null ? "" : "id = \"example.org/someone/" + id + "\"\n")
+                + "\n[game]\nplatform = \"switch\"\nid = \"" + TID + "\"\n\n[[cheat]]\nid = \"" + w + "\"\nname = \"Cheat " + n + "\"\n" + (on ? "default = true\n" : "")
+                + "\n  [[cheat.write]]\n  at = { region = \"heap\", offset = 0x10 }\n  type = \"u8\"\n  value = 1\n";
+    }
+
+    static void packUpdates(File root) throws Exception {
+        File pk = pack(new File(root, "pack"), B, 0), folder = new File(root, "folder");
+        MncfBuild.Game g = game(B, pk);
+        Map<String, String> v1 = new LinkedHashMap<>();
+        v1.put("a.mncf", packFile("A", "a", "wa", false));
+        v1.put("old/b.mncf", packFile("B", null, "wb", false));
+        v1.put("c.mncf", packFile("C", "c", "wc", false));
+        byte[] p1 = mncp(1, v1);
+        // added as the pick adds it: a source per file, the pack kept
+        String key = CheatUpdates.keep(folder, p1);
+        check(key != null && key.equals("example.org_someone_pack"), "kept by its id: " + key);
+        long t = 1;
+        for (Map.Entry<String, String> e : v1.entrySet()) CheatUpdates.fromPack(CheatSources.addMncf(folder, CheatUpdates.nameOf(e.getKey()), CheatSources.FROM_ZIP, u(e.getValue()), t++), key, e.getKey());
+        List<CheatSources.Source> of = CheatUpdates.sourcesOf(folder, key);
+        check(of.size() == 3 && CheatUpdates.held(folder, of.get(0)) != null && CheatUpdates.host(of.get(0)) == null, "a pack's file follows its pack");
+        CheatUpdates.Held h = CheatUpdates.held(folder, of.get(0));
+        check("example.org".equals(h.host()) && CheatUpdates.allowed(h) == null && h.name().equals("Example pack"), "the pack's host, not asked yet");
+        Set<String> on = new java.util.LinkedHashSet<>(List.of("Cheat A", "Cheat B", "Cheat C"));
+
+        // version 2: A changed, B at a new path, C gone, D new and on by default
+        Map<String, String> v2 = new LinkedHashMap<>();
+        v2.put("a.mncf", packFile("A", "a", "wa", false).replace("value = 1", "value = 2"));
+        v2.put("b.mncf", packFile("B", null, "wb", false));
+        v2.put("d.mncf", packFile("D", "d", "wd", true));
+        byte[] p2 = mncp(2, v2);
+        CheatUpdates.Look l = CheatUpdates.look(h, new Answer(p2), 5);
+        check(l.found() && CheatUpdates.offered(h) != null, "found: " + l.reason);
+        CheatSources.Merged m = CheatSources.merge(CheatSources.blocks(folder, null, true, g, 0x8000, true));
+        CheatUpdates.PackOffer o = CheatUpdates.offer(folder, h, p2, m, on, CheatValues.read(folder), B, TID);
+        check(o.newer() && o.since.size() == 1 && o.files.size() == 1 && o.added.equals(List.of("d")) && o.gone.equals(List.of("c")), "what it brings: " + o.added + " " + o.gone);
+        CheatUpdates.PackDone d = CheatUpdates.install(folder, h, p2, m, on, TID, 10);
+        check(d.version.equals("2") && d.added.equals(List.of("d")) && d.gone.contains("c"), "installed: " + d.added + " " + d.gone);
+        CheatUpdates.applyPending(folder, CheatSources.merge(CheatSources.blocks(folder, null, true, g, 0x8000, true)), on);
+        check(on.equals(Set.of("Cheat A", "Cheat B", "Cheat D")), "A and B stay on, C went with its file, D is on as its file says: " + on);
+        List<CheatSources.Source> now = CheatUpdates.sourcesOf(folder, key);
+        check(now.size() == 3 && CheatUpdates.state(now.get(1)).get(CheatUpdates.PACK_PATH).equals("b.mncf") && CheatUpdates.previous(now.get(0)) != null, "B's new path, A's version before kept");
+        check(CheatUpdates.look(h, new Answer(p2), 20).reason.equals("same"), "the same pack again: nothing");
+        check(CheatUpdates.heldOf(folder, io.github.davdxpx.mistel.mncf.PackReader.read(p1, MncfBuild.TRUST)).key.equals(key), "a pack added by hand with its id: this one");
+    }
 
     static void mncf(File root) throws Exception {
         File pk = pack(new File(root, "pack"), B, 0), po = pack(new File(root, "pack-orig"), B, 0);
