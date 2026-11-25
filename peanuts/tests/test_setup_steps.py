@@ -69,6 +69,14 @@ class Wiring(unittest.TestCase):
         self.assertIn('void draw(Canvas c, float crackT, float swing, float deg, int alpha, float shellDrop, float dropTop, float dropBottom) {', art)
         self.assertNotIn('class Rail', page, 'no list of steps at the side')
 
+    def test_file_access_first(self):
+        page = src(UI / 'SetupPage.java')
+        access = between(page, 'private static void access(Activity a,', '\n    }\n')
+        self.assertIn('LibrarySettings.openAccessSettings(a)', access, "the first step: Android's page for the app")
+        self.assertIn('st.access = Environment.isExternalStorageManager();', page)
+        self.assertIn('go(a, SetupSteps.next(Step.WELCOME))', page, 'Set up leads to the first step')
+        self.assertIn('PeanutsPrefs.setupFurthest(a, s.key)', page, 'the peanut cracks only for a step the player reached')
+
     def test_back_and_keys(self):
         settings = src(UI / 'SettingsPage.java')
         on_back = between(settings, 'public static boolean onBack(Activity a) {', '\n    }\n')

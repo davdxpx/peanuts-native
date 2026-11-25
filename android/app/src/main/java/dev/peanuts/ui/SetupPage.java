@@ -32,14 +32,13 @@ import java.util.Locale;
 
 /**
  * The first-run setup, a page of its own on Home in place of the library (Library.render) until a game folder is set and the setup has ended. The app's
- * peanut (About's, SetupPeanut) stands on its round tile and cracks a little further with each step done; at the end it opens. Beside it (under it on a
- * phone) one question at a time: a welcome, the keys, the firmware, the game folders (with the update and DLC folders as a link), and the end with the games
- * found, where the shell springs open and its kernels fall out; then, as when switching users, the peanut cracks once more over the whole window ("Setting up
- * Peanuts Native") until the library has read the folders, and Home shows the games. Each screen has the one button that leads on, and Later where a step may
- * wait. The folders are the folder lists of Settings › Library
- * (LibraryFolders), as chips with what the library found in them. Home's header and upstream's file access card step aside meanwhile: the games step asks for
- * the access itself. The second screen explains the step (BottomScreen.setup). Controller: the D-pad over the step's choices, A, B the screen before; X opens
- * Settings, as on Home.
+ * peanut (About's, SetupPeanut) stands on its round tile, whole on the welcome, and cracks a little further with each step done; at the end it opens. Beside
+ * it (under it on a phone) one question at a time: a welcome, file access, the keys, the firmware, the game folders (with the update and DLC folders as a
+ * link), and the end with the games found, where the shell springs open and its halves and kernels fall; then, as when switching users, the peanut cracks
+ * once more over the whole window ("Setting up Peanuts Native") until the library has read the folders, and Home shows the games. Each screen has the one
+ * button that leads on, and Later where a step may wait. The folders are the folder lists of Settings › Library (LibraryFolders), as chips with what the
+ * library found in them. Home's header and upstream's file access card step aside meanwhile: the setup asks for the access in its first step. The second
+ * screen explains the step (BottomScreen.setup). Controller: the D-pad over the step's choices, A, B the screen before; X opens Settings, as on Home.
  */
 final class SetupPage {
     private SetupPage() {}
@@ -80,12 +79,14 @@ final class SetupPage {
 
     static SetupSteps.State state(Activity a) {
         SetupSteps.State st = new SetupSteps.State();
+        st.access = Environment.isExternalStorageManager();
         st.keys = PeanutsPrefs.hasKeys(a) && !keysRejected;
         st.firmware = PeanutsPrefs.hasFonts(a);
         st.gameFolders = PeanutsPrefs.gameDirs(a).size();
         st.addonFolders = PeanutsPrefs.addonDirs(a).size();
         st.keysLater = PeanutsPrefs.setupMark(a, "keys_later");
         st.firmwareLater = PeanutsPrefs.setupMark(a, "firmware_later");
+        st.furthest = SetupSteps.further(SetupSteps.of(PeanutsPrefs.setupStep(a)), SetupSteps.of(PeanutsPrefs.setupFurthest(a)));   // an older app's setup kept only its step
         return st;
     }
 
@@ -99,6 +100,7 @@ final class SetupPage {
     /** Another screen: only the step's part of the page changes (Home is not built again, nothing is scanned) */
     private static void go(Activity a, Step s) {
         PeanutsPrefs.setupStep(a, s.key);
+        if (SetupSteps.further(s, SetupSteps.of(PeanutsPrefs.setupFurthest(a))) == s) PeanutsPrefs.setupFurthest(a, s.key);
         moved = true;
         if (root != null && root.getParent() instanceof LinearLayout) fill(a, (LinearLayout) root.getParent());
         else Library.changed(a);
@@ -368,7 +370,7 @@ final class SetupPage {
         List<View> buttons = new ArrayList<>();
         if (s == Step.WELCOME && wide) page.addView(new View(a), new LinearLayout.LayoutParams(1, 0, 1));
         if (s == Step.DONE && !wide) page.setPadding(0, PUi.dp(a, 14), 0, 0);
-        String over = s == Step.WELCOME ? "Welcome" : s == Step.DONE ? "All set" : String.format(Locale.ROOT, "Step %d of %d", SetupSteps.number(s), SetupSteps.COUNTED.size());
+        String over = s == Step.WELCOME ? "Welcome" : s == Step.DONE ? "All set" : place(s);
         LinearLayout head = PUi.row(a);   // Back and the step's number on one line: a short screen keeps its height for the step
         head.setGravity(Gravity.CENTER_VERTICAL);
         if (s != Step.WELCOME && s != Step.DONE) {
@@ -389,6 +391,7 @@ final class SetupPage {
         PUi.add(page, body, 16, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         switch (s) {
             case WELCOME: welcome(a, body, buttons); break;
+            case ACCESS: access(a, body, st, buttons); break;
             case KEYS: keys(a, body, st, buttons); break;
             case FIRMWARE: firmware(a, body, st, buttons, wide); break;
             case GAMES: games(a, body, st, buttons); break;
@@ -419,6 +422,7 @@ final class SetupPage {
     private static String question(Activity a, Step s) {
         switch (s) {
             case WELCOME: return "Peanuts Native";
+            case ACCESS: return "Allow file access";
             case KEYS: return "Add your keys";
             case FIRMWARE: return "Add your firmware";
             case GAMES: return "Where are your games?";
@@ -432,7 +436,8 @@ final class SetupPage {
 
     private static String line(Activity a, Step s, SetupSteps.State st) {
         switch (s) {
-            case WELCOME: return "Your own Switch games, built for this device. Three short steps: your keys, your firmware, your games.";
+            case WELCOME: return "Your own Switch games, built for this device. Four short steps: file access, your keys, your firmware, your games.";
+            case ACCESS: return "The app reads your games and your firmware where you keep them, on this device or an SD card. Android asks for this once.";
             case KEYS: return "The prod.keys of your own console. The app opens NSP and XCI files with them; they never leave this device.";
             case FIRMWARE: return "Games take their fonts from it, Miis their parts. The same version as your keys.";
             case GAMES: return "Every folder with NSP, NSZ, XCI, XCZ, .nup files or dump folders. Add each place you keep games.";
@@ -443,7 +448,18 @@ final class SetupPage {
     }
 
     private static void welcome(Activity a, LinearLayout body, List<View> buttons) {
-        buttons.add(primary = main(a, "Set up", null, v -> go(a, Step.KEYS)));
+        buttons.add(primary = main(a, "Set up", null, v -> go(a, SetupSteps.next(Step.WELCOME))));
+    }
+
+    /** File access: Android's page for the app; back from it with the access, the step is done (the peanut's first crack) and Continue leads on */
+    private static void access(Activity a, LinearLayout body, SetupSteps.State st, List<View> buttons) {
+        if (st.access) {
+            body.addView(chip(a, "check", "File access allowed", null, Chip.DONE, null), PUi.wrap());
+            buttons.add(primary = next(a, Step.ACCESS));
+            return;
+        }
+        body.addView(PUi.text(a, "Android opens its page for this app: turn the switch on, then come back here.", 13, R.color.bn_text_2, 400));
+        buttons.add(primary = main(a, "Allow access", "lock", v -> LibrarySettings.openAccessSettings(a)));
     }
 
     private static void keys(Activity a, LinearLayout body, SetupSteps.State st, List<View> buttons) {
@@ -635,26 +651,33 @@ final class SetupPage {
         switch (s) {
             case WELCOME:
                 e.title = "Welcome"; e.place = "Set up";
-                e.text = "Three steps, about a minute. Everything can be changed later in Settings.";
-                e.rows.add(new CharSequence[] {"Keys", "Step 1"});
-                e.rows.add(new CharSequence[] {"Firmware", "Step 2"});
-                e.rows.add(new CharSequence[] {"Your games", "Step 3"});
+                e.text = "Four steps, about a minute. Everything can be changed later in Settings.";
+                e.rows.add(new CharSequence[] {"File access", "Step 1"});
+                e.rows.add(new CharSequence[] {"Keys", "Step 2"});
+                e.rows.add(new CharSequence[] {"Firmware", "Step 3"});
+                e.rows.add(new CharSequence[] {"Your games", "Step 4"});
                 e.keys.add(new String[] {"A", "Set up"});
                 break;
+            case ACCESS:
+                e.title = "File access"; e.place = place(s);
+                e.text = "Android lets an app read folders outside its own only with this access. The app reads the folders you add, and nothing leaves this device.";
+                e.rows.add(new CharSequence[] {"Now", st.access ? "Allowed" : "Not allowed yet"});
+                e.rows.add(new CharSequence[] {"Needed for", "Reading your games"});
+                break;
             case KEYS:
-                e.title = "Keys"; e.place = "Step 1 of 3";
+                e.title = "Keys"; e.place = place(s);
                 e.text = "An NSP or XCI file is locked with your console's keys. The app reads it with them on this device and never sends them anywhere.";
                 e.rows.add(new CharSequence[] {"Now", st.keys ? "Added" : "Not added yet"});
                 e.rows.add(new CharSequence[] {"Needed for", "Building a game"});
                 break;
             case FIRMWARE:
-                e.title = "Firmware"; e.place = "Step 2 of 3";
+                e.title = "Firmware"; e.place = place(s);
                 e.text = "Games take their fonts from your console's firmware, and Miis their parts. Without the fonts some games stop at their start.";
                 e.rows.add(new CharSequence[] {"Now", st.firmware ? "Added" : "Not added yet"});
                 e.rows.add(new CharSequence[] {"Needed for", "Building a game"});
                 break;
             case GAMES:
-                e.title = "Your games"; e.place = "Step 3 of 3";
+                e.title = "Your games"; e.place = place(s);
                 e.text = "Add every folder you keep games in: the phone, an SD card, both. Open a folder's chip to remove it; its files stay.";
                 e.rows.add(new CharSequence[] {"Game folders", String.valueOf(st.gameFolders)});
                 if (st.addonFolders > 0) e.rows.add(new CharSequence[] {"Update and DLC folders", String.valueOf(st.addonFolders)});
@@ -673,6 +696,9 @@ final class SetupPage {
     }
 
     // ---- Pieces ----
+
+    /** "Step 2 of 4" */
+    private static String place(Step s) { return String.format(Locale.ROOT, "Step %d of %d", SetupSteps.number(s), SetupSteps.COUNTED.size()); }
 
     private enum Chip { NORMAL, ADD, DONE, WARN }
 

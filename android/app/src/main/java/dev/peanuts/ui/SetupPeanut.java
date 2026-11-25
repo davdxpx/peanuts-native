@@ -8,6 +8,8 @@ import android.view.View;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.LinearInterpolator;
 
+import dev.peanuts.setup.SetupSteps;
+
 /**
  * The first-run setup's peanut (PeanutArt, the one of About): one view for the whole setup (SetupPage keeps it), cracking a little further with each step
  * done (SetupSteps.crack), the seam running on from where it stands ({@link #to}). At the end the seam runs through, the shell springs open, its two halves
@@ -92,7 +94,7 @@ final class SetupPeanut extends View {
         shownCrack = target;
         if (!moves() || target <= crackT) { crackT = target; invalidate(); return; }
         anim = ValueAnimator.ofFloat(crackT, target);
-        anim.setDuration((long) (SEAM_MS * Math.max(0.35f, (target - crackT) * 3)));
+        anim.setDuration((long) (SEAM_MS * Math.max(0.35f, (target - crackT) * SetupSteps.COUNTED.size())));   // a step's part of the seam in SEAM_MS
         anim.setStartDelay(180);
         anim.setInterpolator(new DecelerateInterpolator());
         anim.addUpdateListener(v -> { crackT = (float) v.getAnimatedValue(); invalidate(); });
