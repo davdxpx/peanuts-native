@@ -8,6 +8,7 @@
 #include "vka.h"
 #include "vk_android.h"   // PEANUTS: startup pipeline prewarm
 #include "../../peanuts/peanuts_swhot.h"   // PEANUTS: Smoother next start (learning on): the pipelines a game's runs used (sw_*)
+#include "../../peanuts/peanuts_swtf.h"   // PEANUTS: and the transform feedback capture pipelines they made (sw_tf_*)
 #include "vka_memu_abi.h"
 #include "vka_pwlist.h"
 #include "vka_psogate.h"
@@ -186,6 +187,7 @@ static _Atomic int g_sw_on = -1, g_sw_dirty, g_sw_loaded, g_sw_wait; static char
 static _Atomic int g_pw_counting;   // PEANUTS: the prewarm threads count into g_pw_processed: only while the start waits for them (pp_prepare counts its own there after)
 static __thread uint64_t t_sw_h;   // PEANUTS: the record a prewarm thread is making (gfx_obtain / cs_obtain keep it in the entry for sw_used)
 struct gval; static int sw_on(void); static void sw_path(void); static void sw_load(void); static void sw_save(void); static void sw_wait_hot(void); static void sw_used(struct gval *g); static void sw_run_add(uint64_t h, int learned); static void *pl_slurp(const char *path, size_t *n);   // PEANUTS
+static void sw_tf_note(vka_shader *const sh[5], const void *kb, uint32_t klen);   // PEANUTS: Smoother next start: a capture pipeline made while the game ran
 static pthread_mutex_t g_pw_start_mu = PTHREAD_MUTEX_INITIALIZER;
 
 static void pw_path(char *out, size_t n) {
@@ -1134,6 +1136,7 @@ static void pw_note(int kind, vka_shader *const sh[5], const void *kb, uint32_t 
     pwrec r; memset(&r, 0, sizeof r); r.kind = (uint8_t)kind; r.klen = klen;
     for (int i = 0; i < 5; i++) {   // an instanced variant: its base key and its binding, so the next run makes it ahead too (its pipeline was a frame-path hitch every run)
         if (!vka_shader_is_variant(sh[i])) { r.key[i] = sh[i] ? sh[i]->key : 0; continue; }
+        if (!i && kind == VKA_PW_GFX && vka_tf_is_variant(sh[0])) { sw_tf_note(sh, kb, klen); return; }   // PEANUTS: a capture variant's pipeline: never in the list, Smoother next start keeps it (sw_tf_note)
         uint32_t lo = sh[i]->e->stage * DMSH_VK_STAGE_BINDINGS, b = sh[i]->inst_bind - 1;
         if (kind != VKA_PW_GFX || i > 1 || !sh[i]->inst_bind || b < lo || b - lo >= DMSH_VK_STAGE_BINDINGS) return;
         r.key[i] = sh[i]->e->key; r.inst[i] = (uint8_t)(b - lo + 1);
@@ -1225,6 +1228,13 @@ static uint64_t *g_sw_run; static size_t g_sw_runcap, g_sw_runn;   // this run's
 static _Atomic uint32_t g_sw_learned;   // of them, made while the game ran (not ahead)
 static uint32_t g_sw_next;   // the entries the last save wrote, or the file's: what the next start makes first (under g_sw_mu)
 static uint8_t *g_sw_mark;   // pw_start's order: 1 where it holds a record the runs before used (sw_step)
+// The transform feedback capture pipelines (dm/peanuts/peanuts_swtf.h, <list>.<driver>.tf): the list never takes them (a capture variant's modules carry the layout
+// the game's program notes while it runs, vka_tf.c), so each is kept with its layout, and the next start makes its variant (vka_tf_learned) and pipeline first, before
+// the game starts; a draw's first use checks that this run's program notes the same layout. Each has an entry in the .hot file too and ages out with it
+static char g_sw_tf_path[1200];
+static pn_swtf_ent *g_sw_tfl; static size_t g_sw_tfln;   // the file as read (under g_sw_mu; pw_main reads the first g_sw_tf_n, which stay)
+static pn_swtf_ent *g_sw_tfr; static size_t g_sw_tfrn, g_sw_tfrcap;   // this run's, made while the game ran (under g_sw_mu)
+static uint32_t g_sw_tf_n; static _Atomic uint32_t g_sw_tf_next;   // pw_start: those the prewarm makes, and the next one a thread takes
 static int sw_on(void) {
     int v = atomic_load_explicit(&g_sw_on, memory_order_relaxed);
     if (v < 0) { const char *e = getenv("PN_SHADERWATCH"); int want = -1; atomic_compare_exchange_strong(&g_sw_on, &want, e && !strcmp(e, "1")); v = atomic_load(&g_sw_on); }
@@ -1245,6 +1255,7 @@ static void sw_path(void) {
     if (!g_pw_path[0]) return;
     const char *tag = vka_driver_tag();
     snprintf(g_sw_path, sizeof g_sw_path, "%s.%s.hot", g_pw_path, tag ? tag : "system");
+    snprintf(g_sw_tf_path, sizeof g_sw_tf_path, "%s.%s.tf", g_pw_path, tag ? tag : "system");
 }
 static void sw_load_now(void) {   // the file of the runs before, once (sw_load, vka_pso_watch_learn)
     if (!g_sw_path[0] || atomic_exchange(&g_sw_loaded, 1)) return;
@@ -1257,8 +1268,51 @@ static void sw_load_now(void) {   // the file of the runs before, once (sw_load,
     else if (why) VLOG("Smoother next start: on, %s %s: not used (this run's replaces it)", g_sw_path, why);
     else VLOG("Smoother next start: on, %s: %zu pipelines of the runs before%s", g_sw_path, n, lib && g_pc_lib && lib != g_pc_lib ? " (another shader library: what it no longer has is skipped)" : "");
     pthread_mutex_lock(&g_sw_mu); free(g_sw_old); g_sw_old = e; g_sw_oldn = n; g_sw_next = (uint32_t)n; pthread_mutex_unlock(&g_sw_mu);
+    size_t tl = 0; uint8_t *td = pl_slurp(g_sw_tf_path, &tl);
+    pn_swtf_ent *te = NULL; size_t tn = 0, tskip = 0;
+    const char *twhy = td ? pn_swtf_parse(td, tl, vka_pw_layout(), &te, &tn, &tskip) : NULL;
+    if (td && twhy) VLOG("Smoother next start: %s %s: not used", g_sw_tf_path, twhy);
+    else if (td) VLOG("Smoother next start: %s: %zu transform feedback capture pipelines of the runs before%s", g_sw_tf_path, tn, tskip ? " (some damaged: skipped)" : "");
+    free(td);
+    pthread_mutex_lock(&g_sw_mu); free(g_sw_tfl); g_sw_tfl = te; g_sw_tfln = tn; pthread_mutex_unlock(&g_sw_mu);
 }
 static void sw_load(void) { if (sw_on()) sw_load_now(); }   // pc_open_once, after the list: learning on from the start
+// sw_save, after the .hot file is written: the capture pipelines whose entries it keeps (this run's, then the runs before's), written when there are any or were
+static void sw_tf_save(const pn_sw_ent *keep, size_t kn) {
+    pthread_mutex_lock(&g_sw_mu);
+    size_t had = g_sw_tfln, want = g_sw_tfrn + g_sw_tfln, n = 0;
+    pn_swtf_ent *e = want ? malloc(PN_SWTF_MAX * sizeof *e) : NULL;
+    if (e) n = pn_swtf_keep(g_sw_tfr, g_sw_tfrn, g_sw_tfl, g_sw_tfln, keep, kn, e, PN_SWTF_MAX);
+    pthread_mutex_unlock(&g_sw_mu);
+    static _Atomic int wrote;   // (a file this run wrote, or read: rewritten when it empties)
+    if (want && !e) return;   // (no memory: the file stays as it was)
+    if (!n && !had && !atomic_load(&wrote)) { free(e); return; }
+    size_t len = sizeof(pn_swtf_hdr) + n * sizeof(pn_swtf_ent); uint8_t *d = malloc(len);
+    if (d) {
+        pn_swtf_hdr h; memset(&h, 0, sizeof h); memcpy(h.magic, PN_SWTF_MAGIC, 8); h.n = (uint32_t)n; h.layout = vka_pw_layout(); h.ent_size = sizeof(pn_swtf_ent);
+        memcpy(d, &h, sizeof h); if (n) memcpy(d + sizeof h, e, n * sizeof *e);
+        char tmp[1300]; snprintf(tmp, sizeof tmp, "%s.tmp", g_sw_tf_path);
+        if (pc_write_atomic(g_sw_tf_path, tmp, d, len)) atomic_store(&wrote, 1); else VRED_ONCE("Smoother next start: %s not written", g_sw_tf_path);
+    }
+    free(d); free(e);
+}
+// A capture pipeline the frame path made (pw_note, learning on): its record (key[0] the variant's base vertex shader), key bytes and the layout its variant was made
+// with, into this run's table and the .hot file's run (sw_run_add)
+static void sw_tf_note(vka_shader *const sh[5], const void *kb, uint32_t klen) {
+    if (!sw_on() || klen > sizeof(vka_gkey) || !sh[0]->e) return;
+    pn_swtf_ent e; memset(&e, 0, sizeof e);
+    e.r.kind = VKA_PW_GFX; e.r.klen = klen; e.r.key[0] = sh[0]->e->key;
+    for (int i = 1; i < 5; i++) { if (vka_shader_is_variant(sh[i])) return; e.r.key[i] = sh[i] ? sh[i]->key : 0; }
+    memcpy(&e.k, kb, klen);
+    if (!vka_tf_layout_of(sh[0], &e.L)) return;
+    e.h = pn_swtf_hash(&e.r, &e.k);
+    if (!pn_swtf_ok(&e)) return;
+    pthread_mutex_lock(&g_sw_mu);
+    int added = pn_swtf_add(&g_sw_tfr, &g_sw_tfrn, &g_sw_tfrcap, &e);
+    pthread_mutex_unlock(&g_sw_mu);
+    if (added) { static _Atomic int nlog; if (atomic_fetch_add(&nlog, 1) < 8) VLOG("Smoother next start: transform feedback capture pipeline of vertex shader %016llx kept for the next start", (unsigned long long)e.r.key[0]); }
+    sw_run_add(e.h, 1);
+}
 static void sw_save(void) {   // save_now: this run's records and the runs before's (pn_sw_merge), when this run added any
     if (!g_sw_path[0] || !sw_on()) { atomic_store(&g_sw_dirty, 0); return; }   // (learning turned off: vka_pso_save's early return holds again)
     if (!atomic_exchange(&g_sw_dirty, 0)) return;
@@ -1272,6 +1326,7 @@ static void sw_save(void) {   // save_now: this run's records and the runs befor
     pn_sw_hdr h; memset(&h, 0, sizeof h); memcpy(h.magic, PN_SW_MAGIC, 8); h.n = (uint32_t)n; h.layout = vka_pw_layout(); h.lib = g_pc_lib; memcpy(out, &h, sizeof h);
     char tmp[1300]; snprintf(tmp, sizeof tmp, "%s.tmp", g_sw_path);
     if (!pc_write_atomic(g_sw_path, tmp, out, sizeof h + n * sizeof(pn_sw_ent))) { atomic_store(&g_sw_dirty, 1); VRED_ONCE("Smoother next start: %s not written", g_sw_path); }
+    else sw_tf_save((const pn_sw_ent *)(out + sizeof(pn_sw_hdr)), n);
     free(out);
 }
 // The switch turned while the game runs (Bridge.shaderWatchLearn): on, the pipelines this run added to the list so far count too; off, nothing more is kept and the
@@ -1414,10 +1469,37 @@ void vka_pso_watch(int out[4]) {
         here++;
     }
     pthread_mutex_unlock(&g_pw_mu);
-    if (ahead) out[2] = (int)(here < max ? here : max);
+    if (ahead) { if (sw) { pthread_mutex_lock(&g_sw_mu); here += (uint32_t)(g_sw_tfrn > g_sw_tfln ? g_sw_tfrn : g_sw_tfln); pthread_mutex_unlock(&g_sw_mu); }   // (the capture pipelines: made too)
+                 out[2] = (int)(here < max ? here : max); }
     else if (sw && !getenv("DM_VK_PREWARM")) { pthread_mutex_lock(&g_sw_mu); uint32_t nx = g_sw_next > g_sw_runn ? g_sw_next : (uint32_t)g_sw_runn; pthread_mutex_unlock(&g_sw_mu); out[2] = (int)(nx < max ? nx : max); }
     else out[2] = 0;
     out[3] = (int)all;
+}
+// PEANUTS end
+// PEANUTS begin: Smoother next start (learning on): one of the capture pipelines the runs before made (sw_tf_*), by a prewarm thread before the list's records: its
+// shaders from the library, the capture variant made with the layout it was learned with (vka_tf_learned), its pipeline as the frame path asks for it (the variant
+// takes the base shader's layout, vka_draw.c). One whose shaders the library no longer has, which this device cannot capture, or of the other vertex input form, is
+// skipped and ages out
+static _Atomic uint32_t g_sw_tf_made, g_sw_tf_skip;
+static void sw_tf_make(uint32_t t) {
+    const pn_swtf_ent *e = &g_sw_tfl[t];
+    vka_shader *sh[VKA_NSTAGE]; memset(sh, 0, sizeof sh);
+    int bad = e->k.vin_static != (uint32_t)!V.vin_dyn;
+    for (int s = 0; s < 5 && !bad; s++) if (e->r.key[s] && !(sh[s] = vka_shader_by_key(e->r.key[s]))) bad = 1;
+    if (!bad && !(sh[0] = vka_tf_learned(sh[0], &e->L))) bad = 1;
+    vka_layout lay;
+    if (!bad && !vka_layout_of(sh, 0, &lay)) bad = 1;
+    if (bad) { atomic_fetch_add(&g_sw_tf_skip, 1); atomic_fetch_add(&g_sw_hot_done, 1); return; }
+    int tok = gate_enter(0, gate_heavy(sh[0], sh[1]));
+    atomic_fetch_add(&g_pw_heavywait_ns, gate_hold(tok, sh[0]->key));
+    t_sw_h = e->h;   // (the entry made notes it at its first use: sw_used)
+    gkey_full fk; memset(&fk, 0, sizeof fk); memcpy(fk.sh, sh, sizeof fk.sh); fk.layout = lay.layout; fk.k = e->k;
+    size_t len = e->k.vin_static ? sizeof fk : offsetof(gkey_full, k.va);
+    int made = 0;
+    gfx_obtain(&fk, fnv(&fk, len, 1469598103934665603ull), len, sh, &lay, &fk.k, 1, &made);
+    gate_leave(tok);
+    if (made) { atomic_fetch_add(&g_pw_made, 1); atomic_fetch_add(&g_sw_tf_made, 1); } else atomic_fetch_add(&g_pw_had, 1);
+    atomic_fetch_add(&g_sw_hot_done, 1);
 }
 // PEANUTS end
 static void *pw_main(void *a) {
@@ -1439,6 +1521,7 @@ static void *pw_main(void *a) {
         if (g_sw_only && mem_mb) { uint64_t av = mem_avail_mb(); if (av && av < mem_mb) { static _Atomic int once; if (!atomic_exchange(&once, 1)) VLOG("Smoother next start: the prewarm stopped at %llu MB available (DM_VK_PREWARM_MEM_MB=%u): this driver holds memory for each pipeline", (unsigned long long)av, mem_mb); break; } }   // PEANUTS: on a driver that does not prewarm, every thread stops (before the wait below, which would wait for a thread that stopped)
         if (me > 0 && mem_mb && !g_sw_only) { uint64_t t0 = 0, av; while ((av = mem_avail_mb()) && av < mem_mb && nm < limit && atomic_load(&g_pw_next) < limit - nm) { if (!t0) t0 = now_ns(); usleep(250000); pause_point(); }   // PEANUTS: !g_sw_only
                                 if (t0) atomic_fetch_add(&g_pw_memwait_ns, now_ns() - t0); }
+        if (g_sw_tf_n && !atomic_load(&g_pp_skip)) { uint32_t t = atomic_fetch_add(&g_sw_tf_next, 1); if (t < g_sw_tf_n) { sw_tf_make(t); continue; } }   // PEANUTS: Smoother next start's capture pipelines first (sw_tf_make)
         uint32_t i = me == 0 ? atomic_fetch_add(&g_pw_next_mesh, 1) : nm;   // the mesh thread: the next mesh record while there is one
         if (i >= nm) { uint32_t q = atomic_fetch_add(&g_pw_next, 1); i = nm + q; }
         if (i >= limit || atomic_load(&g_pp_skip)) break;   // PEANUTS: match the startup progress total; Play anyway
@@ -1516,6 +1599,7 @@ static void *pw_main(void *a) {
 // PEANUTS: prepare one ordered list, then either detach or join its workers.
 static void pw_start(int wait) {
     int nt = VKA_ENV("DM_VK_PREWARM", V.qcom_old ? 0 : 4);
+    g_sw_tf_n = sw_on() && V.xfb ? (uint32_t)g_sw_tfln : 0;   // PEANUTS: Smoother next start's capture pipelines (sw_tf_make; none where the device cannot capture)
     int sw_only = nt <= 0 && !getenv("DM_VK_PREWARM") && sw_on() && g_sw_oldn && g_pw_load_n;   // PEANUTS: Smoother next start on a driver that does not prewarm
     if (sw_only) nt = 2;   // PEANUTS: the pipelines the runs before used, only, on two threads (sw_order; pw_main stops them when memory is short)
     uint32_t max = (uint32_t)VKA_ENV("DM_VK_PREWARM_MAX", 8192);
@@ -1543,11 +1627,12 @@ static void pw_start(int wait) {
     g_sw_hot_n = sw_order(g_pw_offsets, &g_pw_limit, &g_pw_mesh_count, sw_only);
     if (g_pw_limit > max) { g_pw_limit = max; if (g_pw_mesh_count > max) g_pw_mesh_count = max; }
     if (g_sw_mark) { uint32_t c = 0; for (uint32_t i = 0; i < g_pw_limit; i++) c += g_sw_mark[i]; g_sw_hot_n = c; }
+    g_sw_hot_n += g_sw_tf_n;   // (the capture pipelines are the runs before's too: made first, waited for)
     g_sw_only = sw_only; g_sw_wait = g_pw_startup && g_sw_hot_n > 0;
     if (g_sw_wait) wait = 0;   // (a cold cache too: the start waits for those, the rest is made in the background)
-    if (sw_on()) VLOG("Smoother next start: %u of the list's %u pipelines are ones the runs before used: made first%s%s", g_sw_hot_n, g_pw_load_n,
+    if (sw_on()) VLOG("Smoother next start: %u of the list's %u pipelines are ones the runs before used, and %u transform feedback capture pipelines: made first%s%s", g_sw_hot_n - g_sw_tf_n, g_pw_load_n, g_sw_tf_n,
                       g_sw_wait ? ", before the game starts" : wait ? ", the start waits for the whole list (a cold pipeline cache)" : "", sw_only ? ", and only they (this driver does not prewarm)" : "");
-    if (!g_pw_limit) { free(g_pw_offsets); g_pw_offsets = NULL; return; }
+    if (!g_pw_limit && !g_sw_tf_n) { free(g_pw_offsets); g_pw_offsets = NULL; return; }
     // PEANUTS end
     heavy_load();   // the shaders earlier runs found long on this driver (build_end)
     g_pw_t0 = now_ns();

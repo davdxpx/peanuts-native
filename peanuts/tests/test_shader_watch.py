@@ -1,6 +1,7 @@
 """Smoother next start (the quick menu's Peanuts tab, dev.peanuts.shaders.ShaderWatch): its backend dev.peanuts.shaders.HostWatch, the host's numbers
 (dm/gfx/vk_android/vka_pso.c vka_pso_watch, dm/peanuts/peanuts_shaderwatch.c) and learning on (vka_pso.c sw_*, dm/peanuts/peanuts_swhot.h): what the runs of a
-game used, kept per game and driver, made first and before the game starts at the next start. The JVM part is skipped without a JDK, the C part without a C
+game used, kept per game and driver, made first and before the game starts at the next start; the transform feedback capture pipelines too (vka_pso.c sw_tf_*,
+dm/peanuts/peanuts_swtf.h, dm/gfx/vk_android/vka_tf.c vka_tf_learned). The JVM part is skipped without a JDK, the C part without a C
 compiler (dm/host/tests/Makefile peanuts-swhot runs it too)."""
 import re
 import shutil
@@ -20,7 +21,10 @@ JVM_TEST = REPO / 'android/app/src/jvmtest/java/dev/peanuts/shaders/HostCountsJv
 PSO = REPO / 'dm/gfx/vk_android/vka_pso.c'
 JNI = REPO / 'dm/peanuts/peanuts_shaderwatch.c'
 HOT = REPO / 'dm/peanuts/peanuts_swhot.h'
+SWTF = REPO / 'dm/peanuts/peanuts_swtf.h'
+TF = REPO / 'dm/gfx/vk_android/vka_tf.c'
 C_TEST = REPO / 'dm/host/tests/t_peanuts_swhot.c'
+C_TEST_TF = REPO / 'dm/host/tests/t_peanuts_swtf.c'
 CMAKE = REPO / 'android/host/CMakeLists.txt'
 
 
@@ -146,11 +150,37 @@ class OffMeansOff(unittest.TestCase):
         self.assertIn('#define PN_SW_AGE_MAX 8', h)
         self.assertIn('if (cap > PN_SW_MAX) cap = PN_SW_MAX;', body(self.s, 'static void sw_save(void)'))
         self.assertIn('if (h.n > PN_SW_MAX) return', h)
+        tf = read(SWTF)
+        self.assertIn('#define PN_SWTF_MAX 64', tf)
+        self.assertIn('if (h.n > PN_SWTF_MAX) return', tf)
+        self.assertIn('n = pn_swtf_keep(g_sw_tfr, g_sw_tfrn, g_sw_tfl, g_sw_tfln, keep, kn, e, PN_SWTF_MAX);', self.s)
 
     def test_per_driver_file(self):
         p = body(self.s, 'static void sw_path(void)')
         self.assertIn('vka_driver_tag()', p)
         self.assertIn('"%s.%s.hot", g_pw_path, tag ? tag : "system"', p)
+
+    def test_capture_pipelines_only_when_learning(self):
+        # the list never takes a capture variant's pipeline: with learning off pw_note returns at it as before, with learning on sw_tf_note keeps it
+        self.assertIn('if (!i && kind == VKA_PW_GFX && vka_tf_is_variant(sh[0])) { sw_tf_note(sh, kb, klen); return; }', body(self.s, 'static void pw_note('))
+        note = body(self.s, 'static void sw_tf_note(vka_shader *const sh[5], const void *kb, uint32_t klen)')
+        self.assertIn('if (!sw_on()', note.splitlines()[1])
+        self.assertIn('if (!pn_swtf_ok(&e)) return;', note)
+        start = body(self.s, 'static void pw_start(int wait)')
+        self.assertIn('g_sw_tf_n = sw_on() && V.xfb ? (uint32_t)g_sw_tfln : 0;', start)
+        self.assertIn('g_sw_hot_n += g_sw_tf_n;', start)   # made first and waited for, as the runs' other pipelines
+        self.assertIn('if (g_sw_tf_n && !atomic_load(&g_pp_skip))', body(self.s, 'static void *pw_main(void *a)'))
+        self.assertIn('else sw_tf_save(', body(self.s, 'static void sw_save(void)'))   # written only after the .hot file, with the entries it keeps
+        self.assertIn('"%s.%s.tf", g_pw_path, tag ? tag : "system"', body(self.s, 'static void sw_path(void)'))
+
+    def test_a_capture_made_ahead_is_checked_at_its_first_draw(self):
+        t = read(TF)
+        self.assertIn('if (g_var[i].learned && !g_var[i].checked && !learned_holds(i)) continue;', body(t, 'static vka_shader *variant('))
+        self.assertIn('int ok = st == 1 && !memcmp(&lay, &g_var[i].L, sizeof lay);', body(t, 'static int learned_holds(int i)'))
+        learned = body(t, 'vka_shader *vka_tf_learned(vka_shader *s, const vka_tf_layout *lay)')
+        self.assertIn('if (!V.xfb || !s || !s->e) return NULL;', learned.splitlines()[1])
+        self.assertEqual(t.count('.learned = 1;'), 1)   # only vka_tf_learned makes one
+        self.assertIn('!g_var[i].dead', body(t, 'void vka_tf_prep('))
 
     def test_marked(self):
         # the functions sit in one PEANUTS block; every other line that uses them carries a PEANUTS marker or sits in a PEANUTS span
@@ -167,13 +197,13 @@ class OffMeansOff(unittest.TestCase):
             if '// PEANUTS begin' in line: span = True
             if '// PEANUTS end' in line: span = False
             if first <= n <= last or line.lstrip().startswith('//'): continue
-            if re.search(r'\bsw_(on|load|save|path|order|step|used|run_add|wait_hot)\(|g_sw_wait|g_sw_hot|g_sw_dirty|t_sw_h', line):
+            if re.search(r'\bsw_(on|load|save|path|order|step|used|run_add|wait_hot|tf_\w+)\(|g_sw_wait|g_sw_hot|g_sw_dirty|g_sw_tf|t_sw_h', line):
                 self.assertTrue(span or 'PEANUTS' in line, line.strip()[:120])
 
 
 class Voice(unittest.TestCase):
     def test_no_em_dash(self):
-        for p in (WATCH, COUNTS, JNI, HOT, C_TEST, JVM_TEST):
+        for p in (WATCH, COUNTS, JNI, HOT, SWTF, C_TEST, C_TEST_TF, JVM_TEST):
             self.assertNotIn('—', read(p), p.name)
 
 
@@ -194,13 +224,14 @@ CC = shutil.which('cc') or shutil.which('gcc') or shutil.which('clang')
 @unittest.skipUnless(CC, 'no C compiler')
 class C(unittest.TestCase):
     def test_swhot(self):
-        with tempfile.TemporaryDirectory() as d:
-            exe = str(Path(d) / 't_peanuts_swhot')
-            r = subprocess.run([CC, '-std=c11', '-O1', '-Wall', '-Wextra', '-Werror', '-o', exe, str(C_TEST)], capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-            r = subprocess.run([exe], capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-            self.assertIn('ok', r.stdout)
+        for src in (C_TEST, C_TEST_TF):
+            with tempfile.TemporaryDirectory() as d:
+                exe = str(Path(d) / src.stem)
+                r = subprocess.run([CC, '-std=c11', '-O1', '-Wall', '-Wextra', '-Werror', '-o', exe, str(src)], capture_output=True, text=True)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                r = subprocess.run([exe], capture_output=True, text=True)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                self.assertIn('ok', r.stdout)
 
 
 if __name__ == '__main__':
