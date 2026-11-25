@@ -87,7 +87,7 @@ public final class MncfBuild {
         public final ValueSpec value;         // its one whole-number value the player sets (the in-game number field), else null
         public final String valueKey;         // "<cheat id>.<value id>"
         Cheat(int index, io.github.davdxpx.mistel.mncf.Cheat c, String reason, List<String> lines, ValueSpec value) {
-            this.index = index; id = c.id(); name = c.name(); group = c.group() == null ? "" : c.group(); about = c.about(); run = c.run();
+            this.index = index; id = c.id(); name = c.name() != null ? c.name() : c.id(); group = c.group() == null ? "" : c.group(); about = c.about(); run = c.run();   // a refused cheat may have no name read: its id
             tags = c.tags(); requires = c.requires(); excludes = c.excludes(); radio = c.radio(); master = c.isMaster(); isDefault = c.isDefault();
             this.reason = reason; this.lines = lines; this.value = value; valueKey = value == null ? null : c.id() + "." + value.id();
         }

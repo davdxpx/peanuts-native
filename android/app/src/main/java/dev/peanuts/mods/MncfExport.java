@@ -290,6 +290,7 @@ public final class MncfExport {
             case "atmosphere:empty": return "It has nothing to write.";
             case "atmosphere:too-long": return "Its code is longer than one cheat in an Atmosphère file can be.";
             case "atmosphere:too-many": return TOO_MANY;
+            case "atmosphere:too-big": return TOO_BIG;   // Mistel's converter keeps dmnt's 64 KB itself since davdxpx/mistel#17
             default: return k.isEmpty() || k.startsWith("atmosphere:") ? "An Atmosphère file cannot say what it does." : MncfWords.reason(k, c);   // the reader's reasons (Appendix B)
         }
     }
