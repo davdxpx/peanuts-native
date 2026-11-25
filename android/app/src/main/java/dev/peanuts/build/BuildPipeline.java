@@ -97,9 +97,11 @@ public final class BuildPipeline {
     public static void watch(Runnable r) { if (r != null && !WATCHERS.contains(r)) WATCHERS.add(r); }
 
     static void changed() {
-        MAIN.post(() -> { for (Runnable r : WATCHERS) r.run(); });
+        // changes that come before the watchers ran are told once: each watcher reads the queue as it is then (Home is drawn again once, not once a change)
+        if (TELL.compareAndSet(false, true)) MAIN.post(() -> { TELL.set(false); for (Runnable r : WATCHERS) r.run(); });
         dev.peanuts.ctl.Ctl.progress();
     }
+    private static final java.util.concurrent.atomic.AtomicBoolean TELL = new java.util.concurrent.atomic.AtomicBoolean();
 
     /** Whether a build runs or one waits in the queue: another build (with mods, upstream's own Prepare) waits for this to end */
     public static boolean busy() {
@@ -246,38 +248,77 @@ public final class BuildPipeline {
      * While another game builds or waits, this one goes into the queue ({@link #queued} says its place): its listener hears it when it starts
      */
     public static int start(Context ctx, BuildRequest req, boolean buildAnyway, BuildListener l) {
-        String why = check(ctx, req);
-        if (why != null) { if (l != null) MAIN.post(() -> l.done(false, why, BuildListener.OTHER)); return 0; }
+        return startAll(ctx, java.util.Collections.singletonList(req), java.util.Collections.singletonList(buildAnyway), java.util.Collections.singletonList(l))[0];
+    }
+
+    /**
+     * Several games at once (Home's Build all), each as {@link #start} takes one, but as one change: the queue's file written once, the build service asked
+     * once, and the library told once. One start a game posted the service's foreground notification, wrote the file and redrew Home 50 times for 50 games,
+     * all on the main thread (the lag of Build all). Returns each request's id, in their order (0: not buildable, its listener is told why)
+     */
+    public static int[] startAll(Context ctx, List<BuildRequest> reqs, List<Boolean> buildAnyway, List<BuildListener> ls) {
+        int n = reqs.size();
+        int[] ids = new int[n];
         BuildQueue q = queue(ctx);
-        boolean wasThere = q.of(req.titleId) != null && q.of(req.titleId).waiting();
-        BuildQueue.Item it = q.add(req, buildAnyway, System.currentTimeMillis());
-        if (it == null) {   // this very game builds now
-            String n = req.name == null || req.name.isEmpty() ? req.titleId : req.name;
-            if (l != null) MAIN.post(() -> l.done(false, n + " is being built now. Wait for it to finish.", BuildListener.OTHER));
-            return 0;
+        List<BuildRequest> go = new java.util.ArrayList<>();
+        List<Boolean> anyway = new java.util.ArrayList<>();
+        List<Integer> at = new java.util.ArrayList<>();
+        java.util.Set<String> there = new java.util.HashSet<>();   // the games that waited before: a refused start keeps their item (with the newer request)
+        for (int k = 0; k < n; k++) {
+            BuildRequest req = reqs.get(k);
+            BuildListener l = ls.get(k);
+            String why = check(ctx, req);
+            if (why != null) { if (l != null) MAIN.post(() -> l.done(false, why, BuildListener.OTHER)); continue; }
+            BuildQueue.Item was = q.of(req.titleId);
+            if (was != null && was.waiting()) there.add(req.titleId.toUpperCase(java.util.Locale.ROOT));
+            go.add(req); anyway.add(buildAnyway.get(k)); at.add(k);
         }
-        int id = it.id;
-        if (l != null) LISTENERS.put(id, l);
-        BuildQueue.Item next = q.next();
-        if (q.running() == null && running == 0 && waitReason == null && next != null && next.id == id) {   // nothing before it: it starts now, as before the queue
-            running = id;
-            lastStep = "import"; lastPercent = 0; lastDetail = "Starting";
-            title = req.titleId; name = req.name == null ? "" : req.name; startedAt = System.currentTimeMillis(); endOk = null;
+        if (go.isEmpty()) return ids;
+        List<BuildQueue.Item> items = q.addAll(go, anyway, System.currentTimeMillis());
+        List<Integer> added = new java.util.ArrayList<>();
+        for (int j = 0; j < go.size(); j++) {
+            BuildRequest req = go.get(j);
+            BuildListener l = ls.get(at.get(j));
+            BuildQueue.Item it = items.get(j);
+            if (it == null) {   // this very game builds now
+                String nm = req.name == null || req.name.isEmpty() ? req.titleId : req.name;
+                if (l != null) MAIN.post(() -> l.done(false, nm + " is being built now. Wait for it to finish.", BuildListener.OTHER));
+                continue;
+            }
+            ids[at.get(j)] = it.id;
+            if (l != null) LISTENERS.put(it.id, l);
+            if (!there.contains(req.titleId.toUpperCase(java.util.Locale.ROOT))) added.add(it.id);
+            BuildQueue.Item next = q.next();
+            if (q.running() == null && running == 0 && waitReason == null && next != null && next.id == it.id) {   // nothing before it: it starts now, as before the queue
+                running = it.id;
+                lastStep = "import"; lastPercent = 0; lastDetail = "Starting";
+                title = req.titleId; name = req.name == null ? "" : req.name; startedAt = System.currentTimeMillis(); endOk = null;
+            }
         }
+        boolean any = false;
+        for (int id : ids) any |= id != 0;
+        if (!any) return ids;
         try {
             ctx.getApplicationContext().startForegroundService(BuildService.run(ctx));
         } catch (RuntimeException e) {   // not in the manifest, or Android refused a foreground service from the background
             Log.w(TAG, "BuildService start: " + e);
-            LISTENERS.remove(id);
-            if (!wasThere) q.remove(id);
-            if (running == id) running = 0;
-            ended(false, "Cannot start the build: " + e.getMessage(), BuildListener.OTHER);
-            if (l != null) MAIN.post(() -> l.done(false, "Cannot start the build: " + e.getMessage(), BuildListener.OTHER));
+            q.removeAll(added);
+            String refused = "Android did not let the build start. Tap Build again.";   // Android's own words are in the log line above
+            for (int k = 0; k < n; k++) {
+                int id = ids[k];
+                if (id == 0) continue;
+                LISTENERS.remove(id);
+                if (running == id) running = 0;
+                ended(false, refused, BuildListener.OTHER);
+                BuildListener l = ls.get(k);
+                if (l != null) MAIN.post(() -> l.done(false, refused, BuildListener.OTHER));
+                ids[k] = 0;
+            }
             changed();
-            return 0;
+            return ids;
         }
         changed();
-        return id;
+        return ids;
     }
 
     /** The game's waiting item (its place in the queue), null when it does not wait */
@@ -305,11 +346,11 @@ public final class BuildPipeline {
 
     private static String check(Context ctx, BuildRequest r) {
         if (r == null) return "Nothing to build.";
-        if (r.titleId == null || !r.titleId.matches("[0-9A-Fa-f]{16}")) return "The game has no title ID.";
+        if (r.titleId == null || !r.titleId.matches("[0-9A-Fa-f]{16}")) return "The app cannot tell which game this is. Rescan your games, then build again.";
         if (r.base == null) return "Pick the game's base file first.";
-        if (!r.base.exists()) return "The base file is missing: " + r.base;
+        if (!r.base.exists()) { Log.w(TAG, "check: the base file is missing: " + r.base); return "The game's base file is missing. Open the game's sheet to pick it again."; }
         if (r.needsImport() && r.gameDir == null && r.buildDestination == null && dev.peanuts.PeanutsPrefs.buildDir(ctx) == null)
-            return "Choose a Build destination or set a Game folder.";
+            return "Set a Game folder in Settings › Library, or pick a Build destination, then build.";
         return null;
     }
 

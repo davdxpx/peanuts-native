@@ -19,7 +19,8 @@ import java.util.List;
  * <li>a failed or stopped item does not stop the queue; the batch's summary names it;</li>
  * <li>removing, Cancel all, the same game asked twice, a game that runs asked again;</li>
  * <li>the batch's places ("2 of 5") and a new batch once the queue ran empty;</li>
- * <li>a damaged file: what reads is kept, nothing throws.</li>
+ * <li>a damaged file: what reads is kept, nothing throws;</li>
+ * <li>Build all of 50 games: one write of the file, the same queue as 50 adds one by one, and the same file after a restart.</li>
  * </ul>
  */
 public final class BuildQueueJvmTest {
@@ -62,6 +63,7 @@ public final class BuildQueueJvmTest {
         twice(root);
         batches(root);
         damaged(root);
+        buildAll(root);
         System.out.println("ok");
     }
 
@@ -293,5 +295,58 @@ public final class BuildQueueJvmTest {
         BuildQueue none = new BuildQueue(null);
         none.add(req(A, "Mario Kart", root), false, now++);
         same(1, none.items().size(), "a queue without a file works in memory");
+    }
+
+    /** Build all of 50 games (BuildPipeline.startAll): one write of the file, not 50; the queue, its places and its file as 50 adds one by one would leave them */
+    private static void buildAll(File root) throws IOException {
+        List<BuildRequest> reqs = new ArrayList<>();
+        List<Boolean> anyway = new ArrayList<>();
+        for (int k = 0; k < 50; k++) {
+            reqs.add(req(String.format("01000000%04X0000", k), "Game " + k, root));
+            anyway.add(k % 7 == 0);
+        }
+        // one by one, as before
+        File f1 = fresh(root, "build-all-one-by-one");
+        BuildQueue one = new BuildQueue(f1);
+        one.add(req(A, "Mario Kart", root), false, now);
+        one.start(one.next().id, now);   // a game builds already: the 50 wait behind it
+        int before = one.saves;
+        for (int k = 0; k < reqs.size(); k++) one.add(reqs.get(k), anyway.get(k), now);
+        same(50, one.saves - before, "one by one: a write a game");
+        // all at once
+        File f2 = fresh(root, "build-all-at-once");
+        BuildQueue all = new BuildQueue(f2);
+        all.add(req(A, "Mario Kart", root), false, now);
+        all.start(all.next().id, now);
+        before = all.saves;
+        List<BuildQueue.Item> got = all.addAll(reqs, anyway, now);
+        same(1, all.saves - before, "Build all of 50: one write of the queue");
+        same(50, got.size(), "an answer a request");
+        same(one.toString(), all.toString(), "the same queue as one by one");
+        for (int k = 0; k < 50; k++) {
+            same(reqs.get(k).titleId, got.get(k).titleId(), "the answers in the order asked");
+            same(anyway.get(k), got.get(k).buildAnyway, "Build anyway kept with its request");
+            same(one.placeText(one.get(got.get(k).id)), all.placeText(got.get(k)), "the same places");
+        }
+        same("2 of 51", all.placeText(got.get(0)), "the first of them goes second");
+        same(new String(Files.readAllBytes(f1.toPath()), StandardCharsets.UTF_8), new String(Files.readAllBytes(f2.toPath()), StandardCharsets.UTF_8), "the same file");
+        // a killed app goes on with all of them, in order, the running one first again
+        BuildQueue again = new BuildQueue(f2);
+        same(51, again.waiting().size(), "the whole batch read back");
+        same(A, again.next().titleId(), "the cut-off build goes first again");
+        same(reqs.get(49).titleId, again.waiting().get(50).titleId(), "the last asked is last");
+        // the game that builds is refused within the batch too, and a game asked twice keeps one place with the newer request
+        List<BuildQueue.Item> more = all.addAll(Arrays.asList(req(A, "Mario Kart", root), req(B, "Animal Crossing", root), req(B, "Animal Crossing again", root)),
+                Arrays.asList(false, false, true), now);
+        check(more.get(0) == null, "the game that builds is refused");
+        same(more.get(1).id, more.get(2).id, "asked twice: one place");
+        same("Animal Crossing again", all.get(more.get(2).id).name(), "with the newer request");
+        same(2, all.saves - before, "one more write for the second batch");
+        // a batch Android did not let start leaves at once
+        int left = all.removeAll(Arrays.asList(more.get(1).id, all.running().id));
+        same(1, left, "the waiting one leaves, the running one stays");
+        same(3, all.saves - before, "one write for the removal");
+        before = all.saves;
+        check(all.addAll(Arrays.asList(req(A, "Mario Kart", root)), Arrays.asList(false), now).get(0) == null && all.saves == before, "nothing added: nothing written");
     }
 }

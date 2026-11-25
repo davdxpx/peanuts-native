@@ -407,7 +407,7 @@ public final class BuildService extends Service {
             if (part != null && part.isFile()) { BuildLogShare.line(this, it.titleId(), "queue: deleting what the import wrote: " + part); part.delete(); }
             if (part != null) deleteUnpacked(part);
             BuildLogShare.line(this, it.titleId(), "queue: the importer crashed on these game files: " + name + " stops, the queue goes on with the next game");
-            end = new String[] {"The app crashed while importing " + name + "'s game files, so the queue went on without it. What the import wrote was deleted.", BuildListener.OTHER};
+            end = new String[] {"The app crashed while importing " + name + "'s game files, so the queue went on without it. What the import wrote was deleted. " + Prepare.RETRY_SHARE, BuildListener.OTHER};
         } else end = run(it.request, place);
         boolean ok = "".equals(end[1]);
         String code = ok ? "" : end[1], message = end[0];
@@ -416,7 +416,7 @@ public final class BuildService extends Service {
         boolean packerPaused = !ok && BuildListener.CANCELLED.equals(code) && !cancelled;
         if (timedOut && !ok) {
             q.requeue(it.id);
-            message = "Android paused the build for today (its daily limit for builds). It goes on with " + name + " when you open the app.";
+            message = "Paused: Android allows only so much background work a day. The build of " + name + " goes on when you open the app.";
             code = BuildListener.CANCELLED;
             ok = false;
         } else if (!ok && (pausing || packerPaused)) {
@@ -527,8 +527,7 @@ public final class BuildService extends Service {
             long[] f = RuntimeShaders.failed(Upstream.jobFileOf(work));
             if (f[0] <= 0) return "";
             Log.w(TAG, "shaders: " + f[0] + " of " + f[1] + " of " + name + "'s shaders are not in its library");
-            return String.format(java.util.Locale.ROOT, " %,d of its %,d shaders could not be built, so some effects may not show. The log that says which is %s.", f[0], f[1],
-                    new File(work, "ondevice/logs/shaders.log"));
+            return String.format(java.util.Locale.ROOT, " %,d of its %,d shaders could not be made, so some effects may not show. Its build log lists them.", f[0], f[1]);
         } catch (ReflectiveOperationException e) {
             return "";
         }
@@ -555,6 +554,34 @@ public final class BuildService extends Service {
         dev.peanuts.ui.Cracked.built(this, r.titleId, version < 0 ? null : "v" + version, shaders);
     }
 
+    /**
+     * What the ready message adds when the build took part of its work from earlier builds (issue #120, peanuts/docs/INCREMENTAL-BUILD.md): how long it took and what
+     * came from them, read from this build's step logs (BuildReuse). Empty for a build that kept nothing, or when the logs cannot be found
+     */
+    private String reused(BuildRequest r, File dump) {
+        try {
+            File logs = new File(Upstream.workOf(dump, r.titleId), "ondevice/logs");
+            String t = BuildReuse.text(BuildReuse.read(logs, runStart), (System.currentTimeMillis() - runStart) / 1000);
+            if (!t.isEmpty()) log("reused:" + t);
+            return t;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return "";
+        }
+    }
+
+    /** The full check of the shaders this build kept, when it is due, the phone charges and no game runs (ReuseCheck): in the packer, after the build; else later */
+    private void startCheck(BuildRequest r, File dump) {
+        try {
+            File jobFile = Upstream.jobFileOf(Upstream.workOf(dump, r.titleId));
+            ReuseCheck.remember(getNoBackupFilesDir(), r.titleId, jobFile);   // for a start later, from the launcher (ReuseCheck.startAny)
+            String why = ReuseCheck.start(this, jobFile, r.titleId);
+            if (why == null) log("reuse check: the full check of the kept shaders starts in the background (a game that starts stops it)");
+            else if (!why.equals("nothing due")) log("reuse check: later (" + why + ")");
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            log("reuse check: " + e);
+        }
+    }
+
     /** One game's build, its steps in order; returns {the card's message, the failure code ("" when it is ready)} */
     private String[] run(BuildRequest r, String place) {
         final long startedAt = System.currentTimeMillis();
@@ -566,7 +593,7 @@ public final class BuildService extends Service {
         if (!place.isEmpty()) log("queue: " + place);
         try {
             if (r.buildDestination != null && !new File(r.buildDestination).isDirectory())
-                throw new IOException("The selected build folder is unavailable. Reconnect its storage or pick another Build destination.");
+                throw new IOException("The game's build folder cannot be reached. Connect its storage again, or pick another Build destination, then tap Retry.\n" + r.buildDestination);
             File dump = stepImport(r);
             log("game file: " + fileLine(dump));
             try {
@@ -581,8 +608,8 @@ public final class BuildService extends Service {
             long packFree = SpaceEstimate.freeBytes(packHome);
             if (packFree < MIN_PACK_FREE) {
                 log("space: " + BuildLogBundle.size(packFree) + " free for the pack in " + packHome + ", below " + BuildLogBundle.size(MIN_PACK_FREE) + ": Prepare not started");
-                throw new BuildListener.Failure("Not enough free space to prepare " + name + ": " + SpaceEstimate.words(packFree) + " is free where its pack is made, and it needs "
-                        + "more than " + SpaceEstimate.words(MIN_PACK_FREE) + ". Nothing was written. Free up some space, then Retry.", BuildListener.OUT_OF_SPACE);
+                throw new BuildListener.Failure("Not enough free space to build " + name + ": it needs more than " + SpaceEstimate.words(MIN_PACK_FREE) + ", and "
+                        + SpaceEstimate.words(packFree) + " is free. Nothing was written. Free up some space, then tap Retry.\n" + packHome, BuildListener.OUT_OF_SPACE);
             }
             File pack = null;
             IOException prepareFailed = null;
@@ -599,19 +626,22 @@ public final class BuildService extends Service {
                 stepCompanion(r, pack);
             } catch (IOException e) {
                 if (prepareFailed != null) throw new BuildListener.Failure(prepareFailed.getMessage() + "\n\nCompanion: " + e.getMessage(), category(prepareFailed));
-                throw e;
+                if (e instanceof BuildListener.Failure || cancelled) throw e;
+                // the game is built: only its companion is not there. The installer's own words (a URL, a file, an exception) go to Details
+                throw new IOException("Installing the dual-screen companion stopped. " + name + " is ready to play without it. Tap Retry to try the companion again.\n" + e.getMessage(), e);
             }
             if (prepareFailed != null) throw prepareFailed;
             ok = true;
-            cracked(r, dump, startedAt);
-            message = name + " is ready to play." + shadersLeftOut(r, dump);
+            message = name + " is ready to play." + reused(r, dump) + shadersLeftOut(r, dump);
             progress("done", 100, message);
+            dev.peanuts.ui.CrackedCount.never(() -> cracked(r, dump, startedAt), e -> Log.w(TAG, "peanuts cracked: the build is not counted: " + e));   // after done; a failure in it is logged, never the build's
+            startCheck(r, dump);
         } catch (IOException e) {
             message = e.getMessage() == null ? e.toString() : e.getMessage();
             code = category(e);
             Log.w(TAG, "build " + name + ": " + message);
         } catch (RuntimeException | Error e) {   // an Error too (OutOfMemoryError, a missing native method): uncaught it ended the app's process, and the queue went on only after Android started the service again
-            message = "Build failed: " + e;
+            message = "The build stopped because of a problem in the app. " + Prepare.RETRY_SHARE;
             try {   // an OutOfMemoryError's stack trace as text needs memory too: its name only, and nothing in the log throws again
                 boolean oom = e instanceof OutOfMemoryError;
                 Log.e(TAG, "build " + name + (oom ? ": " + e : ""), oom ? null : e);
@@ -638,27 +668,27 @@ public final class BuildService extends Service {
 
     /** (a) the .nup from an NSP/XCI, or the base as it is */
     private File stepImport(BuildRequest r) throws IOException {
-        if (r.base == null || !r.base.exists()) throw new BuildListener.Failure("The game's base file is missing" + (r.base == null ? "." : ": " + r.base), BuildListener.FILE_MISSING);
-        if (r.update != null && !r.update.exists()) throw new BuildListener.Failure("The update file is missing: " + r.update, BuildListener.FILE_MISSING);
-        if (!r.needsImport()) { log("import: not needed, the base is a .nup or a dump"); progress("import", IMPORT_END, "Game file: " + r.base.getName()); return r.base; }
+        if (r.base == null || !r.base.exists()) throw new BuildListener.Failure("The game's base file is missing." + (r.base == null ? "" : "\n" + r.base), BuildListener.FILE_MISSING);
+        if (r.update != null && !r.update.exists()) throw new BuildListener.Failure("The game's update file is missing.\n" + r.update, BuildListener.FILE_MISSING);
+        if (!r.needsImport()) { log("import: not needed, the base is a .nup or a dump"); progress("import", IMPORT_END, "Game files ready"); return r.base; }
         // PEANUTS: a build folder (Settings - Library - Build folder), when set, is where this title's .nup and pack both go (<build folder>/<title ID>/),
         // instead of beside the game and in the app's own storage; PeanutsPrefs.buildGameDir validates the title ID and returns null without one set
         File buildGameDir = destination(r);
         File replace = r.replaceNup;   // Import again: the .nup to make anew, where it is
         boolean again = replace != null;
-        if (!again && buildGameDir == null && r.gameDir == null) throw new IOException("No game folder to write the .nup into (Setup).");
+        if (!again && buildGameDir == null && r.gameDir == null) throw new IOException("The app has no game folder to save the imported game in. Set the Game folder in Settings › Library, then tap Retry.");
         List<File> inputs = r.inputs();
         // PEANUTS: both volumes move to the build folder when it is set (the .nup and the pack land under the same <title ID> folder there)
         File importDest = again ? replace.getAbsoluteFile().getParentFile() : buildGameDir != null ? buildGameDir : r.gameDir;
         File packVolume = buildGameDir != null ? new File(buildGameDir, "pack") : getExternalFilesDir(null);
         File dir = again ? importDest : buildGameDir != null ? buildGameDir : new File(r.gameDir, r.fileName()), out = again ? replace : new File(dir, r.fileName() + ".nup");
-        if (dir == null) throw new IOException("The .nup has no folder: " + out);
+        if (dir == null) throw new IOException("The app cannot tell where to save the imported game. " + Prepare.RETRY_SHARE + "\n" + out);
         long newest = 0;
         for (File f : inputs) newest = Math.max(newest, f.lastModified());
-        if (!again && out.isFile() && out.length() > 0 && out.lastModified() >= newest) { log("import: imported already, the .nup is newer than every input: " + out); progress("import", IMPORT_END, "Imported already: " + out.getName()); return out; }
-        if (!Importer.available()) throw new IOException("This build of the app cannot import NSP, NSZ, XCI or XCZ files yet (no importer). Use a .nup or a dump folder.");
+        if (!again && out.isFile() && out.length() > 0 && out.lastModified() >= newest) { log("import: imported already, the .nup is newer than every input: " + out); progress("import", IMPORT_END, "Game files imported earlier"); return out; }
+        if (!Importer.available()) throw new IOException("This app version cannot import NSP, NSZ, XCI or XCZ files. Build from a .nup or a dump folder instead.");
         File keys = new File(new File(getFilesDir(), "keys"), "prod.keys");
-        if (!keys.isFile()) throw new IOException("No prod.keys: add your keys in Setup first.");
+        if (!keys.isFile()) throw new IOException("Add your keys first in Settings › Console, then build.");
         // The sizes come from the probe (the keys first): the .nup's from the titles' own records, which a compressed file's length is not, and what
         // unpacking a solid .nsz needs beside it while it imports (issue #149); a file the probe cannot size counts with its length, as before
         progress("import", 0, "Loading keys");
@@ -690,7 +720,7 @@ public final class BuildService extends Service {
      * app's process ends: Android starts the service again (sticky), and the queue goes on with the next game
      */
     private void giveUpImport(BuildRequest r, long hangMs) {
-        String msg = "The import of " + name + " made no progress for " + minutes(hangMs) + " and did not stop, so the app ended it and the queue went on.";
+        String msg = "The import of " + name + " made no progress for " + minutes(hangMs) + " and did not stop, so the app ended it and the queue went on. " + Prepare.RETRY_SHARE;
         log("import: no progress for " + minutes(hangMs) + ", and no return " + minutes(Math.min(BuildWatch.GIVE_UP_MS, hangMs)) + " after it was asked to stop: " + name
                 + " is marked as stopped and the app's process ends, so the queue goes on when Android starts it again");
         File part = importPart(r);
@@ -706,13 +736,13 @@ public final class BuildService extends Service {
             throws IOException {
         long[] sized;
         try {
-            if (Importer.keys(keys) != 0) throw new IOException("Keys: " + Importer.lastError());
+            if (Importer.keys(keys) != 0) throw new IOException("The app could not read your keys. Add them again in Settings › Console, then tap Retry.\n" + Importer.lastError());
             log("import: keys loaded");
             iw.heard();
             sized = Importer.sizes(inputs, r.titleId);
             iw.heard();
         } catch (ReflectiveOperationException e) {
-            throw new IOException("The importer does not match this build of the app (" + e.getMessage() + ").");
+            throw new IOException("The import could not start because of a problem in the app. " + Prepare.RETRY_SHARE + "\n" + e.getMessage());
         }
         final long nupBytes = sized[0], unpackBytes = sized[1], checkBytes = sized[2];
         long importNeed = nupBytes + unpackBytes;   // on the .nup's volume while it imports
@@ -727,8 +757,8 @@ public final class BuildService extends Service {
         // work). Unlike the first import's estimate above this one stops the build: the player chose between freeing space and deleting the old file first
         boolean oldThere = again && out.isFile();
         if (oldThere && !r.deleteOldFirst && SpaceEstimate.freeBytes(dir) < importNeed)
-            throw new BuildListener.Failure("Not enough free space to import " + name + " again: the new .nup needs about " + Reimport.size(importNeed) + " beside the old "
-                    + "one" + (unpackBytes > 0 ? " while its compressed files are unpacked" : "") + ", and " + Reimport.size(SpaceEstimate.freeBytes(dir)) + " is free in " + dir + ". Nothing was changed.", BuildListener.OUT_OF_SPACE);
+            throw new BuildListener.Failure("Not enough free space to import " + name + " again: the new game file needs about " + Reimport.size(importNeed) + " beside the old "
+                    + "one" + (unpackBytes > 0 ? " while the compressed files are unpacked" : "") + ", and " + Reimport.size(SpaceEstimate.freeBytes(dir)) + " is free. Nothing was changed.\n" + dir, BuildListener.OUT_OF_SPACE);
         // The first import (the queue's storage check, issue #348): the .nup's size is the probe's, from the titles' own records, not the uncalibrated pack
         // estimate above, so a .nup that cannot fit stops here, before anything is written, and the queue goes on with the next game instead of filling the
         // folder. What a killed import left (the .part, deleted below) counts as free
@@ -737,15 +767,15 @@ public final class BuildService extends Service {
             long free = SpaceEstimate.freeBytes(dir), left = part.isFile() ? part.length() : 0;
             if (free != Long.MAX_VALUE && free + left < importNeed) {
                 log("space: " + BuildLogBundle.size(free + left) + " free in " + dir + ", the import needs " + BuildLogBundle.size(importNeed) + ": not started");
-                throw new BuildListener.Failure("Not enough free space to import " + name + ": its .nup needs about " + Reimport.size(importNeed)
-                        + (unpackBytes > 0 ? " while its compressed files are unpacked" : "") + ", and " + Reimport.size(free + left) + " is free in " + dir
-                        + ". Nothing was written. Free up some space, then Retry.", BuildListener.OUT_OF_SPACE);
+                throw new BuildListener.Failure("Not enough free space to import " + name + ": its game file needs about " + Reimport.size(importNeed)
+                        + (unpackBytes > 0 ? " while the compressed files are unpacked" : "") + ", and " + Reimport.size(free + left) + " is free"
+                        + ". Nothing was written. Free up some space, then tap Retry.\n" + dir, BuildListener.OUT_OF_SPACE);
             }
         }
         long importStart = System.currentTimeMillis();
         log("import: " + inputs.size() + " input" + (inputs.size() == 1 ? "" : "s") + ", " + BuildLogBundle.size(nupBytes) + ", into " + out + " (" + freeLine(dir) + ")");
         try {
-            if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("Cannot create " + dir);
+            if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("The app cannot make a folder for the imported game. Check that the game folder can be written to, then tap Retry.\n" + dir);
             File tmp = new File(dir, out.getName() + ".part");
             tmp.delete();
             deleteUnpacked(tmp);   // what an import the app did not live to finish left (the importer's own folder for the temporary files)
@@ -754,12 +784,12 @@ public final class BuildService extends Service {
             boolean deleted = false;
             if (oldThere && r.deleteOldFirst) {
                 markPacksStale(r, out);
-                if (!out.delete()) throw new IOException("Cannot delete the old " + out.getName() + ". Nothing was changed.");
+                if (!out.delete()) throw new IOException("The app cannot delete the old game file. Nothing was changed.\n" + out);
                 deleted = true;
                 log("import again: " + out + " deleted first (the player's choice)");
             }
-            String kept = !again ? "" : deleted ? " The old .nup was deleted first, as you chose: open the game's sheet and tap Build to make it again."
-                    : " Nothing was replaced: the game is as it was.";
+            String kept = !again ? "" : deleted ? " The old game file was deleted first, as you chose. Open the game's sheet and tap Build to make it again."
+                    : " Nothing was replaced, the game is as it was.";
             final long[] last = {0};
             final String[] lastStep = {""};
             if (cancelled) throw new BuildListener.Failure("Build cancelled." + kept, BuildListener.CANCELLED);
@@ -780,28 +810,28 @@ public final class BuildService extends Service {
                 tmp.delete();
                 deleteUnpacked(tmp);
                 log("import: no progress for " + minutes(hangMs) + ": stopped (the importer returned " + rc + ": " + Importer.lastError() + ")");
-                throw new BuildListener.Failure("The import of " + name + " made no progress for " + minutes(hangMs) + ", so it was stopped and the queue went on." + (again ? kept : " What it had written was deleted."),
-                        BuildListener.OTHER);
+                throw new BuildListener.Failure("The import of " + name + " made no progress for " + minutes(hangMs) + ", so it was stopped and the queue went on." + (again ? kept : " What it had written was deleted.")
+                        + " " + Prepare.RETRY_SHARE, BuildListener.OTHER);
             }
             if (rc != 0) { tmp.delete();
                 deleteUnpacked(tmp);
                 String why = Importer.lastError(), damaged = Compressed.failure(why, name, !deleted);
                 log("import: the importer returned " + rc + ": " + why + " (after " + (System.currentTimeMillis() - importStart) / 1000 + " s)");
                 if (BuildWatch.full(why)) throw new BuildListener.Failure("The storage filled up while " + name + " was imported, so the import was stopped." + (again ? kept : " What it had written was deleted.")
-                        + "\n" + why, BuildListener.OUT_OF_SPACE);
+                        + " Free up some space, then tap Retry.\n" + why, BuildListener.OUT_OF_SPACE);
                 if (damaged != null) throw new BuildListener.Failure(damaged + (deleted ? kept : ""), BuildListener.FILE_DAMAGED);
-                throw new IOException("Import failed: " + why + (again ? "." + kept : ""));
+                throw new IOException("The import stopped." + (again ? kept : "") + " " + Prepare.RETRY_SHARE);
             }
             // A pack made from the file this import replaces (Import again, or inputs newer than the .nup) was made from other game files: marked before the
             // new file takes the old one's place, so no moment has the new file with a pack that counts as up to date (PackNote, Prepare.run0)
             if (out.isFile()) markPacksStale(r, out);
-            if (!place(tmp, out)) { tmp.delete(); throw new IOException("Cannot place " + out + (again ? "." + kept : "")); }
+            if (!place(tmp, out)) { tmp.delete(); throw new IOException("The app could not save the imported game." + (again ? kept : "") + " " + Prepare.RETRY_SHARE + "\n" + out); }
         } catch (ReflectiveOperationException e) {
-            throw new IOException("The importer does not match this build of the app (" + e.getMessage() + ").");
+            throw new IOException("The import could not start because of a problem in the app. " + Prepare.RETRY_SHARE + "\n" + e.getMessage());
         }
         long took = Math.max(1, System.currentTimeMillis() - importStart);
         log("import: done in " + took / 1000 + " s, " + BuildLogBundle.size(out.length()) + " (" + BuildLogBundle.size(out.length() * 1000 / took) + "/s)");
-        progress("import", IMPORT_END, "Imported " + out.getName());
+        progress("import", IMPORT_END, "Game files imported");
         return out;
     }
 
@@ -880,35 +910,45 @@ public final class BuildService extends Service {
         if (cancelled) throw new IOException("Build cancelled.");
         if (!enough) {
             int have = RuntimeShaders.captured(RuntimeShaders.captureDir(work));
-            if (have == 0) throw new IOException(name + " could not finish graphics setup (" + need + " shaders unavailable). Tap Build again to retry.");
+            if (have == 0) throw new IOException(String.format(Locale.ROOT, "Finishing graphics setup stopped before it got any of the %,d shaders it needs. ", need) + Prepare.RETRY_SHARE);
             log("runtime shaders: only " + have + " of " + need + " captured; re-running the job with those");
         }
         RuntimeShaders.rerun(work, jobFile);
-        progress("prepare", IMPORT_END, "Completing graphics setup");
+        progress("prepare", IMPORT_END, "Finishing graphics setup");
         File rebuilt = stepPrepare(r, dump);
         int left = RuntimeShaders.missing(jobFile);
         int runtimeLeft = RuntimeShaders.missingInPack(this, r.titleId, rebuilt);
-        if (runtimeLeft > 0) throw new IOException(name + " still lacks " + runtimeLeft + " run-time shaders after capture. Some text or graphics may be missing. Tap Build again.");
+        if (runtimeLeft > 0) throw new IOException(String.format(Locale.ROOT, "Finishing graphics setup stopped with %,d shaders still missing, so some text or graphics may not show. ", runtimeLeft) + Prepare.RETRY_SHARE);
         // Shaders still missing after the capture: when the capture made a difference (fewer missing), or its captures were already there from an earlier
         // build, the rest are not run-time shaders (no game run makes them, as Mario Kart 8 Deluxe's 135 of another version): the pack is kept, with a log
         // line, instead of asking for a Build again that could never get further. Only a capture that changed nothing on its first try is an error.
         if (left > 0 && (left < need || before >= need)) { log("runtime shaders: " + left + " of " + name + "'s shaders are still missing after the capture; they are not made at run time, the pack is kept"); return rebuilt; }
-        if (left > 0) throw new IOException(name + " still lacks " + left + " shaders after the run-time capture. Some text or graphics may be missing. Tap Build again.");
+        if (left > 0) throw new IOException(String.format(Locale.ROOT, "Finishing graphics setup stopped with %,d shaders still missing, so some text or graphics may not show. ", left) + Prepare.RETRY_SHARE);
         return rebuilt;
     }
 
     /** (c) the companion beside the pack: <title ID>-work/peanuts/<Name>/ */
     private void stepCompanion(BuildRequest r, File pack) throws IOException {
-        if (r.companionPackage == null || r.companionPackage.isEmpty()) { progress("companion", 100, "No companion chosen"); return; }
+        if (r.companionPackage == null || r.companionPackage.isEmpty()) { progress("companion", 100, "No dual-screen companion chosen"); return; }
         File root = companionRoot(pack, dumpWork(r, pack));
         log("companion " + r.companionPackage + " for " + r.titleId + " into " + root);
-        progress("companion", PREPARE_END, "Looking up the companion");
+        progress("companion", PREPARE_END, "Looking up the dual-screen companion");
         Companions.Item item = Companions.find(Companions.fetch(), r.titleId);
-        if (item == null) throw new IOException("The catalog has no companion for " + name + " now; the game is ready to play without one.");
+        if (item == null) throw new BuildListener.Failure("No dual-screen companion is available for " + name + " now. The game is ready to play without one.", BuildListener.OTHER);
         String have = Companions.installedVersion(root, item.packageName);
-        if (have != null && Companions.compareVersions(have, item.version) >= 0) { progress("companion", 100, "Companion " + Companions.label(item.packageName, have) + " installed already"); return; }
-        Companions.install(item, root, getCacheDir(), (what, done, total) -> progress("companion", PREPARE_END + (total > 0 ? (int) Math.min(9, done * 9 / total) : 0), what));
-        progress("companion", 100, "Companion " + Companions.label(item.packageName, item.version) + " installed");
+        if (have != null && Companions.compareVersions(have, item.version) >= 0) { log("companion: " + Companions.label(item.packageName, have) + " installed already"); progress("companion", 100, name + "'s dual-screen companion is installed already, version " + have); return; }
+        Companions.install(item, root, getCacheDir(), (what, done, total) -> progress("companion", PREPARE_END + (total > 0 ? (int) Math.min(9, done * 9 / total) : 0), companionStep(what)));
+        log("companion: " + Companions.label(item.packageName, item.version) + " installed");
+        progress("companion", 100, name + "'s dual-screen companion is installed, version " + item.version);
+    }
+
+    /** The installer's step (Installer.Progress: download, verify, extract) in the card's words */
+    private static String companionStep(String what) {
+        switch (String.valueOf(what)) {
+            case "download": return "Downloading the dual-screen companion";
+            case "verify": return "Checking the dual-screen companion";
+            default: return "Installing the dual-screen companion";
+        }
     }
 
     /** The work folder from the pack when the pack is in it (dump's ../<title ID>-work/android-pack), else beside the dump (DumpCheck.workOf) */
@@ -1010,11 +1050,14 @@ public final class BuildService extends Service {
     /** One game's end (a queue of one, as before the queue) */
     private Notification done(boolean ok, String message, boolean stoppedByUser) {
         Notification.Builder b = new Notification.Builder(this, BuildPipeline.endChannel(nm, CHANNEL, stoppedByUser)).setSmallIcon(ok ? android.R.drawable.stat_sys_download_done : android.R.drawable.stat_notify_error)
-                .setContentTitle(ok ? name + " is ready to play" : "Building " + name + " stopped").setContentText(message).setStyle(new Notification.BigTextStyle().bigText(message)).setAutoCancel(true);
+                .setContentTitle(ok ? name + " is ready to play" : "Building " + name + " stopped").setContentText(firstLine(message)).setStyle(new Notification.BigTextStyle().bigText(firstLine(message))).setAutoCancel(true);
         Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
         if (open != null) b.setContentIntent(PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
         return b.build();
     }
+
+    /** A message's main text: its first line (the lines after it are the card's Details: paths, the tools' own words) */
+    private static String firstLine(String m) { return m == null ? "" : m.split("\n")[0].trim(); }
 
     /** The queue's end, once for all its games: what is ready, which stopped and why. Silent after Cancel all (the player asked for it) */
     private Notification queueDone(boolean allReady, String summary, boolean stoppedByUser) {

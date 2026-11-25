@@ -55,7 +55,7 @@ class Wiring(unittest.TestCase):
         # and while a pack of the next game is being imported (Import pack, #44): the import writes the folder the build would use
         self.assertIn('PackImport.busy(next.titleId())) return BuildQueue.WAIT_PACK;', s)
         # the storage check before each game: the import's exact size, and a floor for the pack
-        self.assertIn('Not enough free space to import " + name + ": its .nup needs about', s)
+        self.assertIn('Not enough free space to import " + name + ": its game file needs about', s)
         self.assertIn('packFree < MIN_PACK_FREE', s)
         # a Stop in Prepare pauses the packer's job too (the next game's Prepare would wait for it), but only once this game's job was started:
         # before, the packer runs another game's job
@@ -151,6 +151,30 @@ class Wiring(unittest.TestCase):
         self.assertIn('"Remove from queue"', sheet)
         mods = read(APP / 'main/java/dev/peanuts/settings/ModsSection.java')
         self.assertIn('dev.peanuts.build.BuildPipeline.busy()', mods, 'a build with mods waits while the queue builds or waits')
+
+    def test_build_all_is_one_change(self):
+        # Build all of 50 games went through start() 50 times: 50 writes of the queue's file, 50 starts of the build service (each one its foreground
+        # notification), and Home drawn again about 100 times (startBuild's render and the queue watcher's), all on the main thread
+        p = read(BUILD / 'BuildPipeline.java')
+        start = p[p.index('public static int[] startAll('):]
+        start = start[:start.index('\n    }\n') + 6]
+        self.assertIn('q.addAll(go, anyway,', start, 'the queue takes the batch with one write')
+        self.assertEqual(start.count('startForegroundService('), 1, 'the build service is asked once for the batch')
+        self.assertNotIn('for (', start[start.index('startForegroundService('):start.index('} catch')], 'not once a game')
+        self.assertEqual(start.count('changed();'), 2, 'the library is told once (the refused branch and the started one)')
+        self.assertIn('q.removeAll(added);', start, 'a batch Android did not let start leaves with one write')
+        self.assertIn('return startAll(ctx, java.util.Collections.singletonList(req)', p, 'one game is a batch of one: the same rules')
+        # changes that come before the watchers ran are told once
+        self.assertIn('if (TELL.compareAndSet(false, true)) MAIN.post(', p)
+        lib = read(APP / 'main/java/dev/peanuts/ui/Library.java')
+        ask = lib[lib.index('private void buildAllAnswer('):lib.index('/** "A", "A and B", "A, B and C" */')]
+        self.assertIn('int queued = startBuilds(states);', ask)
+        self.assertNotIn('startBuild(st', ask, 'not one start (and one redraw of Home) a game')
+        self.assertEqual(ask.count('render();'), 1, 'Home drawn once after Build all')
+        many = lib[lib.index('private int startBuilds('):lib.index('private String refusal(')]
+        self.assertIn('BuildPipeline.startAll(a, reqs, anyway, ls)', many)
+        self.assertNotIn('BuildPipeline.start(', many)
+        self.assertEqual(many.count('render();'), 1, 'at most one redraw, and only when the caller does not draw')
 
     def test_new_text_rules(self):
         # UI-RULES: no separator glyphs and no dashes in the queue's own words
