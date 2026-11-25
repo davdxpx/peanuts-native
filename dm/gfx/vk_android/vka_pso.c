@@ -1647,7 +1647,7 @@ static void pw_start(int wait) {
     if ((wait || g_sw_wait) && g_pw_threads) {   // PEANUTS: g_sw_wait
         atomic_store(&g_pw_counting, 1);   // PEANUTS (the threads wait on g_pw_start_mu until it is unlocked below)
         atomic_store(&g_pw_start_total, (int)(wait ? g_pw_limit : g_sw_hot_n));   // PEANUTS: g_sw_hot_n
-        VLOG("startup prewarm: preparing %u pipeline keys before guest entry", g_pw_limit);
+        VLOG("startup prewarm: preparing %u pipeline keys before guest entry", wait ? g_pw_limit : g_sw_hot_n);   // PEANUTS: g_sw_hot_n (the rest of the list goes on in the background)
     }
     if (!g_pw_threads) free(g_pw_offsets);
     pthread_mutex_unlock(&g_pw_start_mu);
