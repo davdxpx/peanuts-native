@@ -2893,3 +2893,44 @@ Kept in "peanuts" (`PeanutsPrefs.quickKey`), which the launcher writes and the g
 
 Peanuts-owned: `dev.peanuts.ui.QuickButton`, its row in `LibrarySettings`, `SettingsSections` and `SettingsHelp`, the question in `Library.fill`,
 `PeanutsPrefs.quickKey` and `quickKeyNever`. Tests: `peanuts/tests/test_ingame_menus.py` (QuickMenuButton).
+
+### Round 65, amiibo: a virtual stand the app places amiibo on (2026-11-24, GitHub issue #582, Part A: engine and store)
+
+Games read amiibo through `nn::nfp`, which upstream's `hle_sdk16.c` takes over with one NFC device that never finds a tag. The take-over sits above
+the SDK's NFC service and above the figures' encryption, so a game asks for plain TagInfo, ModelInfo, CommonInfo, RegisterInfo and application area
+bytes: a virtual tag needs no amiibo keys. `dm/peanuts/peanuts_amiibo.c` takes over the same nfc and nfp symbols in the Android host (`PN_AMIIBO`):
+the app places an amiibo (`Bridge.amiiboPlace`, the amiibo's ID, the tag's UID, the nickname, the player's Mii as owner, the dates and the games' data it
+keeps), the activate event is signalled, the game mounts and reads it, its writes (Flush, Create and Recreate of its area) go to the amiibo's folder from a
+helper thread, and a second after the game unmounted it the tag leaves the stand on its own (the deactivate event), as Breath of the Wild expects. An
+amiibo placed in advance is found 0.3 s after the game's next search. Areas are kept per access ID, so one amiibo serves every game. `nn::nfc::IsNfcEnabled`
+answers on now (upstream's open note: nfp and nfc agree). The amiibo settings applets end at once (already registered, nothing to erase or restore).
+`Bridge.amiiboStatus` tells the app whether the game searches and what lies on the stand. The app's side, `dev.peanuts.amiibo`: AmiiboAPI's table
+(MIT) offline (`peanuts/scripts/amiibo-db.py` makes `android/app/src/peanuts/res/raw/amiibo_db.tsv`), the player's own amiibo (`files/amiibo/own`), imports
+of .bin files, folders and ZIP packs (ID and UID only, no keys), pictures loaded on demand, and the adb control's `game do=amiibo`. See
+`peanuts/docs/AMIIBO.md`.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `dm/host/hle_sdk16.c` | 2 | the nfc and nfp block between `#ifndef PN_AMIIBO` and its `#endif` | `// PEANUTS:` |
+| `android/host/CMakeLists.txt` | 3 | `dm/peanuts/peanuts_amiibo.c` in `HOST_C`; `PN_AMIIBO` in both kinds of host's definitions (on the marked lines of `DM_NSP_DIRECT`) | `# PEANUTS:` |
+| `android/NOTICE.md` | 1 | AmiiboAPI's table (MIT) and its pictures | `<!-- PEANUTS -->` |
+
+Peanuts-owned: `dm/peanuts/peanuts_amiibo.c`, `dev.peanuts.amiibo` (`AmiiboDb`, `AmiiboBin`, `AmiiboStore`, `AmiiboTag`, `AmiiboImport`, `AmiiboFiles`,
+`AmiiboStand`, `AmiiboPictures`), `Bridge.amiibo*`, AmiiboAPI's line in `AboutData`, the `amiibo` action of `dev.peanuts.ctl.GameLive` and `GameLink`, `peanuts/scripts/amiibo-db.py`,
+`amiibo_db.tsv`. Tests: `peanuts/tests/test_amiibo_host.py` (the stand in C with made-up IDs, and that its symbols are the upstream block's),
+`peanuts/tests/test_amiibo.py` (`AmiiboJvmTest`: the table, dumps made in the test, imports, the store, the host's description; no keys or dumps in the
+repository), `peanuts/tests/test_ctl.py`. `upstream-update.sh --check` counts `android/app/src/jvmtest/java/dev/peanuts/` (the JVM tests of
+Peanuts' own classes) as Peanuts-owned.
+
+### amiibo Part B: a game's amiibo on its page (2026-11-24, GitHub issue #582, on Round 65)
+
+A game that uses amiibo (AmiiboAPI's table lists it, or it was seen initializing nfp) gets an amiibo tile after Controls. Its area
+(`dev.peanuts.amiibo.AmiiboPage`): the player's own amiibo that fit the game first (the last placed in it first), then every amiibo that fits it, as square
+pictures with their names; a search over all of them (name, series, game series); Import of .bin files or ZIP packs, or a folder (the system's picker,
+`LibrarySettings.result`, codes 87 and 88). An amiibo opens its page in the area: the picture, series and type, what it does in this game, the game's data on
+it with Reset game data (that game's area only), where it came from and how often it was placed, the other games that use it, and Remove from yours. B goes
+back from the page or the search to the pictures (`GamePage.onBack`). Pictures load when the area shows them (`AmiiboPictures`), Peanuts' own card (the
+stand icon, `pi_amiibo`) stands in until then or when there is none. No upstream file changes.
+
+Peanuts-owned: `AmiiboPage`, `GameAreas.AMIIBO`, its lines in `GamePage` and `LibrarySettings`, `pi_amiibo` (`peanuts/scripts/icons.py`). Tests:
+`peanuts/tests/test_amiibo.py` (Page: the wiring, the words, pictures only on demand), `peanuts/tests/test_game_page.py` (`GameAreasJvmTest`: the ten areas).
