@@ -110,7 +110,8 @@ public final class BuildService extends Service {
         pm = getSystemService(PowerManager.class);
         wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "peanuts:build");
         wake.setReferenceCounted(false);
-        battery(registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED), Context.RECEIVER_NOT_EXPORTED));
+        // From API 33 not exported; on Android 12 the app's signature permission (the system, which sends this, passes every permission check)
+        battery(dev.peanuts.InternalBroadcast.register(this, batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED)));
         thermal = pm.getCurrentThermalStatus();
         pm.addThermalStatusListener(getMainExecutor(), thermalListener);
     }

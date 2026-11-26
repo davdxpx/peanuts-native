@@ -1161,6 +1161,12 @@ PEANUTS on its first line) checks where the `TU_DEBUG` line goes: after the opti
 [Decals reading depth that holds only some 16-pixel tiles](../docs/reference/rendering.md#decals-reading-depth-that-holds-only-some-16-pixel-tiles-android-turnip),
 [Samples-passed reports that read 0 on Turnip hide decals](../docs/reference/rendering.md#samples-passed-reports-that-read-0-on-turnip-hide-decals-android)
 
+## Batman: Arkham Knight on Android
+
+Source only (no readiness row and no `nxGames` entry: the default APK does not carry the game); three game options for the Turnip road fixes (`DM_VK_ONE_LANE` with two
+`subgroup_one_lane` rows, `DM_VK_TU_FLUSHALL`, `DM_VK_NO_OCCLUSION`), each recommended on Turnip. PEANUTS-marked hunks in `game.tsv` and the note; no prewarm seed.
+[Game note](../dm/games/0100ACD0163D0000/README.md#android)
+
 ## Android presentation deadline forwarding
 
 The active game Activity forwards `Display.getPresentationDeadlineNanos()` once during `hostSetup`, then through the existing 500 ms `fpsTick` while active. A missing display sends zero. The JNI bridge preserves positive nanosecond values as 64-bit unsigned values, normalizes nonpositive values to zero and safely ignores a host without the new weak interface. The renderer uses this platform queue-lead requirement when selecting its target presentation grid; half a refresh alone does not describe the compositor's deadline. See the [Android API contract](https://developer.android.com/reference/android/view/Display#getPresentationDeadlineNanos()).
@@ -2992,7 +2998,6 @@ Upstream candidate: yes, a general fix with no Peanuts dependency.
 |---|---|---|---|
 | `dm/gfx/vk_android/vka_draw.c`, `dm/gfx/vk_android/vka_auto.h`, `dm/host/tests/t_android_auto.c` | 1, 1, 3 | Default `DM_VK_DYN_FILTER=0` when `qcom_old` (Qualcomm driver version before 512.800); fixes scrambled blocks and speckles across draws on Qualcomm 512.762.41 (Adreno 750) in OCTOPATH TRAVELER | `PEANUTS(upstream-candidate)` |
 | `docs/advanced_settings.tsv` | 1 | Update `DM_VK_DYN_FILTER` default text to name Qualcomm before 512.800 | generated / allow-listed in `peanuts/upstream-unmarked.txt` |
-
 ### Sea of Stars (`01008C0016544000`): base `v0` (`1.0.45861`), update `v983040` (`3.0.60151`), and Android memory/driver profile
 
 | File | Hunks | Change | Marker |
@@ -3083,6 +3088,78 @@ FINAL FANTASY RESONANCE on an AYN Odin 3 on its charger: the build paused at SEV
 Tests: `dm/tools/tests/test_android_packpolicy.py`, `peanuts/tests/test_heat_hold.py` (a counting stand-in tool held in a worker and in process: it does not move while held, goes on to the end, and does not start again; a stop ends a held worker).
 
 Upstream candidate: yes, for every game (the Peanuts card and queue parts excepted).
+
+
+## Android 12 (API 31/32): the app installs and runs, games need Android 13 (2026-11-26, on dev-0.1.9)
+
+The owner asked for Android 12 support for the app only, with no change on Android 13 and newer. minSdk is 31 in the normal build (`-PnxMinSdk=32` or `33` raises it; targetSdk unchanged). Every API 32+ call has an `if (Build.VERSION.SDK_INT >= 33) { the call as before } else { fallback }` guard, so Android 13 and newer run the same calls as before. Lint at minSdk 31 found 18 NewApi and 9 InlinedApi before, 0 and 0 after. Taken from Banana Native v0.3.41 (d54b922e, not yet in this tree): the `-PnxMinSdk` switch (default 31 here, 33 there), `Streams` (here public, and from API 33 it makes the platform call itself), the Rumble, Updater, PackService and Ondevice guards, and its `test_android_api31.py` source scan. Not taken: its lowered Readiness row (here the `android.sdk 33` row stays, so starting a game on Android 12 shows the readiness notice with an Android 12 note), the Languages guard (Peanuts has no `LocaleManager`), and the pack-stage scripts' android31 target (they make the shipped stage's binaries; the stage-019 libraries import nothing newer than API 24 symbol versions and resolve against the NDK's API 31 libraries, which `test_stage_libs_api31` checks with `PN_STAGE` set).
+
+| File | Hunks | What | Marker |
+|---|---|---|---|
+| `android/app/build.gradle` | 2 | `nxMinSdk` (31..33, default 31); `minSdk nxMinSdk` | `PEANUTS begin/end`, `PEANUTS` |
+| `android/app/src/main/java/dev/nxnative/android/Streams.java` | new | `readAll`, `readUpTo`, `readInto`: the platform call from API 33, a loop below | `PEANUTS` in the class comment |
+| `AdvancedSettings.java`, `DriverFetch.java`, `DriverZip.java`, `FixOffer.java`, `PackCheck.java`, `PackZip.java`, `GameActivity.java` (fonts) | 1 each (2 in AdvancedSettings and the fonts) | `readAllBytes()` through `Streams.readAll` | `PEANUTS` in each line |
+| `Updater.java` | 4 | `readNBytes` through `Streams.readUpTo`; the typed `getParcelableExtra` from API 33; the installer receiver through `InternalBroadcast`; `confirmIntent` below API 33 | `PEANUTS`, `PEANUTS begin/end` |
+| `android/app/src/main/AndroidManifest.xml` | 1 | the `INTERNAL_BROADCAST` signature permission, declared and requested | `PEANUTS begin/end` |
+| `Rumble.java` | 2 | `VibrationAttributes` and `vibrate(effect, attrs)` from API 33, `vibrate(effect)` below | `PEANUTS`, `PEANUTS begin/end` |
+| `Readiness.java` | 2 | the `android.sdk` row's reason (shown only when it fails); `failed(checks, fact)` | `PEANUTS` |
+| `GameActivity.java` (start-up notice) | 2 | below API 33 with the `android.sdk` row failed, `android12Note` in place of the generic tail | `PEANUTS`, `PEANUTS begin/end` |
+| `android/app/src/ondevice/java/dev/nxnative/android/PackService.java`, `Ondevice.java` | 1 each | the battery receiver through `InternalBroadcast`; no notification permission request below 33 | `PEANUTS` |
+| `dm/tools/tests/test_android_driverzip.py`, `test_android_packzip.py`, `test_android_saf.py` | 1 each | `Streams.java` in the javac sources | `PEANUTS` |
+| `dm/tools/tests/test_android_api31.py` | new | the source scan, the receivers (all through `InternalBroadcast`, its signature permission, the senders' package), `Streams`' Android 12 paths on the JVM, the lint gate (0 NewApi/InlinedApi, needs the Android SDK, `PN_SKIP_LINT=1` skips), the stage libraries (with `PN_STAGE`) | `PEANUTS` in the docstring |
+| `README.md` | 1 | What you need: Android 12 (experimental) | `<!-- PEANUTS -->` |
+| `dev/peanuts/ui/AboutPage.java`, `DriverActivity.java`, `Haptics.java`, `BottomScreen.java`, `Library.java`, `dev/peanuts/mii/MiiImport.java`, `users/WhoPlaysActivity.java`, `ctl/GameLink.java`, `build/BuildService.java`, `InternalBroadcast.java` (new) | | the same guards | Peanuts' own files |
+
+Receivers: from API 33 `RECEIVER_NOT_EXPORTED` as before. Android 12 has no such flag and the plain 2-argument call would take broadcasts from any app, so there `dev.peanuts.InternalBroadcast.register` uses the 4-argument call with `${applicationId}.permission.INTERNAL_BROADCAST`, a signature-level permission the manifest declares and requests (its own name per application ID, so peanutsdev and the release do not clash). The senders are this app (Companion, AppScreens, Ctl, all with the package set), the system (battery: the system passes every permission check) and the installer's PendingIntent (explicit to this package, sent as this app). Below API 33 the updater also starts the installer's Intent only when it is `CONFIRM_INSTALL`, not aimed at this app and without URI grants (`Updater.confirmIntent`). `peanuts/scripts/check-min-api.py` reads the dex without the guards, so it stays a check at API 33 (`nothing newer than API 33`); the lint gate is the Android 12 check.
+
+Tests: `dm/tools/tests/test_android_api31.py`; the javac tests that compile `Streams` callers (`test_android_driverzip.py`, `test_android_packzip.py`, `test_android_saf.py`, `peanuts/tests/test_first_import.py`, `test_mii_import.py`, `test_mii_editor.py`).
+
+Upstream candidate: the `Streams` guard (the platform call kept from API 33) and the Peanuts-side guards, if upstream lowers minSdk.
+
+### Trails in the Sky 1st Chapter: segment GPU timestamps (2026-11-26)
+
+The game's dynamic resolution reads the GPU time between its frame's timestamp reports, which span submissions; with one time per submission (the default)
+it held the scene at 800x450 of its 1600x900 targets. The profile key `gpu_timestamps segment` (upstream's, as Breath of the Wild uses it) fixes it.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `docs/reference/frame-rate.md` | 2 | "GPU timestamps per submission segment": the opposite symptom (a dynamic resolution held at its minimum) and the game under Found on | `<!-- PEANUTS(upstream-candidate): ... -->` |
+| `docs/agents/game-patches.md`, `docs/agents/symptoms.md` | generated | `dm/tools/docs_patches.py`, `dm/tools/docs_symptoms.py` | (generated) |
+
+Peanuts' own files, no marker: `dm/games/01002C9022770000/game.tsv` (the key, with a `# PEANUTS:` comment) and its note. Upstream candidate: the reference
+entry's new symptom; the key itself is this Peanuts-only profile's.
+
+| `dm/games/01008C0016544000/{shader_map,shader_facts,shader_pairs,pso_pairs}.tsv` | generated | `v0` + `v983040` union tables from `shader_split.py` | allow-listed in `peanuts/upstream-unmarked.txt` |
+
+Added `01008C0016544000` (`Sea of Stars`, `0.1.9`, `Alliance-Sky`) to `peanuts/release-titles.txt` and `peanuts/games.tsv` after 20+ minutes of verified 60 fps Turnip play on OnePlus 13R (`v983040`).
+
+### Crisis Core –Final Fantasy VII– Reunion
+
+The [base-game profile](../dm/games/01004BC0166CC000/README.md) registers an Android bring-up target. Its generated shader tables remain unmodified. The matching-bank test cleared the first station encounter; it did not test later progression. Landed for 0.1.9 as source only (#578): no readiness row and no `nxGames` entry; the first run washes out white with an empty pipeline cache on both Turnip builds (a skipped draw the game keeps), and the stock driver does not get past the title.
+
+### NieR:Automata: a profile key for the pool-join cap (2026-11-26)
+
+GitHub issues #394, #651: buffers in the game's 1.3 GiB pool lie across two placed parts that join to 288 to 368 MiB, past the replay's 256 MiB
+`DM_VK_PLACE_JOIN_MB` default, so they were not joined and their draws skipped. A player's run with `DM_VK_PLACE_JOIN_MB=512` (6 GB phone): no "not joined"
+line (4 before), 24 joins, the largest 192 MiB in 123 ms. The owner chose a profile key over a larger default for every game (a join holds the joined bytes
+twice for a moment). game.tsv had no generic host-env default, so `place_join_mb` is a new scalar key, wired like the low-RAM keys but on every device.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `dm/games/game.py` | 2 | `place_join_mb` checked (0 = not set, or 64 to 2048 MiB), `#define DM_GAME_PLACE_JOIN_MB` | `PEANUTS` |
+| `dm/gfx/vk_android/vka_mem.c` | 1 | `join_cap()`: the profile's value as the default of `DM_VK_PLACE_JOIN_MB` (256 without it); the env line still wins | `PEANUTS` |
+| `dm/games/README.md` | 1 | the key's row | `<!-- PEANUTS -->` |
+| `docs/reference/memory.md` | 2 | "A range given to the GPU across two placed parts of a pool": the cap's profile default, NieR:Automata | `<!-- PEANUTS: ... -->` |
+| `docs/env_switches.tsv` | 1 | `DM_VK_PLACE_JOIN_MB`: or the profile's `place_join_mb` | `[PEANUTS]` |
+| `dm/tools/docs_patches.py` | 1 | the key's binding entry (`game` → `host`) | `PEANUTS` |
+| `dm/games/010056B015FE8000/*`, `dm/games/0100B8E016F76000/*` | 2 each | `place_join_mb 512` (`# PEANUTS:` comment), the notes' rows and Found on | `PEANUTS` |
+| `docs/agents/game-patches.md` | generated | `dm/tools/docs_patches.py` | (generated) |
+
+Peanuts' own files: `dm/peanuts/profile/` (`PLACE_JOIN_MB` scalar, `place_join_mb` u32 after `low_ram_app_pool_mb`: the runtime profile schema changes,
+so every title's profile.bin is regenerated with the APK, as for any new key), `peanuts/tests/test_place_join_mb.py` (the range, every real profile's macro,
+the generic profile field, `join_cap` cut from vka_mem.c with the profile at 0 and 512 and the player's line set and unset). No rewrite key or shader input
+changes: `place_join_mb` is not a build row (`pack_android.py build_rows`), and `vka_mem.c` does not feed `DMSH_VK_CHAIN`. Upstream candidate: the key, if
+upstream wants a per-game join cap.
 
 ### Round 65, amiibo: a virtual stand the app places amiibo on (2026-11-24, GitHub issue #582, Part A: engine and store; opt-in since 2026-11-26)
 
