@@ -865,7 +865,10 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             for (Readiness.Check c : fails) placed |= "ext.VK_KHR_map_memory2".equals(c.fact) || "ext.VK_EXT_map_memory_placed".equals(c.fact) || "feature.memoryMapPlaced".equals(c.fact);
             GpuDriver.Info drv = GpuDriver.selected(this, id);
             boolean custom = Readiness.customDriversFit(f);   // the custom drivers are Adreno drivers: no help on another GPU (its reported vendor ID)
-            if (placed && dev.peanuts.ui.MaliDriver.arm(f)) m.append(dev.peanuts.ui.MaliDriver.advice(drv == null ? null : drv.label(), f));   // PEANUTS: on Mali a PanVK build with placed maps, never System (#262)
+            // PEANUTS: Android 12 (API 31/32): the app runs there, games need Android 13 (Readiness's android.sdk row fails only below 33): said plainly, in place of the rest
+            boolean android12 = Build.VERSION.SDK_INT < 33 && Readiness.failed(fails, "android.sdk");
+            if (android12) m.append(android12Note(custom));   // PEANUTS
+            else if (placed && dev.peanuts.ui.MaliDriver.arm(f)) m.append(dev.peanuts.ui.MaliDriver.advice(drv == null ? null : drv.label(), f));   // PEANUTS: on Mali a PanVK build with placed maps, never System (#262)
             else if (placed && drv == null && !custom) m.append(".\n\nThis GPU's own driver has no placed memory maps, so nothing is drawn: the screen stays black while the game runs. "
                     + "The custom drivers the app can install are for Adreno GPUs only, so this phone cannot draw the game yet.");
             else if (placed) m.append(".\n\nWith this GPU driver (").append(drv == null ? "System" : drv.label()).append(") nothing is drawn: the screen stays black while the game runs. ")
@@ -877,6 +880,15 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             start();
         }
     }
+
+    // PEANUTS begin: Android 12's start-up notice (readinessDecide), after the "Missing: ..." list
+    static String android12Note(boolean adreno) {
+        return "\n\nAndroid 12: games need Android 13 or newer"
+                + (adreno ? ", or a Snapdragon GPU driver that provides Vulkan 1.3 (Settings › GPU driver). Without one the game may stop at start or draw nothing."
+                          : ". The custom GPU drivers are for Snapdragon (Adreno) GPUs only, so they cannot help on this phone.")
+                + "\n\nThe rest of the app works on Android 12: library, settings, imports and saves.";
+    }
+    // PEANUTS end
 
     /** The Details of the start-up notice: each failure and warning with its sentence, then the GPU and memory */
     private static String details(List<Readiness.Check> fails, List<Readiness.Check> warns, String gpu) {
@@ -1023,11 +1035,11 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
                 env.add("DM_ROMFS_PROGRAM_" + e.getKey() + "=" + e.getValue());
             try (java.io.InputStream fin = getAssets().open(GameFonts.ASSET)) {   // the shared-font stand-in (dm/third_party/fonts): the host serves it instead of the phone's own fonts; a DM_FONT_DIR line of the user's comes later and wins
                 File fontDir = new File(getFilesDir(), "fonts");
-                GameFonts.place(fontDir, GameFonts.STANDARD, fin.readAllBytes());
+                GameFonts.place(fontDir, GameFonts.STANDARD, Streams.readAll(fin));   // PEANUTS: Android 12 (Streams: the same call from API 33)
                 env.add(GameFonts.envLine(fontDir));
             } catch (IOException e) { unknownNotes.add("[nxlaunch] the shared font stand-in is not placed (" + e.getMessage() + "): the host uses the phone's own fonts"); }
             try (java.io.InputStream fin = getAssets().open(GameFonts.EXT_ASSET)) {   // the button icons in game text (shared-font type 5: hle_sdk16.c), in the same folder; without it they draw as '?'
-                GameFonts.place(new File(getFilesDir(), "fonts"), GameFonts.EXT, fin.readAllBytes());
+                GameFonts.place(new File(getFilesDir(), "fonts"), GameFonts.EXT, Streams.readAll(fin));   // PEANUTS: Android 12 (Streams: the same call from API 33)
             } catch (java.io.FileNotFoundException e) {   // an APK built without fontTools: the host's [YELLOW] line says so
             } catch (IOException e) { unknownNotes.add("[nxlaunch] the button-icon font is not placed (" + e.getMessage() + "): button icons in game text draw as '?'"); }
             String gpuNote = settingsEnv(id, pack, env);   // PEANUTS: pass the pack build for FPSLocker selection

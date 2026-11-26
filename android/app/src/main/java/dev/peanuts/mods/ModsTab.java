@@ -105,7 +105,7 @@ public final class ModsTab {
 
     // ---- Whether there is a tab, and which tab shows last ----
 
-    /** Whether the panel has a Mods tab for this game: Settings › Controls › Mods tab on, the game's Show in the game on, and cheats or mods to show */
+    /** Whether the panel has a Mods tab for this game: Settings › App › Mods tab on, the game's Show in the game on, and cheats or mods to show */
     public static boolean wanted(Context c, String titleId, String gameDir, String packDir) {
         if (!PeanutsPrefs.modsTabAll(c) || !PeanutsPrefs.modsTab(c, titleId)) return false;
         try {
