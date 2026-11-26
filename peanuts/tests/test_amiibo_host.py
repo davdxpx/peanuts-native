@@ -241,13 +241,19 @@ class Wiring(unittest.TestCase):
 
     def test_only_a_game_turned_on_gets_it(self):
         sw = (ROOT / 'android/app/src/main/java/dev/peanuts/amiibo/AmiiboSwitch.java').read_text(encoding='utf-8')
-        self.assertIn('getBoolean(ALL, false)', sw, 'Settings › Controls › amiibo is off by default')
+        self.assertIn('getBoolean(ALL, false)', sw, 'Settings › Users › amiibo is off by default')
         self.assertIn('if (titleId != null && on(c, titleId)) env.add("PN_AMIIBO=1");', sw)
         game = (ROOT / 'android/app/src/main/java/dev/nxnative/android/GameActivity.java').read_text(encoding='utf-8')
         self.assertEqual(game.count('PN_AMIIBO'), 1, 'GameActivity sets PN_AMIIBO only through AmiiboSwitch.env')
         self.assertRegex(game, r'dev\.peanuts\.amiibo\.AmiiboSwitch\.env\(this, id, env\);   // PEANUTS: ')
         settings = (ROOT / 'android/app/src/main/java/dev/nxnative/android/GameSettings.java').read_text(encoding='utf-8')
-        self.assertRegex(settings, r'if \(dev\.peanuts\.amiibo\.AmiiboSwitch\.offered\(a, id\)\) controls\.add\(.*"amiibo".*// PEANUTS: ')
+        self.assertRegex(settings, r'if \(dev\.peanuts\.amiibo\.AmiiboSwitch\.offered\(a, id\)\) options\.add\(.*"amiibo".*// PEANUTS: ')
+        self.assertLess(settings.index('AmiiboSwitch.offered(a, id)) options.add('), settings.index('// ---- Controls ----'), 'the game\'s switch is with its options, not its Controls')
+        sections = (ROOT / 'android/app/src/main/java/dev/peanuts/ui/SettingsSections.java').read_text(encoding='utf-8')
+        users = sections[sections.index('new Section("users"'):sections.index('new Section("app"')]
+        controls = sections[sections.index('new Section("controls"'):sections.index('new Section("screens"')]
+        self.assertIn('new Group("amiibo", r("amiibo", ', users, 'Settings › Users › amiibo')
+        self.assertNotIn('amiibo', controls, 'Controls stays the controller\'s')
 
     def test_host_build_and_bridge(self):
         cm = (ROOT / 'android/host/CMakeLists.txt').read_text(encoding='utf-8')

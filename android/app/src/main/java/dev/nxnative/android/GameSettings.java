@@ -283,10 +283,10 @@ final class GameSettings {
         options.add(new Ui.Setting(a, "🌐", "Game language", v -> language(a, g, again)).value(GameLanguage.label(Prefs.gameLang(a, id), phoneTag())).chevron(a));   // not a tester's knob: with the game's options, never folded
         if (prof != null && prof.timeOfDay)   // the one global setting (Prefs.timeOverride → DM_TIME), here for a game whose day/night cycle follows the user clock
             options.add(new Ui.Setting(a, "🕒", "Time of day", v -> TimeOfDay.dialog(a, again)).value(TimeOfDay.label(a)).chevron(a));
+        if (dev.peanuts.amiibo.AmiiboSwitch.offered(a, id)) options.add(new Ui.Setting(a, "🏷️", "amiibo", null).toggle(a, dev.peanuts.amiibo.AmiiboSwitch.on(a, id), (b, on) -> dev.peanuts.amiibo.AmiiboSwitch.game(a, id, on)).says(dev.peanuts.amiibo.AmiiboSwitch.ON, dev.peanuts.amiibo.AmiiboSwitch.OFF));   // PEANUTS: amiibo for this game (#582), with its options above Mods & Cheats: off unless turned on here or for every game in Settings › Users
 
         // ---- Controls ----
         controls.add(new Ui.Setting(a, "📳", "Rumble", null).toggle(a, Prefs.rumble(a, id), (b, on) -> Prefs.rumble(a, id, on)).says("The controller, or the phone without one", "No rumble"));
-        if (dev.peanuts.amiibo.AmiiboSwitch.offered(a, id)) controls.add(new Ui.Setting(a, "🏷️", "amiibo", null).toggle(a, dev.peanuts.amiibo.AmiiboSwitch.on(a, id), (b, on) -> dev.peanuts.amiibo.AmiiboSwitch.game(a, id, on)).says(dev.peanuts.amiibo.AmiiboSwitch.ON, dev.peanuts.amiibo.AmiiboSwitch.OFF));   // PEANUTS: amiibo for this game (#582), off unless turned on here or for every game in Settings › Controls
         controls.add(new Ui.Setting(a, "🕹️", "Button mapping", v -> PadMapUi.forGame(a, g, again)).value(PadMapUi.label(a, id)).chevron(a));
         controls.add(new Ui.Setting(a, "🎯", "Motion sensitivity", v -> motionSens(a, g, again)).value(Prefs.MOTION_NAMES[Prefs.motionSens(a, id)]).note("How far the phone's gyro turns the aim; from the next start").chevron(a));
         controls.add(new Ui.Setting(a, "🅰️", "Xbox button labels", v -> xbox(a, g, again)).value(Prefs.xboxLabel(Prefs.xboxButtons(a, id))).chevron(a));

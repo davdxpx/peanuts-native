@@ -60,7 +60,6 @@ public final class SettingsHelp {
         put(m, "Controller: in-game panel", "How a controller opens the in-game panel. By touch it opens with a swipe in from the right edge, or Back.", "Home, or hold − and +");
         put(m, "Mods tab", "The in-game panel's Mods tab: the game's cheats and mods while it runs. A game's own Mods & Cheats page can hide it for that game.", "On");
         put(m, "Rumble", "Lets games rumble the controller, or the phone when no controller is connected.", "On");
-        put(m, "amiibo", "Lets games find your amiibo on Peanuts' own stand, no figure or keys needed. Off, a game finds no amiibo, as before. A game's own amiibo switch under its Controls comes first. From the next start.", "Off");
         // Screens
         put(m, "Bottom screen", "On a device with a second screen: the game you are on, with Play and its page, while you are in the app. Off leaves that screen to Android.", "On");
         put(m, "Games without a companion", "What the second screen shows while you play a game that has no companion: Android's own screen, the game's live stats, or its cover. The stats page's gear picks what it shows and its OLED guards.", "Stats");
@@ -72,6 +71,7 @@ public final class SettingsHelp {
         // Users
         put(m, "Users", "The console's users, each with saves of their own, and the one games start with.", "Player");
         put(m, "Miis", "Make Miis of your own. Games that ask for a Mii list them as the console's.", null);
+        put(m, "amiibo", "Lets games find your amiibo on Peanuts' own stand, no figure or keys needed. Off, a game finds no amiibo, as before. A game's own amiibo switch in its Game options comes first. From the next start.", "Off");
         // App
         put(m, "Haptics", "The app's touch feedback. System follows Android's setting, Off turns the app's own feedback off.", "System");
         put(m, "Motion", "The app's animations. System follows Android's setting, Reduced keeps fades and progress only.", "System");

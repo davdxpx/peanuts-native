@@ -5,7 +5,7 @@ it reads a figure on a console's NFC reader. GitHub issue #582.
 
 ## On only where the player turns it on
 
-amiibo is off by default. **Settings › Controls › amiibo** turns it on for every game, and a game's own **amiibo** switch under its Controls
+amiibo is off by default. **Settings › Users › amiibo** turns it on for every game, and a game's own **amiibo** switch in its Game options
 (shown for a game AmiiboAPI lists, or one seen opening nfp while amiibo was on for it) turns it on or off for that game alone; the game's own switch
 comes first. A change counts from the game's next start (`dev.peanuts.amiibo.AmiiboSwitch`, its own prefs file `peanuts_amiibo`).
 
@@ -51,7 +51,7 @@ game's data leaves the others'.
   list them.
 
 - `cacheDir/amiibo/<ID>.png`: pictures, fetched from AmiiboAPI's images (raw.githubusercontent.com) only when a page shows the amiibo, and kept;
-  only once the player has turned them on (Settings › Controls › amiibo pictures, `AmiiboSwitch.pictures`, off by default). Off, or offline, each amiibo
+  only once the player has turned them on (Settings › Users › amiibo pictures, `AmiiboSwitch.pictures`, off by default). Off, or offline, each amiibo
   shows as Peanuts' own card and nothing is fetched.
 
 An imported `.bin` gives its ID (plain at 0x54) and its UID (the first pages). Everything else in a dump is encrypted and is not read: the game data a
