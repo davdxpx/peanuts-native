@@ -56,8 +56,15 @@ class Names(unittest.TestCase):
         self.assertEqual(re.findall(r'r\("([^"]+)"', extras), ['Smooth Experience'] + titles)
         for t in titles:
             self.assertIn(f'put(m, "{t}", "Part of Smooth Experience: ', help_)
-            self.assertIn(f'smoothPart(a, card, new PUi.Setting(a, "", "{t}", null)', lib)
-        self.assertIn('for (PUi.Setting r : smoothParts) r.view.setVisibility(on ? android.view.View.VISIBLE : android.view.View.GONE);', lib)
+            self.assertIn(f'smoothPart(a, smoothBox, new PUi.Setting(a, "", "{t}", null)', lib)
+        # the parts sit in one block right after the switch's row in its card (SettingsPage carries a non-row view with the row before it), set in
+        # under the switch's title, and the block shows while the switch is on
+        self.assertRegex(lib, r'card\.addView\(smoothRow\.view\);\s*smoothBox = new LinearLayout\(a\);')
+        self.assertIn('card.addView(smoothBox, bp);', lib)
+        self.assertIn('if (smoothBox != null) smoothBox.setVisibility(on ? android.view.View.VISIBLE : android.view.View.GONE);', lib)
+        page = read(UI / 'SettingsPage.java')
+        self.assertIn('else if (last != null) last.after.add(k);', page)
+        self.assertIn('for (View v : it.after) card.addView(v);', page)
         self.assertFalse((SMOOTH / 'SmoothPage.java').exists())   # no sheet: the page grows under the switch
 
     def test_where_the_rows_are(self):
