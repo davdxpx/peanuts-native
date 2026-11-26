@@ -284,7 +284,15 @@ public final class Rail {
         gameRows.animate().alpha(1f).translationY(0f).setStartDelay(Look.TAB_OUT_MS).setDuration(Look.TAB_IN_MS).setInterpolator(Look.OUT).withLayer().start();
     }
 
+    /** Back from Game to the tab the panel kept (the one menu opened again on the tab shown last) */
+    public void toTab() {
+        if (!onGame) return;
+        leaveGame();
+        select(selected);
+    }
+
     private void leaveGame() {
+        dev.peanuts.mods.ModsTab.resume();   // the Cheats tab's chips follow the host again
         onGame = false;
         gameRows.setVisibility(View.GONE);
         gameFoot.setVisibility(View.GONE);

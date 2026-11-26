@@ -69,6 +69,7 @@ final class ModsPanel {
             @Override public void close() { p.close(); }
             @Override public void style(View v) { ModsPanel.style(a, v); }
             @Override public void action(String key, String label, Runnable run) { InGamePanel.action(p, key, label, run); }
+            @Override public boolean typing() { return InGamePanel.typing(p); }
         }, CHEATS.equals(name) ? ModsTab.CHEATS : ModsTab.MODS);
         return true;
     }

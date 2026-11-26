@@ -156,7 +156,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         panel.onOpen = this::releaseGameInput;
         // The layout editor needs the whole screen: the panel closes, and Paused (over the controls: its first tap would continue the game) hides while it is open;
         // the game stays paused
-        controls.onEditStart = () -> { panel.close(); pausedView.setVisibility(View.GONE); };
+        controls.onEditStart = () -> { panel.close(); InGamePanel.closeAll(); pausedView.setVisibility(View.GONE); };   // PEANUTS: the in-game menus go too (InGamePanel.closeAll)
         controls.onEditEnd = () -> { if (paused) pausedView.setVisibility(View.VISIBLE); };
         // The panel's handle: an invisible strip along the right edge, from a sixth to a half of the way down (over the HUD rather than the controls), that opens the panel
         // on a swipe in from the edge (a tap goes nowhere: a stray touch near the edge does not open it). Under gesture navigation the system's own Back swipe from that

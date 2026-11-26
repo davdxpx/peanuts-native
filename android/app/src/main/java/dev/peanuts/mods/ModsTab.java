@@ -61,6 +61,8 @@ public final class ModsTab {
         void style(View v);
         /** A tab's own action in the menu's header, beside its name, with the controller's button for it (the quick menu's rail: InGamePanel) */
         default void action(String key, String label, Runnable run) {}
+        /** Whether its window takes typing: the bottom screen's menu never has the input focus, so no keyboard comes for a search field there */
+        default boolean typing() { return true; }
     }
 
     private static final int YELLOW = 0xFFFFD54F, ROW = 0xFF2D2E31, CHIP = 0xFF3A3B3E, TEXT = 0xFFE8EAED, QUIET = 0xFFB0B3B8, BAD_TEXT = 0xFFFF9670, BAD = 0xFF3D2016;
@@ -223,7 +225,7 @@ public final class ModsTab {
             View first = !s.binds.isEmpty() ? s.binds.get(0).row : s.firstMod;
             if (first != null) first.requestFocus();
         };
-        if (cheats >= SEARCH_FROM) {
+        if (cheats >= SEARCH_FROM && host.typing()) {
             search = new EditText(a);
             search.setHint("Search " + cheats + " cheats");
             search.setSingleLine(true);
@@ -416,6 +418,14 @@ public final class ModsTab {
         s.updating = false;
         s.box.removeCallbacks(s.poll);
         if (shown == s) s.box.postDelayed(s.poll, 500);
+    }
+
+    /** The rows show again without being built anew (the one menu's Game, then the same tab): the host's state is asked again, every half second */
+    public static void resume() {
+        Shown s = shown;
+        if (s == null) return;
+        s.box.removeCallbacks(s.poll);
+        s.box.post(s.poll);
     }
 
     /** The chip and the line of a row as its state is now */
@@ -742,7 +752,7 @@ public final class ModsTab {
     public static boolean padKey(char key, View focus, int confirm, int back) {
         confirmKey = confirm; backKey = back;
         Shown s = shown;
-        if (s == null || key == 0) return false;
+        if (s == null || key == 0 || !s.box.isShown()) return false;   // its rows out of sight (the one menu's Game over them): X and Y are not the tab's
         if (key == 'X') { allOff(s); return true; }
         for (Bind b : s.binds) for (View v = focus; v != null; v = v.getParent() instanceof View ? (View) v.getParent() : null) if (v == b.row) { details(s, b); return true; }
         return true;

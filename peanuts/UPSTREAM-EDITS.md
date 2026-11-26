@@ -3283,3 +3283,9 @@ Peanuts-owned: `dev.peanuts.ingame.BottomScreen`, `GameRows`, `BottomMenu` (the 
   end in an ellipsis. Layout's heading, choices and note have the panel's text size. Each panel's first opening is on the tab shown last (`ModsPanel`).
   The rail's items fit a short screen with Game first too. A value of the game menu's rows shown in another menu is held weakly, so a menu made anew
   lets the old one go.
+- **Second and third rounds:** an old screen's late pause or end never closes a newer screen's bottom menu; the rail counts Game's separator. With Game
+  over the Cheats tab, X and Y are not the tab's (X switched every cheat off unseen), and back from Game its chips follow the host again
+  (`ModsTab.resume`). A one menu opened on the tab shown last leaves the Game it showed before (`Rail.toTab`). The right edge in the bottom screen's
+  layout opens that menu, not the quick menu over the full-view game. The layout editor closes the one menus and the dim too (`InGamePanel.closeAll`,
+  one line in `GameActivity`'s `onEditStart`, marked). The bottom screen's window has no search field (it never takes typing, `ModsTab.Host.typing`).
+  Game's rows have the panel's text size, and B in its Stop question goes back to the Stop row, as in the game menu.

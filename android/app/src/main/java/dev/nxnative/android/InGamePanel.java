@@ -660,7 +660,12 @@ public final class InGamePanel {
 
     /** SidePanel.padKey's back key, the header's back button: back to the game menu when that opened the quick menu, else to the game */
     static void panelBack(SidePanel p) {
-        if (p == bottomPanel || p == rightPanel) { p.close(); return; }
+        if (p == bottomPanel || p == rightPanel) {
+            GameRows g = p == bottomPanel ? gameRows : rightRows;
+            if (g != null && g.cancelAsk()) return;   // Stop asks: B goes back to its row first, as in the game menu
+            p.close();
+            return;
+        }
         boolean back = fromGame;
         fromGame = false;
         p.close();
@@ -775,14 +780,26 @@ public final class InGamePanel {
      * menu on the tab shown last instead. True when it did
      */
     static boolean instead(SidePanel p) {
-        if (p != panelOf || !(p.getContext() instanceof Activity) || !rightMode((Activity) p.getContext())) return false;
-        openRight((Activity) p.getContext(), false, !p.isInTouchMode());
+        if (p != panelOf || !(p.getContext() instanceof Activity) || !oneMode((Activity) p.getContext())) return false;
+        openOne((Activity) p.getContext(), false, !p.isInTouchMode());   // the bottom screen's layout too: never the quick menu over the full-view game
         return true;
+    }
+
+    /** ModsTab.Host: whether p's window takes typing (the bottom screen's never has the input focus, so a search field there could not be typed into) */
+    static boolean typing(SidePanel p) { return p != bottomPanel; }
+
+    /** GameActivity's layout editor (the on-screen controls): every menu goes, the one menus and the top screen's dim too, so the editor gets the touches */
+    static void closeAll() {
+        SidePanel o = one();
+        if (o != null) o.close();
+        if (panelOf != null && panelOf.isOpen()) panelOf.close();
+        if (menu != null && menu.isOpen()) menu.close(null);
+        if (topDim != null) { topDim.animate().cancel(); topDim.setAlpha(0f); topDim.setVisibility(View.GONE); }
     }
 
     /** Game's rows for one menu (host): the game menu's without Quick menu (the rail is there), Back to the game and Pause closing that menu */
     private static GameRows gameRows(Activity a, java.util.function.Supplier<SidePanel> host) {
-        GameRows g = new GameRows(a, PanelLook.rowPx(Prefs.panelSize(a), a.getResources().getDisplayMetrics().density));
+        GameRows g = new GameRows(a, PanelLook.rowPx(Prefs.panelSize(a), a.getResources().getDisplayMetrics().density), PanelLook.textScale(Prefs.panelText(a)));
         g.onKeep = () -> stopAfter = null;   // Stop asked during a backup, then Keep playing
         g.game(a.getIntent().getStringExtra("name"), version, dev.peanuts.Companion.startedAt());
         if (cover != null) g.cover(cover);
@@ -820,7 +837,7 @@ public final class InGamePanel {
         if (onGame && r != null) {
             r.game();
             if (pad) p.post(() -> { View f = r.firstGameRow(); if (f != null) f.requestFocusFromTouch(); });
-        }
+        } else if (r != null) r.toTab();   // the tab shown last: a one menu kept since it last showed Game
     }
 
     /** Opens one menu at the right, over the game as the quick menu is (in the game's window, above the quick menu) */

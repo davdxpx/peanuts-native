@@ -33,8 +33,12 @@ public final class GameRows extends LinearLayout {
     private View stopRow;
     private long startedAt;
 
-    public GameRows(Context c, int rowPx) {
+    /** Settings › Panel's text size (General: Small, Normal, Large), as the panel's own rows have it */
+    private final float scale;
+
+    public GameRows(Context c, int rowPx, float scale) {
         super(c);
+        this.scale = scale;
         this.rowPx = Math.max(rowPx, Look.dp(c, 44));
         setOrientation(VERTICAL);
         setPadding(Look.dp(c, 4), Look.dp(c, 2), Look.dp(c, 4), Look.dp(c, 4));
@@ -103,9 +107,9 @@ public final class GameRows extends LinearLayout {
     /** The hairline and Stop: the rail puts them under the rows, so Stop stays in sight on a short screen while the rows scroll */
     public View footer() { return footer; }
 
-    private static TextView text(Context c, float sp, int color, boolean bold) {
+    private TextView text(Context c, float sp, int color, boolean bold) {
         TextView t = new TextView(c);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp * scale);
         t.setTextColor(color);
         t.setTypeface(bold ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
         t.setIncludeFontPadding(false);
@@ -174,7 +178,17 @@ public final class GameRows extends LinearLayout {
         return r;
     }
 
-    /** Stop asks once, inline: Keep playing (the focus) or Stop */
+    /** B or Back while Stop asks: back to the Stop row, as Keep playing (true), as the game menu does; false when it does not ask */
+    public boolean cancelAsk() {
+        if (stopRow == null || stopRow.getParent() != null) return false;
+        if (onKeep != null) onKeep.run();
+        bottom.removeAllViews();
+        bottom.addView(stopRow);
+        stopRow.requestFocus();
+        return true;
+    }
+
+        /** Stop asks once, inline: Keep playing (the focus) or Stop */
     private void askStop() {
         Context c = getContext();
         LinearLayout ask = new LinearLayout(c);
@@ -189,7 +203,7 @@ public final class GameRows extends LinearLayout {
         ask.addView(w);
         LinearLayout b = new LinearLayout(c);
         b.setOrientation(HORIZONTAL);
-        TextView keep = button(c, "Keep playing", v -> { if (onKeep != null) onKeep.run(); bottom.removeAllViews(); bottom.addView(stopRow); stopRow.requestFocus(); });
+        TextView keep = button(c, "Keep playing", v -> cancelAsk());
         TextView now = button(c, "Stop", v -> stop.run());
         now.setTextColor(Look.BAD);
         LayoutParams sl = new LayoutParams(0, rowPx, 1);
