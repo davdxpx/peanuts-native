@@ -211,7 +211,7 @@ public final class InGamePanel {
         if (quickKey == 0 || e.getKeyCode() != quickKey || !dev.peanuts.ui.QuickButton.fromController(e)) return false;
         SidePanel p = panel(a);
         boolean open = one() != null || p != null && p.isOpen() || menu != null && menu.isOpen();
-        if (open && dev.peanuts.ui.QuickButton.moves(quickKey)) return false;   // a button the menus move with (the D-pad, A, B, L, R) keeps that job in them
+        if (open && dev.peanuts.ui.QuickButton.moves(quickKey)) return false;   // a button the menus move with (the D-pad, A, B, X, Y, L, R, + and −: QuickButton.moves) keeps that job in them
         if (e.getAction() != KeyEvent.ACTION_DOWN || e.getRepeatCount() > 0) return true;   // its release and repeats are the button's too
         if (one() != null) one().close();
         else if (p != null && p.isOpen()) { fromGame = false; p.close(); }

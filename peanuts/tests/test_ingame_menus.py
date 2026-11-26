@@ -291,6 +291,10 @@ class Bottom(unittest.TestCase):
 class QuickMenuButton(unittest.TestCase):
     def test_set_up_by_pressing_it(self):
         q = (APP / 'main/java/dev/peanuts/ui/QuickButton.java').read_text(encoding='utf-8')
+        self.assertIn('such as an extra button on the back of the controller, is better.', q, "on the AYN Thor Back opens the game menu: not the advice (igawa6's note on #680)")
+        self.assertNotIn('such as a back button', q)
+        self.assertIn('Holding − and + no longer opens the game menu either. ', q, 'the warning says when the button is one of the combination')
+        self.assertIn('Any button counts, B and the D-pad too: Back or Cancel stops.', q, 'the setup says what it takes')
         self.assertIn('d.setOnKeyListener(', q, "the controller's next press is the button")
         self.assertIn('if (games(k)) warn(a, k, done); else take(a, k, done);', q, 'a button games use is taken only after the warning')
         for k in ('KEYCODE_BUTTON_A', 'KEYCODE_BUTTON_THUMBL', 'KEYCODE_BUTTON_THUMBR', 'KEYCODE_DPAD_UP', 'KEYCODE_BUTTON_L2'):

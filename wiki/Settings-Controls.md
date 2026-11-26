@@ -18,6 +18,7 @@ How you play: the on-screen controls, a controller, rumble, button mapping and m
 <!-- PEANUTS begin: the in-game menus (InGamePanel) -->
 - **What it does:** how a controller opens the in-game menus: **Home, or hold - and + (half a second)** (default), **Home button only**, **Hold - and + only (half a second)**, or **Off**. Home pressed, or - and + held, opens the game menu; Home held for half a second opens the quick menu. On a device whose Home is Android's (the AYN Thor), the controller's own Back does the same: pressed the game menu, held the quick menu. In a menu the D-pad or left stick moves the selection, A presses, B goes back; in the quick menu up and down on its rail switch the tab.
 - **What to expect:** while a menu is open no controller input reaches the game, and every button the game holds is released when it opens.
+- **Quick menu button** (not set by default): a button of your own that opens the quick menu at once; tap the row, then press the button. A button games use (A, B, the shoulders, the D-pad, + and -) gets a warning first, since the game no longer gets it; a free one, such as an extra button on the back of the controller, is better.
 <!-- PEANUTS end -->
 
 ## Players and controllers

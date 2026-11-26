@@ -3306,3 +3306,8 @@ Kept in "peanuts" (`PeanutsPrefs.quickKey`), which the launcher writes and the g
 | `android/app/src/main/java/dev/nxnative/android/InGamePanel.java` | (Peanuts' own) | `quickKey`; the Quick menu row's value | Peanuts' own file |
 
 Peanuts-owned: `dev.peanuts.ui.QuickButton`, its row in `LibrarySettings`, `SettingsSections` and `SettingsHelp`, `PeanutsPrefs.quickKey`. Tests: `peanuts/tests/test_ingame_menus.py` (QuickMenuButton).
+
+**Review fixes (2026-11-26, on dev-0.1.9).** The warning names a free button as "an extra button on the back of the controller" (on the AYN Thor
+Back opens the game menu, igawa6's note), and says when the button is + or −, whose hold opens the game menu. The setup says any button counts, B
+and the D-pad too, and that Back or Cancel stops. The row's value and Home's refusal name no layout's menu. `SettingsSectionsJvmTest` places the
+row under Controls › Controller.

@@ -56,6 +56,7 @@ public final class SettingsSectionsJvmTest {
         eq("users/Miis", SettingsSections.place("Miis", "Library"));
         eq("app/Feel", SettingsSections.place("Haptics", "Library"));
         eq("app/In-game panel", SettingsSections.place("Mods tab", "Library"));   // PEANUTS: not under Controls, which is the controller's
+        eq("controls/Controller", SettingsSections.place("Quick menu button", "Library"));   // the in-game quick menu's own button, with the controller's other rows
         eq("app/Updates", SettingsSections.place("Check for updates", "Updates"));
         eq("help/Questions and logs", SettingsSections.place("Questions and answers", "Updates"));
         eq("help/Questions and logs", SettingsSections.place("Share log", "Help"));

@@ -19,6 +19,7 @@ Two menus slide in over a running game, with the game going on behind them. The 
 | A controller: Home held for half a second | the quick menu | |
 | A controller's own Back (the AYN Thor, whose Home is Android's): pressed / held | the game menu / the quick menu | yes |
 | The game menu's **Quick menu** row | the quick menu | |
+| Your own **Quick menu button** (Settings > Controls > Controller), if you set one | the quick menu | yes |
 | A tap beside a menu, or the controller's B | | yes (B in a quick menu opened from the game menu goes back there) |
 
 While Preparing shaders shows, a shader preparation runs or the controller screen asks who plays, Back does what it did before the menus: it cancels that.

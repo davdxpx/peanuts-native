@@ -25,7 +25,7 @@ public final class QuickButton {
     /** The row's value: the button, or that none is set */
     public static String label(Context c) {
         int k = key(c);
-        return k == 0 ? "Not set: hold Home (on the AYN Thor: Back) for the quick menu" : "Opens the quick menu in a game: " + name(k);
+        return k == 0 ? "Not set: Home held (on the AYN Thor: Back held) opens the quick menu" : "Opens the quick menu in a game: " + name(k);
     }
 
     /** A button's name as players know it */
@@ -78,7 +78,7 @@ public final class QuickButton {
 
     /** Why a button cannot be it, null when it can */
     static String refused(int k) {
-        if (k == KeyEvent.KEYCODE_BUTTON_MODE) return "Home opens the game menu already, and held the quick menu.";
+        if (k == KeyEvent.KEYCODE_BUTTON_MODE) return "Home opens the in-game menus already, pressed and held.";
         if (k == KeyEvent.KEYCODE_HOME || k == KeyEvent.KEYCODE_APP_SWITCH || k == KeyEvent.KEYCODE_POWER) return "Android keeps that button for itself.";
         if (k == KeyEvent.KEYCODE_VOLUME_UP || k == KeyEvent.KEYCODE_VOLUME_DOWN || k == KeyEvent.KEYCODE_VOLUME_MUTE) return "That button sets the volume.";
         return null;
@@ -112,7 +112,7 @@ public final class QuickButton {
     public static void setUp(Activity a, Runnable done) {
         AlertDialog d = new AlertDialog.Builder(a)
                 .setTitle("Press a button")
-                .setMessage("Press the button on your controller that should open the quick menu in a game. Back cancels.")
+                .setMessage("Press the button on your controller that should open the quick menu in a game. Any button counts, B and the D-pad too: Back or Cancel stops.")
                 .setNegativeButton("Cancel", null)
                 .create();
         d.setOnKeyListener((dlg, k, e) -> {
@@ -132,7 +132,8 @@ public final class QuickButton {
         new AlertDialog.Builder(a)
                 .setTitle(name(k) + " is a button games use")
                 .setMessage("While it opens the quick menu, the game no longer gets this button: whatever the game does with it stops working. "
-                        + "A button games leave free, such as a back button, is better.")
+                        + (k == KeyEvent.KEYCODE_BUTTON_START || k == KeyEvent.KEYCODE_BUTTON_SELECT ? "Holding − and + no longer opens the game menu either. " : "")
+                        + "A button games leave free, such as an extra button on the back of the controller, is better.")
                 .setPositiveButton("Use it anyway", (x, w) -> take(a, k, done))
                 .setNegativeButton("Pick another", (x, w) -> setUp(a, done))
                 .show();
