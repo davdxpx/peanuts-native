@@ -76,6 +76,13 @@ class Hooks(unittest.TestCase):
         self.assertIn('if (n == lookup && !backingUp.get() && backupRow != null)', b, "the last backup's look-up never overwrites Backing up")
         self.assertIn('THREAD_PRIORITY_BACKGROUND', b, "the copy behind the game's threads")
         self.assertIn('} catch (Throwable t) {   // never a row left at "Backing up"', b)
+        fin = b[b.index('            } finally {'):]
+        self.assertLess(fin.index('UI.post(() -> {'), fin.index('Native.note('), "the row's answer is posted before the log lines, so nothing they throw leaves it at Backing up")
+        gm = (INGAME / 'GameMenu.java').read_text(encoding='utf-8')
+        close = gm[gm.index('public void close(Runnable then) {'):]
+        self.assertLess(close.index('if (onClosing != null) onClosing.run();'), close.index('sheet.animate().translationX'), 'reset as it starts to close: a reopen cancels the slide-out and its end')
+        self.assertIn('menu.onClosing = () -> { release(); stickDir = PadPanel.NONE; stopAfter = null; };', b, 'a waiting Stop and held directions go with the closing menu')
+        self.assertIn('menu.look(menuRow(a), PanelLook.textScale(Prefs.panelText(a)));', b, "Menu settings' Size and Text size changed during play reach the game menu at its next opening")
 
 
 @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'no JDK')

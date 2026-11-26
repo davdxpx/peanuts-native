@@ -64,10 +64,10 @@ public final class GameMenu extends FrameLayout {
     private final FrameLayout bottom;
     private final List<Item> items = new ArrayList<>();
     private int widthPx;
-    private final int rowPx;
+    private int rowPx;
     /** A close whose then (the row's action) has not run yet: its slide-out still runs, so an opening meanwhile waits (open) */
     private Runnable closing;
-    private final float text;
+    private float text;
     private Item stop;
     private View stopRow;
     private LinearLayout ask;
@@ -78,6 +78,8 @@ public final class GameMenu extends FrameLayout {
     private java.util.function.LongSupplier startedAt = () -> 0;   // read at each opening: the game's start is known only after the menu is made
     /** After it has closed (gone) */
     public Runnable onClosed;
+    /** As it starts to close (a reopen during the slide-out cancels it, and with it onClosed): what the menu held of the keys and a waiting Stop go */
+    public Runnable onClosing;
     /** Keep playing, after Stop was asked (a Stop that waits for something, InGamePanel's backup, no longer stops) */
     public Runnable onKeep;
 
@@ -430,6 +432,7 @@ public final class GameMenu extends FrameLayout {
     public void close(Runnable then) {
         if (!open) { if (then != null) then.run(); return; }
         open = false;
+        if (onClosing != null) onClosing.run();
         clearFocus();
         sheet.animate().cancel();
         scrim.animate().cancel();
@@ -455,6 +458,20 @@ public final class GameMenu extends FrameLayout {
         android.view.DisplayCutout dc = w == null ? null : w.getDisplayCutout();
         int left = dc == null ? 0 : dc.getSafeInsetLeft(), base = Look.dp(getContext(), 10);
         if (sheet.getPaddingLeft() != base + left) sheet.setPadding(base + left, sheet.getPaddingTop(), sheet.getPaddingRight(), sheet.getPaddingBottom());
+    }
+
+    /**
+     * Menu settings' Size and Text size, changed while the game runs (the quick menu's General): the rows are made again in the new size and the header's
+     * texts scaled, at the next opening (InGamePanel.openGame); only while closed
+     */
+    public void look(int rowPx, float text) {
+        int row = Math.max(rowPx, Look.dp(getContext(), 40));
+        if (open || row == this.rowPx && text == this.text) return;
+        float k = text / this.text;
+        this.rowPx = row;
+        this.text = text;
+        for (TextView t : new TextView[] {name, version, time, note}) t.setTextSize(TypedValue.COMPLEX_UNIT_PX, t.getTextSize() * k);
+        if (stop != null) items(new ArrayList<>(items), stop);
     }
 
     /** The sheet's width, worked out from the screen at each opening (InGamePanel), so it follows a turn of a large screen; only while closed */

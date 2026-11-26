@@ -67,10 +67,9 @@ public final class InGamePanel {
     static void attach(Activity a, FrameLayout root, SidePanel panel) {
         panelOf = panel;
         float scale = PanelLook.textScale(Prefs.panelText(a));
-        int size = Prefs.panelSize(a);
-        menu = new GameMenu(a, menuWidth(a), Math.round(PanelLook.rowPx(size, a.getResources().getDisplayMetrics().density) * 0.92f), scale);   // a little under the panel's rows: all six and Stop fit 411 dp (the Thor)
+        menu = new GameMenu(a, menuWidth(a), menuRow(a), scale);
         menu.onKeep = () -> stopAfter = null;   // Stop pressed during a backup, then Keep playing: the game goes on after the copy
-        menu.onClosed = () -> { release(); stickDir = PadPanel.NONE; stopAfter = null; };   // a direction held as it closed (its release came while closed, so the next press would be taken as held); a Stop waiting for the backup goes with the menu
+        menu.onClosing = () -> { release(); stickDir = PadPanel.NONE; stopAfter = null; };   // a direction held as it closes (its release comes while closed, so the next press would be taken as held); a Stop waiting for the backup goes with the menu
         String id = String.valueOf(a.getIntent().getStringExtra("title_id")), name = a.getIntent().getStringExtra("name");
         menu.game(name, null, dev.peanuts.Companion::startedAt);   // read when the menu opens: Companion.start comes after attach
         List<GameMenu.Item> rows = new ArrayList<>();
@@ -273,10 +272,14 @@ public final class InGamePanel {
         return Math.round(Math.min(Look.dp(a, size == 0 ? 280 : size == 2 ? 340 : 300), screen * 0.48f));
     }
 
+    /** The game menu's row height: a little under the panel's rows (Menu settings › Size), so all six and Stop fit 411 dp (the Thor) */
+    private static int menuRow(Activity a) { return Math.round(PanelLook.rowPx(Prefs.panelSize(a), a.getResources().getDisplayMetrics().density) * 0.92f); }
+
     private static void openGame(Activity a, boolean pad) {
         SidePanel p = panel(a);
         if (menu == null) return;
         menu.width(menuWidth(a));
+        menu.look(menuRow(a), PanelLook.textScale(Prefs.panelText(a)));   // Size and Text size changed in the quick menu meanwhile
         if (p != null && p.onOpen != null) p.onOpen.run();   // the game's held buttons released (GameActivity.releaseGameInput)
         padOpened = pad;
         menu.open(pad);
@@ -433,8 +436,6 @@ public final class InGamePanel {
             } finally {
                 SaveStore.Backup done = b;
                 String why = done == null && err == null ? "no copy" : err;
-                if (why != null) Native.note("[RED] [peanuts] in-game save backup: " + why);
-                else Native.note("save backed up from the game menu: " + done.files + " files, " + done.bytes + " bytes");
                 UI.post(() -> {
                     backingUp.set(false);
                     if (stopAfter != null) { Runnable s = stopAfter; stopAfter = null; s.run(); return; }
@@ -450,6 +451,12 @@ public final class InGamePanel {
                             : why.contains("changed while") ? "The game kept saving while it was copied. Try again in a moment."
                             : "The backup did not finish. The save was only read, never changed.", true);
                 });
+                try {
+                    if (why != null) Native.note("[RED] [peanuts] in-game save backup: " + why);
+                    else Native.note("save backed up from the game menu: " + done.files + " files, " + done.bytes + " bytes");
+                } catch (Throwable ignored) {
+                    // the log only: the row has its answer already
+                }
             }
         }, "peanuts-menu-backup").start();
     }

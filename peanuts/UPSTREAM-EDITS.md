@@ -3221,6 +3221,7 @@ icons from peanuts/scripts/icons.py), `peanuts/tests/test_cheat_loader.py` (Part
 - **Words:** the first-run hint, the controller row, the help, Stop's place in the launcher's messages, the cheats row and the Mods tab rows name the two menus; the wiki, the READMEs, the FAQ and android/README.md describe them.
 - **Icons:** `peanuts/scripts/icons.py` writes the solid set too (`SOLID`, `pis_*.xml`, `--check` in `test_icons.py`); the files named a generator outside the repository.
 - **Tests:** `PanelPolish` needs no `R` (a weak set of inset rows), so `test_android_hud` compiles it alone; `test_android_padpanel` finds the combination in `InGamePanel.key`.
+- **Second and third rounds:** what the game menu holds of the keys and a waiting Stop go as it starts to close (`onClosing`: a reopen cancels the slide-out's end); the backup row gets its answer before the log lines; Menu settings' Size and Text size changed during play reach the game menu at its next opening (`GameMenu.look`).
 
 | File | Hunks | Change | Marker |
 |---|---|---|---|
