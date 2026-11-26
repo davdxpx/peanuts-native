@@ -254,6 +254,12 @@ class Wiring(unittest.TestCase):
         controls = sections[sections.index('new Section("controls"'):sections.index('new Section("screens"')]
         self.assertIn('new Group("amiibo", r("amiibo", ', users, 'Settings › Users › amiibo')
         self.assertNotIn('amiibo', controls, 'Controls stays the controller\'s')
+        page = (ROOT / 'android/app/src/main/java/dev/peanuts/ui/SettingsPage.java').read_text(encoding='utf-8')
+        self.assertIn('UsersPage.fill(a, col, wide || tablet, more.getChildCount() == 0 ? null : more)', page,
+                      'Settings › Users draws its other groups (amiibo) under the users\' part, not only the table')
+        self.assertIn('java.util.Arrays.asList("Users", "Miis")', page, 'the users\' part keeps drawing its own Users and Miis rows')
+        users_page = (ROOT / 'android/app/src/main/java/dev/peanuts/users/UsersPage.java').read_text(encoding='utf-8')
+        self.assertIn('PUi.add(col, tail, 0)', users_page, 'UsersPage puts them back at its end each time it draws anew')
 
     def test_host_build_and_bridge(self):
         cm = (ROOT / 'android/host/CMakeLists.txt').read_text(encoding='utf-8')
