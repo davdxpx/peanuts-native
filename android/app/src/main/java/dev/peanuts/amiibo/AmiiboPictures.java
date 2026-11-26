@@ -22,7 +22,7 @@ import java.util.function.Consumer;
  * An amiibo's picture, loaded when the player opens an amiibo page or tab: from AmiiboAPI's images (the same database as the table), kept in the app's
  * cache (cacheDir/amiibo), and never fetched again while it is there. A picture AmiiboAPI does not have is noted for a day. Offline, or without one, the
  * caller shows Peanuts' own card. Nothing is fetched before a page asks, and nothing at all unless the player turned the pictures on
- * (AmiiboSwitch.pictures: Settings › Controls › amiibo pictures, off by default; igawa6's review of #711: a new outside host is the player's choice).
+ * (AmiiboSwitch.pictures: Settings › Users › amiibo pictures, off by default; igawa6's review of #711: a new outside host is the player's choice).
  */
 public final class AmiiboPictures {
     private AmiiboPictures() {}

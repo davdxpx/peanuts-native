@@ -2802,8 +2802,8 @@ Left as they were: the hunks the check also flags that were unmarked before 0.1.
 Games read amiibo through `nn::nfp`, which upstream's `hle_sdk16.c` takes over with one NFC device that never finds a tag. The take-over sits above
 the SDK's NFC service and above the figures' encryption, so a game asks for plain TagInfo, ModelInfo, CommonInfo, RegisterInfo and application area
 bytes: a virtual tag needs no amiibo keys. `dm/peanuts/peanuts_amiibo.c` takes over the same nfc and nfp symbols, only in a game the player turned
-amiibo on for (2026-11-26, igawa6's review of #711: an opt-in, not a replacement for every game). Settings › Controls › amiibo (off by default) and the
-game's own amiibo switch under its Controls (`dev.peanuts.amiibo.AmiiboSwitch`) start the game with `PN_AMIIBO=1`; the loader's `force_lookup` asks
+amiibo on for (2026-11-26, igawa6's review of #711: an opt-in, not a replacement for every game). Settings › Users › amiibo (off by default) and the
+game's own amiibo switch in its Game options (`dev.peanuts.amiibo.AmiiboSwitch`) start the game with `PN_AMIIBO=1`; the loader's `force_lookup` asks
 `peanuts_amiibo_force` before its own table, which answers only then. Its take-overs sit in a table of their own (the section `pnamiibo`, as
 `HLE_FORCE` builds `swforce`), so `hle_sdk16.c`'s block stays unchanged and every other game gets it as before. With amiibo on:
 the app places an amiibo (`Bridge.amiiboPlace`, the amiibo's ID, the tag's UID, the nickname, the player's Mii as owner, the dates and the games' data it
@@ -2822,7 +2822,7 @@ outside host by default; Part B has the row); off, nothing is fetched and Peanut
 | `dm/host/loader.c` | 1 | `force_lookup`: `peanuts_amiibo_force(name)` first, under `#ifdef PN_AMIIBO` (NULL unless the game started with `PN_AMIIBO=1`) | `// PEANUTS:` |
 | `android/host/CMakeLists.txt` | 3 | `dm/peanuts/peanuts_amiibo.c` in `HOST_C`; `PN_AMIIBO` in both kinds of host's definitions (on the marked lines of `DM_NSP_DIRECT`) | `# PEANUTS:` |
 | `android/app/src/main/java/dev/nxnative/android/GameActivity.java` | 1 | `settingsEnv`: `AmiiboSwitch.env` after `Companion.env` | `// PEANUTS:` |
-| `android/app/src/main/java/dev/nxnative/android/GameSettings.java` | 1 | Controls: the game's amiibo switch after Rumble, for a game that uses amiibo (`AmiiboSwitch.offered`) | `// PEANUTS:` |
+| `android/app/src/main/java/dev/nxnative/android/GameSettings.java` | 1 | Game options: the game's amiibo switch after Time of day, above Mods & Cheats, for a game that uses amiibo (`AmiiboSwitch.offered`) | `// PEANUTS:` |
 | `android/NOTICE.md` | 1 | AmiiboAPI's table (MIT) and its pictures (once turned on) | `<!-- PEANUTS -->` |
 
 Peanuts-owned: `dm/peanuts/peanuts_amiibo.c`, `dev.peanuts.amiibo` (`AmiiboDb`, `AmiiboBin`, `AmiiboStore`, `AmiiboTag`, `AmiiboImport`, `AmiiboFiles`,

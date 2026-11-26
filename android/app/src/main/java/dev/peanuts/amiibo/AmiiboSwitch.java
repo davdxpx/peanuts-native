@@ -8,7 +8,7 @@ import java.util.Locale;
 
 /**
  * amiibo as an opt-in (igawa6/peanuts-native#582): a game finds amiibo on Peanuts' stand only when the player turned it on, for every game (Settings ›
- * Controls › amiibo, off by default) or for this one (the game's own amiibo switch under its Controls, which comes first). A game started with it on gets
+ * Users › amiibo, off by default) or for this one (the game's own amiibo switch in its Game options, which comes first). A game started with it on gets
  * PN_AMIIBO=1, and the host's loader gives it dm/peanuts/peanuts_amiibo.c's nfc and nfp; every other game gets hle_sdk16.c's own block, as without amiibo.
  * A change counts from the game's next start. In a file of its own (MODE_MULTI_PROCESS): the launcher writes it, the game's process reads it as it starts.
  */
@@ -22,7 +22,7 @@ public final class AmiiboSwitch {
     private static SharedPreferences prefs(Context c) { return c.getSharedPreferences(PREFS, Context.MODE_MULTI_PROCESS); }
     private static String key(String titleId) { return "t." + titleId.toUpperCase(Locale.ROOT); }
 
-    /** Settings › Controls › amiibo: every game, unless its own switch says otherwise. Off by default */
+    /** Settings › Users › amiibo: every game, unless its own switch says otherwise. Off by default */
     public static boolean all(Context c) { return prefs(c).getBoolean(ALL, false); }
     public static void all(Context c, boolean on) { prefs(c).edit().putBoolean(ALL, on).apply(); }
 
@@ -36,7 +36,7 @@ public final class AmiiboSwitch {
     public static void game(Context c, String titleId, boolean on) { if (titleId != null) prefs(c).edit().putBoolean(key(titleId), on).apply(); }
 
     /**
-     * Settings › Controls › amiibo pictures: each amiibo's picture from AmiiboAPI's images (raw.githubusercontent.com), fetched when a page shows it and
+     * Settings › Users › amiibo pictures: each amiibo's picture from AmiiboAPI's images (raw.githubusercontent.com), fetched when a page shows it and
      * kept (AmiiboPictures). Off by default: nothing is fetched, and Peanuts' own card shows. The launcher's and the game's process both read it
      */
     public static boolean pictures(Context c) { return prefs(c).getBoolean(PICTURES, false); }
@@ -47,7 +47,7 @@ public final class AmiiboSwitch {
     public static boolean on(Context c, String titleId) { Boolean g = game(c, titleId); return g != null ? g : all(c); }
 
     /**
-     * Whether the game's Controls show its amiibo switch: a game that uses amiibo (AmiiboAPI's table lists it, or it was seen opening nfp while amiibo was
+     * Whether the game's Game options show its amiibo switch: a game that uses amiibo (AmiiboAPI's table lists it, or it was seen opening nfp while amiibo was
      * on for it), or one whose switch was set (so it can be turned off again)
      */
     public static boolean offered(Context c, String titleId) { return titleId != null && (game(c, titleId) != null || AmiiboStand.usesAmiibo(c, titleId)); }

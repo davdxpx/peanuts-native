@@ -68,15 +68,16 @@ public final class SettingsSections {
             new Section("controls", "Controls", "controller", DEFAULTS,
                     new Group("Buttons", r("Button mapping", "controller"), r("Xbox button label swap", "controller")),
                     new Group("Touch", r("On-screen controls", "game"), r("Show / hide button", "game")),
-                    new Group("Controller", r("Controller: in-game panel", "controller"), r("Mods tab", "mods"), r("Rumble", "controller"), r("amiibo", "controller"), r("amiibo pictures", "controller"))),
+                    new Group("Controller", r("Controller: in-game panel", "controller"), r("Mods tab", "mods"), r("Rumble", "controller"))),
             new Section("screens", "Screens", "companion", "What each screen shows, and when the screen stays on.",
                     new Group("Second screen", r("Bottom screen", "companion"), r("Games without a companion", "screens-cover"), r("Swap screens", "swap-off"),
                             r("Dual-screen companions", "companion")),
                     new Group("TV", r("TV and monitors", "tv")),
                     new Group("Display", r("Screen rotation", "screen-landscape"), r("Keep the screen on while preparing", "awake"))),
-            new Section("users", "Users", "user", "Who plays, and the Miis games can use.",
+            new Section("users", "Users", "user", "Who plays, and the Miis and amiibo games can use.",
                     new Group("Users", r("Users", "user")),
-                    new Group("Miis", r("Miis", "user"))),
+                    new Group("Miis", r("Miis", "user")),
+                    new Group("amiibo", r("amiibo", "game"), r("amiibo pictures", "game"))),
             new Section("app", "App", "settings", "How the app feels, and its updates.",
                     new Group("Feel", r("Haptics", "controller"), r("Motion", "play")),
                     new Group("Updates", r("Check for updates", "download"))),
@@ -91,7 +92,7 @@ public final class SettingsSections {
     private static final String[][] SUMMARY = {
             {"library", "Game, update and DLC folders, builds, space and play time"}, {"console", "Keys, firmware and the clock"},
             {"graphics", "GPU driver, picture and speed"}, {"controls", "Buttons, touch controls and the controller"},
-            {"screens", "Both screens, a TV, rotation, keeping the screen on"}, {"users", "Users and Miis"}, {"app", "Haptics, motion and updates"},
+            {"screens", "Both screens, a TV, rotation, keeping the screen on"}, {"users", "Users, Miis and amiibo"}, {"app", "Haptics, motion and updates"},
             {"help", "Readiness check, self-test, log and answers"}, {"developer", "Advanced, tester settings and adb"},
             {"about", "The app, its games, credits, licenses and Peanuts cracked"}};
 
