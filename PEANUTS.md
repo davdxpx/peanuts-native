@@ -129,7 +129,8 @@ Banana Native ships several releases a day, so this fork is kept as a **thin ove
      (the game menu, a swipe in from the left edge), the combination through `InGamePanel.key` (Home held: the quick menu) and `InGamePanel.toggle` (Home
      pressed, − and + held: the game menu), the controller's own Back through `InGamePanel.backKey` (pressed the game menu, held the quick menu: the
      Thor's Home is Android's), `menuKey` and `menuMotion` (the game menu has the controller), Back through `InGamePanel.back`, and `runSave()`
-     (the save the game runs on). SaveStore: `backupLocked` not private (the game menu's Back up the save, under the running game's own lock).
+     (the save the game runs on). SaveStore: `backupRunning` (the game menu's Back up the save, under the running game's own lock: the copy without the
+     recovery, refused while the host's swap at a Commit has its marker beside the save).
      `peanuts/UPSTREAM-EDITS.md` "In-game menus".
 3. **Settings go through upstream's own mechanisms**: `env.txt` keys named `PN_*`, `settings.tsv` rows, `DM_CTL` lines. No new settings UI inside upstream classes.
 4. **Never reformat or "fix" upstream files.** A general fix belongs upstream as a PR to Banana Native (its AGENTS.md prefers general changes), then it arrives by rebase.

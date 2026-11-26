@@ -1,8 +1,11 @@
 """The in-game menus: the game menu at the left (dev.peanuts.ingame.GameMenu) and the quick
 menu at the right (upstream's SidePanel with its tabs on a rail, dev.peanuts.ingame.Rail), joined by dev.nxnative.android.InGamePanel. Checks the marked
 hooks in upstream's files, the rail's order and icons, the game menu's rows, the solid icons against design's icons.py output, and the text the player
-reads against UI-RULES.md."""
+reads against UI-RULES.md. On the JVM (InGameBackupJvmTest with SaveStore): Back up the save beside the host's Commit. Skipped without a JDK."""
 import re
+import shutil
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -53,11 +56,34 @@ class Hooks(unittest.TestCase):
 
     def test_save_store(self):
         s = (LAUNCHER / 'SaveStore.java').read_text(encoding='utf-8')
-        self.assertTrue(marked(s, 'static Backup backupLocked('), 'backupLocked not private, marked')
+        self.assertIn('    private static Backup backupLocked(', s, "backupLocked stays upstream's, private")
+        span = s[s.index('PEANUTS begin: the recovery apart from the copy'):]
+        span = span[:span.index('PEANUTS end')]
+        self.assertIn('static Backup backupRunning(', span, 'backupRunning, in its marked span')
+        running = span[span.index('static Backup backupRunning('):]
+        running = running[:running.index('\n    }\n')]
+        self.assertNotIn('recover', running, "no recovery on the running game's save: a marker there is the host's own Commit, still being written")
+        self.assertIn('if (running && pending(save)) throw', span, 'a marker before the copy fails it')
+        self.assertTrue(marked(s, 'if (running && pending(save)) throw new IOException("the save changed while it was copied (the game started saving it)")'),
+                        'and one after its second scan, before the backup gets its name')
         b = (LAUNCHER / 'InGamePanel.java').read_text(encoding='utf-8')
-        self.assertIn('SaveStore.backupLocked(save, to, SaveUi.stamp())', b, "the game menu's backup is SaveStore's own, checked before and after the copy")
+        self.assertIn('SaveStore.backupRunning(save, to, SaveUi.stamp())', b, "the game menu's backup: SaveStore's own copy, without the recovery")
+        self.assertNotIn('backupLocked', b)
         self.assertIn('GameActivity.runSave()', b, 'the save the game runs on (the player picked at the start)')
-        self.assertIn('contains("changed while")', b, 'a Commit during the copy is tried again')
+        self.assertIn('if (err.contains("no save folder")) break;', b, 'a Commit during the copy is tried again')
+
+
+@unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'no JDK')
+class BackupBesideACommit(unittest.TestCase):
+    def test_jvm(self):
+        """InGameBackupJvmTest: each state of the host's Commit as the copy starts, then a host committing beside backups (not on Windows)"""
+        with tempfile.TemporaryDirectory() as d:
+            srcs = [LAUNCHER / 'SaveStore.java', APP / 'jvmtest/java/dev/nxnative/android/InGameBackupJvmTest.java']
+            r = subprocess.run(['javac', '-Xlint:all,-try', '-Werror', '-encoding', 'UTF-8', '-d', d, *map(str, srcs)], capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            r = subprocess.run(['java', '-cp', d, 'dev.nxnative.android.InGameBackupJvmTest'], capture_output=True, text=True, timeout=120)
+            self.assertEqual(r.returncode, 0, r.stdout[-3000:] + r.stderr[-3000:])
+            self.assertIn('PASS', r.stdout)
 
 
 class Menus(unittest.TestCase):

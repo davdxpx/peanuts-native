@@ -3166,8 +3166,9 @@ Upstream's one in-game panel with five text tabs becomes two menus, as a console
 the running game at the right. The game keeps running behind both.
 
 - **The game menu** (`dev.peanuts.ingame.GameMenu`): the game's cover, name, version and how long this session has run; Back to the game, Pause the
-  game, Quick menu, Back up the save (the save the game runs on, copied while it runs: SaveStore checks the save before and after the copy, and the host
-  writes a save only by an atomic swap at the game's Commit, so a Commit in between fails the copy, which is tried again), Button mapping, Share log;
+  game, Quick menu, Back up the save (the save the game runs on, copied while it runs, without SaveStore's recovery: the game's start recovered the save,
+  so a marker beside it now is the host's own swap at a Commit, which only the host finishes; the host writes a save only by that swap, and SaveStore
+  checks the save and its markers before and after the copy, so a Commit in between fails the copy, which is tried again), Button mapping, Share log;
   Stop the game set apart at the bottom, asked once inline (Keep playing first). The header and Stop stay while the rows scroll on a short screen.
 - **The quick menu** is upstream's SidePanel with its tabs on a rail at the left (`dev.peanuts.ingame.Rail`): Performance, Display, Cheats, Mods,
   Controls, and the menu's own settings at the bottom (upstream's General without Pause, Stop and Back to the game). Cheats and Mods are two tabs now
@@ -3201,7 +3202,7 @@ the running game at the right. The game keeps running behind both.
 |---|---|---|---|
 | `android/app/src/main/java/dev/nxnative/android/SidePanel.java` | 8 | `TAB_CONTROLS` not final; the constructor's `InGamePanel.frame`; `tabBar`'s `InGamePanel.rail`; `showTab`'s `InGamePanel.railFocused`; `open`'s `InGamePanel.slideIn` and `close`'s `slideOut` instead of upstream's two animations; `padKey`'s back key `InGamePanel.panelBack`; `look`'s `InGamePanel.laid` | `// PEANUTS` on each line |
 | `android/app/src/main/java/dev/nxnative/android/GameActivity.java` | 7 | `comboHeld` and the combination's TOGGLE through `InGamePanel.toggle`, the combination through `InGamePanel.key`; `onCreate`'s `InGamePanel.attach`; `dispatchKeyEvent`'s `InGamePanel.menuKey`; `onGenericMotionEvent`'s `InGamePanel.menuMotion`; `onBackPressed`'s `InGamePanel.back`; `runSave()` | `// PEANUTS` / `/* PEANUTS */` on each line |
-| `android/app/src/main/java/dev/nxnative/android/SaveStore.java` | 1 | `backupLocked` not private | `// PEANUTS` |
+| `android/app/src/main/java/dev/nxnative/android/SaveStore.java` | 3 | `backupLocked`'s recovery apart from its copy (`copyLocked`), and `backupRunning`: the copy of the running game's save without the recovery, refused while a marker of the host's swap is beside the save (before the copy and after its second scan); a copy that does not match the save while it changed is a changed save | the block `PEANUTS begin`/`end`; `// PEANUTS` per line |
 | `android/app/src/main/java/dev/nxnative/android/InGamePanel.java` | new | Peanuts-owned, in upstream's package (as `ModsPanel.java`): the two menus, the keys, the backup while the game runs | Peanuts' own file |
 | `android/app/src/main/java/dev/nxnative/android/ModsPanel.java` | (Peanuts' own, Part E) | the quick menu's tabs: Cheats and Mods apart, before Controls | Peanuts' own file |
 
