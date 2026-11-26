@@ -40,7 +40,7 @@ import dev.peanuts.ui.PUi;
  * player turns it on), then the player's own amiibo that fit the game, then every amiibo that fits it (AmiiboAPI's table), as square cards with their
  * names; a search over all of them; Import of .bin files, folders and ZIP packs. An amiibo opens its own page in the area: its picture, name, series and
  * type, what it does in this game, the game's data on it with Reset game data, and the other games that use it. Pictures load as the area opens
- * (AmiiboPictures), once the player has turned them on (Settings › Controls › amiibo pictures, off by default); Peanuts' own card stands in until then, offline
+ * (AmiiboPictures), once the player has turned them on (Settings › Users › amiibo pictures, off by default); Peanuts' own card stands in until then, offline
  * and for one that is not there. B goes from an amiibo's page back to the pictures (GamePage.onBack asks {@link #back}).
  */
 public final class AmiiboPage {
@@ -127,12 +127,12 @@ public final class AmiiboPage {
                     .setPadding(PUi.dp(a, 4), 0, PUi.dp(a, 4), 0);
         }
         PUi.add(body, PUi.small(a, (AmiiboSwitch.pictures(a) ? "Pictures and names come from AmiiboAPI."
-                : "Names come from AmiiboAPI's list in the app. Its pictures show once you turn them on in Settings › Controls › amiibo pictures.")
+                : "Names come from AmiiboAPI's list in the app. Its pictures show once you turn them on in Settings › Users › amiibo pictures.")
                 + " Each game keeps its own data on an amiibo; nothing is written to a figure."), 18)
                 .setPadding(PUi.dp(a, 4), 0, PUi.dp(a, 4), 0);
     }
 
-    /** The game's amiibo switch (the same as the one under its Controls): placing needs it on, from the game's next start */
+    /** The game's amiibo switch (the same as the one in its Game options): placing needs it on, from the game's next start */
     private static View switchRow(Activity a) {
         boolean on = AmiiboSwitch.on(a, titleId);
         LinearLayout card = PUi.listCard(a);

@@ -77,7 +77,7 @@ public final class SettingsSections {
             new Section("users", "Users", "user", "Who plays, and the Miis and amiibo games can use.",
                     new Group("Users", r("Users", "user")),
                     new Group("Miis", r("Miis", "user")),
-                    new Group("amiibo", r("amiibo", "game"), r("amiibo pictures", "game"))),
+                    new Group("amiibo", r("amiibo", "amiibo"), r("amiibo pictures", "amiibo"))),
             new Section("app", "App", "settings", "How the app feels, and its updates.",
                     new Group("Feel", r("Haptics", "controller"), r("Motion", "play")),
                     new Group("Updates", r("Check for updates", "download"))),

@@ -149,7 +149,7 @@ public final class LibrarySettings {
                 .toggle(a, dev.peanuts.amiibo.AmiiboSwitch.all(a), (b, on) -> { Feel.toggled(b, on); dev.peanuts.amiibo.AmiiboSwitch.all(a, on); });
         amiibo.view.setOnClickListener(v -> amiibo.toggle.toggle());
         card.addView(amiibo.view);
-        // amiibo pictures (dev.peanuts.amiibo.AmiiboPictures, under Controls › Controller with amiibo): off by default, the host named, nothing fetched until on
+        // amiibo pictures (dev.peanuts.amiibo.AmiiboPictures, under Users › amiibo with amiibo): off by default, the host named, nothing fetched until on
         PUi.Setting pics = new PUi.Setting(a, "", "amiibo pictures", null)
                 .value("Each amiibo's picture from AmiiboAPI's images on raw.githubusercontent.com, fetched when a page shows it and kept. Off: Peanuts' own card.")
                 .toggle(a, dev.peanuts.amiibo.AmiiboSwitch.pictures(a), (b, on) -> { Feel.toggled(b, on); dev.peanuts.amiibo.AmiiboSwitch.pictures(a, on); });

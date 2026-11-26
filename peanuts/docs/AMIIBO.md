@@ -59,9 +59,9 @@ figure carries from a console stays on the figure, and Peanuts keeps its own. No
 
 ## The game page
 
-A game that uses amiibo has an amiibo tile (after Controls). Its area starts with the game's amiibo switch (the same as under its Controls; the tile says
+A game that uses amiibo has an amiibo tile (after Controls). Its area starts with the game's amiibo switch (the same as in its Game options; the tile says
 "Off for this game" while it is off), then shows the player's own amiibo that fit the game, then every amiibo that fits it, each with its picture once the
-player has turned the pictures on (Settings › Controls › amiibo pictures, off by default) and as Peanuts' own card until then,
+player has turned the pictures on (Settings › Users › amiibo pictures, off by default) and as Peanuts' own card until then,
 searches all of them, and imports .bin files, folders and ZIP packs. An amiibo's page says what it does in this game and whether the game keeps data on
 it, and resets that game's data (Reset game data) or removes the amiibo from the player's own.
 
