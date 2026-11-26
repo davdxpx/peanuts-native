@@ -1,8 +1,11 @@
 """The in-game menus: the game menu at the left (dev.peanuts.ingame.GameMenu) and the quick
 menu at the right (upstream's SidePanel with its tabs on a rail, dev.peanuts.ingame.Rail), joined by dev.nxnative.android.InGamePanel. Checks the marked
 hooks in upstream's files, the rail's order and icons, the game menu's rows, the solid icons against design's icons.py output, and the text the player
-reads against UI-RULES.md."""
+reads against UI-RULES.md. On the JVM (InGameBackupJvmTest with SaveStore): Back up the save beside the host's Commit. Skipped without a JDK."""
 import re
+import shutil
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -54,11 +57,34 @@ class Hooks(unittest.TestCase):
 
     def test_save_store(self):
         s = (LAUNCHER / 'SaveStore.java').read_text(encoding='utf-8')
-        self.assertTrue(marked(s, 'static Backup backupLocked('), 'backupLocked not private, marked')
+        self.assertIn('    private static Backup backupLocked(', s, "backupLocked stays upstream's, private")
+        span = s[s.index('PEANUTS begin: the recovery apart from the copy'):]
+        span = span[:span.index('PEANUTS end')]
+        self.assertIn('static Backup backupRunning(', span, 'backupRunning, in its marked span')
+        running = span[span.index('static Backup backupRunning('):]
+        running = running[:running.index('\n    }\n')]
+        self.assertNotIn('recover', running, "no recovery on the running game's save: a marker there is the host's own Commit, still being written")
+        self.assertIn('if (running && pending(save)) throw', span, 'a marker before the copy fails it')
+        self.assertTrue(marked(s, 'if (running && pending(save)) throw new IOException("the save changed while it was copied (the game started saving it)")'),
+                        'and one after its second scan, before the backup gets its name')
         b = (LAUNCHER / 'InGamePanel.java').read_text(encoding='utf-8')
-        self.assertIn('SaveStore.backupLocked(save, to, SaveUi.stamp())', b, "the game menu's backup is SaveStore's own, checked before and after the copy")
+        self.assertIn('SaveStore.backupRunning(save, to, SaveUi.stamp())', b, "the game menu's backup: SaveStore's own copy, without the recovery")
+        self.assertNotIn('backupLocked', b)
         self.assertIn('GameActivity.runSave()', b, 'the save the game runs on (the player picked at the start)')
-        self.assertIn('contains("changed while")', b, 'a Commit during the copy is tried again')
+        self.assertIn('if (err.contains("no save folder")) break;', b, 'a Commit during the copy is tried again')
+
+
+@unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'no JDK')
+class BackupBesideACommit(unittest.TestCase):
+    def test_jvm(self):
+        """InGameBackupJvmTest: each state of the host's Commit as the copy starts, then a host committing beside backups (not on Windows)"""
+        with tempfile.TemporaryDirectory() as d:
+            srcs = [LAUNCHER / 'SaveStore.java', APP / 'jvmtest/java/dev/nxnative/android/InGameBackupJvmTest.java']
+            r = subprocess.run(['javac', '-Xlint:all,-try', '-Werror', '-encoding', 'UTF-8', '-d', d, *map(str, srcs)], capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            r = subprocess.run(['java', '-cp', d, 'dev.nxnative.android.InGameBackupJvmTest'], capture_output=True, text=True, timeout=120)
+            self.assertEqual(r.returncode, 0, r.stdout[-3000:] + r.stderr[-3000:])
+            self.assertIn('PASS', r.stdout)
 
 
 class Menus(unittest.TestCase):
@@ -79,6 +105,8 @@ class Menus(unittest.TestCase):
             self.assertTrue((RES / 'drawable' / f'pis_{icon.replace("-", "_")}.xml').is_file(), f'the solid icon {icon}')
         gm = (INGAME / 'GameMenu.java').read_text(encoding='utf-8')
         self.assertIn('"Keep playing"', gm, 'Stop asks once, the safe choice first')
+        self.assertIn('c.getDrawable(dev.nxnative.android.R.drawable.ic_chevron)', gm, "a row that opens a page shows the launcher's chevron")
+        self.assertNotIn('"chevron-right"', gm, "there is no pi_chevron_right: Icons.get gave null, an empty space at the row's end")
         tab = (APP / 'main/java/dev/peanuts/mods/ModsTab.java').read_text(encoding='utf-8')
         self.assertIn('public static void fill(Activity a, LinearLayout box, Host host, int part)', tab, 'Cheats and Mods are two tabs')
 
@@ -166,13 +194,22 @@ class Bottom(unittest.TestCase):
 
     def test_the_layout_is_picked_once(self):
         q = (APP / 'main/java/dev/peanuts/ui/LayoutChoice.java').read_text(encoding='utf-8')
-        self.assertIn('PeanutsPrefs.menuLayoutPicked(a)', q, 'asked until one is picked')
-        self.assertIn('later.setOnClickListener(v -> d.dismiss());', q, 'Later picks nothing: asked again at the next start')
+        offer = q[q.index('public static void offer(Activity a) {'):]
+        offer = offer[:offer.index('asked = true;')]
+        self.assertIn('PeanutsPrefs.menuLayoutPicked(a)', offer, 'asked until one is picked')
+        self.assertIn('later.setOnClickListener(v -> d.dismiss());', q, 'Later picks nothing: asked once more at the next start')
+        self.assertIn('static final int TIMES = 2;', q, 'twice at most')
+        self.assertIn('PeanutsPrefs.menuLayoutAsked(a) >= TIMES', offer, 'then no more')
+        self.assertIn('PeanutsPrefs.menuLayoutAsked(a, PeanutsPrefs.menuLayoutAsked(a) + 1);', q, 'each time it shows')
+        self.assertIn('if (!PeanutsPrefs.setupDone(a)) { setupRun = true; return; }', offer, "not in the run of the first start's setup: one question a start")
+        self.assertIn('setupRun ||', offer)
         self.assertIn('View first = made[second ? count - 1 : 0];', q, 'two screens: the focus starts on the bottom screen\'s')
-        self.assertIn('if (open != null && open.isShowing() && open.getOwnerActivity() == a) { if (then != null) waiting.add(then); return; }', q,
-                      "Home's list fills again on each refresh: a later offer's then (the quick button's question) waits until the question closes")
-        self.assertIn('for (Runnable r : after) r.run();', q[q.index('d.setOnDismissListener('):], 'the waiting ones run when it closes')
-        self.assertIn('box.post(() -> LayoutChoice.offer(a, ', (APP / 'main/java/dev/peanuts/ui/Library.java').read_text(encoding='utf-8'), "Home's list asks")
+        self.assertIn('cards.setBaselineAligned(false);', q)
+        self.assertIn('new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)', q, 'side by side, the cards are one size')
+        self.assertIn('Math.round(PICTURE_DP * dp)', q, 'every picture in a box of one height, so the names line up')
+        self.assertNotIn('setAdjustViewBounds', q, "no picture sets its card's height")
+        self.assertIn('private static final String[] NAMES = {"Two menus", "One menu at the right", "Bottom screen"};', q, "the question's names fit a line of their card each")
+        self.assertIn('box.post(() -> LayoutChoice.offer(a));', (APP / 'main/java/dev/peanuts/ui/Library.java').read_text(encoding='utf-8'), "Home's list asks")
         for name in ('two', 'right', 'bottom'):
             x = (RES / f'drawable/pil_layout_{name}.xml').read_text(encoding='utf-8')
             self.assertIn('generated from design/peanuts-native/layouts/layouts.py', x, f'pil_layout_{name}: made by layouts.py')
@@ -196,7 +233,9 @@ class Bottom(unittest.TestCase):
         self.assertIn('if (rightMode(a)) vis = View.GONE;', b, "the left edge is the game's")
         self.assertIn('rightRows = gameRows(a, () -> rightPanel);', b, 'Game first on its rail, its rows closing it')
         self.assertIn('{ openRight(a, onGame, pad); return; }', b, 'the bottom screen gone: the one at the right')
-        self.assertIn('"One menu at the right"', b, 'the choice in Layout')
+        self.assertIn('String[] names = {"Two menus", "One menu at the right", "Bottom screen"};', b, "Layout's choices have the question's names")
+        rows = (INGAME / 'GameRows.java').read_text(encoding='utf-8')
+        self.assertIn('c.getDrawable(dev.nxnative.android.R.drawable.ic_chevron)', rows, "Game's rows that open a page show the launcher's chevron")
         self.assertIn('if (i == dev.peanuts.PeanutsPrefs.LAYOUT_BOTTOM && !second) continue;', b, 'the bottom screen only with a second display')
 
 
@@ -208,8 +247,8 @@ class QuickMenuButton(unittest.TestCase):
         for k in ('KEYCODE_BUTTON_A', 'KEYCODE_BUTTON_THUMBL', 'KEYCODE_BUTTON_THUMBR', 'KEYCODE_DPAD_UP', 'KEYCODE_BUTTON_L2'):
             self.assertIn(f'case KeyEvent.{k}:', q[q.index('static boolean games('):], f'{k} warns: games use it')
         self.assertIn('if (k == KeyEvent.KEYCODE_BUTTON_MODE) return', q, "Home stays the game menu's")
-        self.assertIn('PeanutsPrefs.quickKeyNever(a)', q, 'asked at the start until the player says Never')
-        self.assertIn('LayoutChoice.offer(a, () -> QuickButton.offer(a))', (APP / 'main/java/dev/peanuts/ui/Library.java').read_text(encoding='utf-8'), "asked from Home's list, after the layout")
+        self.assertNotIn('static void offer(', q, "the app's start asks nothing about it: its row in Settings › Controls sets it up")
+        self.assertNotIn('QuickButton', (APP / 'main/java/dev/peanuts/ui/Library.java').read_text(encoding='utf-8'), "Home's list asks nothing about it")
         prefs = (APP / 'main/java/dev/peanuts/PeanutsPrefs.java').read_text(encoding='utf-8')
         self.assertIn('getInt("quick_key", 0)', prefs, 'none by default')
         self.assertIn('r("Quick menu button", "controller")', (APP / 'main/java/dev/peanuts/ui/SettingsSections.java').read_text(encoding='utf-8'))

@@ -295,9 +295,6 @@ public final class PeanutsPrefs {
      *  0 none; the launcher writes it, the game's process reads it at its start */
     public static int quickKey(Context c) { return of(c).getInt("quick_key", 0); }
     public static void quickKey(Context c, int keyCode) { of(c).edit().putInt("quick_key", keyCode).apply(); }
-    /** The player said Never to the question at the app's start */
-    public static boolean quickKeyNever(Context c) { return of(c).getBoolean("quick_key_never", false); }
-    public static void quickKeyNever(Context c, boolean never) { of(c).edit().putBoolean("quick_key_never", never).apply(); }
 
     /** When a game looks for an amiibo (the quick menu's amiibo tab): Suggest one of mine (a card over the game), Only light up the tab, Place my last one
      *  at once. In the game's prefs file ("peanuts_panel"): only the game's process reads and writes it */
@@ -327,6 +324,9 @@ public final class PeanutsPrefs {
     }
     /** A layout was picked, in the launcher's question or in the menu's own settings: the question is not asked again */
     public static boolean menuLayoutPicked(Context c) { return of(c).contains("menu_layout_pick") || panel(c).contains("menu_layout"); }
+    /** How often the launcher's question showed (LayoutChoice.TIMES at most: closed without a pick, once more at the next start) */
+    public static int menuLayoutAsked(Context c) { return of(c).getInt("menu_layout_asked", 0); }
+    public static void menuLayoutAsked(Context c, int times) { of(c).edit().putInt("menu_layout_asked", times).apply(); }
 
     /** The in-game panel's tab shown last (its name), so it opens there again; "" none yet. In a file of its own: the game's process writes it, and the launcher's
      *  process, which keeps "peanuts" in memory, would write its older copy back over it */

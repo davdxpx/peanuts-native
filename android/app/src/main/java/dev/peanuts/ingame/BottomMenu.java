@@ -10,7 +10,7 @@ import android.widget.FrameLayout;
 /**
  * The second screen's side of the bottom screen's menu (dev.nxnative.android.InGamePanel opens it): the game's live stats page (dev.peanuts.ui.GameScreen,
  * StatsView) gets a faint grip at its bottom edge, which moves with the page's pixel shifter, and a swipe up from that edge opens the menu on Game.
- * Only while the layout (Menu settings › Layout) is One menu on the bottom screen.
+ * Only while the layout (Menu settings › Layout) is Bottom screen.
  */
 public final class BottomMenu {
     private BottomMenu() {}

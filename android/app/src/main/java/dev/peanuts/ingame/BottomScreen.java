@@ -12,7 +12,7 @@ import android.view.WindowManager;
 import android.widget.FrameLayout;
 
 /**
- * The window of the menu on the bottom screen (Menu settings › Layout: One menu on the bottom screen):
+ * The window of the menu on the bottom screen (Menu settings › Layout: Bottom screen):
  * a see-through window on the second display, over whatever shows there (the game's live stats, a companion, Android's launcher), made when the menu opens
  * and gone when it has slid back down, so the screen is given back. It never takes the input focus: the controller stays with the game's window, which
  * hands its keys to the menu (dev.nxnative.android.InGamePanel).

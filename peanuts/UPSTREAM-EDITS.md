@@ -3090,8 +3090,9 @@ Upstream's one in-game panel with five text tabs becomes two menus, as a console
 the running game at the right. The game keeps running behind both.
 
 - **The game menu** (`dev.peanuts.ingame.GameMenu`): the game's cover, name, version and how long this session has run; Back to the game, Pause the
-  game, Quick menu, Back up the save (the save the game runs on, copied while it runs: SaveStore checks the save before and after the copy, and the host
-  writes a save only by an atomic swap at the game's Commit, so a Commit in between fails the copy, which is tried again), Button mapping, Share log;
+  game, Quick menu, Back up the save (the save the game runs on, copied while it runs, without SaveStore's recovery: the game's start recovered the save,
+  so a marker beside it now is the host's own swap at a Commit, which only the host finishes; the host writes a save only by that swap, and SaveStore
+  checks the save and its markers before and after the copy, so a Commit in between fails the copy, which is tried again), Button mapping, Share log;
   Stop the game set apart at the bottom, asked once inline (Keep playing first). The header and Stop stay while the rows scroll on a short screen.
 - **The quick menu** is upstream's SidePanel with its tabs on a rail at the left (`dev.peanuts.ingame.Rail`): Performance, Display, Cheats, Mods,
   Controls, and the menu's own settings at the bottom (upstream's General without Pause, Stop and Back to the game). Cheats and Mods are two tabs now
@@ -3125,7 +3126,7 @@ the running game at the right. The game keeps running behind both.
 |---|---|---|---|
 | `android/app/src/main/java/dev/nxnative/android/SidePanel.java` | 8 | `TAB_CONTROLS` not final; the constructor's `InGamePanel.frame`; `tabBar`'s `InGamePanel.rail`; `showTab`'s `InGamePanel.railFocused`; `open`'s `InGamePanel.slideIn` and `close`'s `slideOut` instead of upstream's two animations; `padKey`'s back key `InGamePanel.panelBack`; `look`'s `InGamePanel.laid` | `// PEANUTS` on each line |
 | `android/app/src/main/java/dev/nxnative/android/GameActivity.java` | 7 | `comboHeld` and the combination's TOGGLE through `InGamePanel.toggle`, the combination through `InGamePanel.key`; `onCreate`'s `InGamePanel.attach`; `dispatchKeyEvent`'s `InGamePanel.menuKey`; `onGenericMotionEvent`'s `InGamePanel.menuMotion`; `onBackPressed`'s `InGamePanel.back`; `runSave()` | `// PEANUTS` / `/* PEANUTS */` on each line |
-| `android/app/src/main/java/dev/nxnative/android/SaveStore.java` | 1 | `backupLocked` not private | `// PEANUTS` |
+| `android/app/src/main/java/dev/nxnative/android/SaveStore.java` | 3 | `backupLocked`'s recovery apart from its copy (`copyLocked`), and `backupRunning`: the copy of the running game's save without the recovery, refused while a marker of the host's swap is beside the save (before the copy and after its second scan); a copy that does not match the save while it changed is a changed save | the block `PEANUTS begin`/`end`; `// PEANUTS` per line |
 | `android/app/src/main/java/dev/nxnative/android/InGamePanel.java` | new | Peanuts-owned, in upstream's package (as `ModsPanel.java`): the two menus, the keys, the backup while the game runs | Peanuts' own file |
 | `android/app/src/main/java/dev/nxnative/android/ModsPanel.java` | (Peanuts' own, Part E) | the quick menu's tabs: Cheats and Mods apart, before Controls | Peanuts' own file |
 
@@ -3135,10 +3136,10 @@ icons against icons.py), `peanuts/tests/test_cheat_loader.py` (Part E's hooks in
 
 ### In-game menus as one menu: at the right over the game, or on the bottom screen with the game in full view on top (2026-11-24, on the in-game menus; two menus stay the default)
 
-The player picks the layout once: Home's list asks at the app's start until one is picked (`dev.peanuts.ui.LayoutChoice`, Later asks again at the
-next start), with a picture of each (`drawable/pil_layout_*.xml` from `design/peanuts-native/layouts/layouts.py`): Two menus (the game menu at the left,
-the quick menu at the right; kept until one is picked), One menu at the right, and on a device with a second screen (the AYN Thor) One menu on the bottom
-screen, where the focus starts there. The menu's own settings change it later (Layout). `PeanutsPrefs.menuLayout` keeps both with when, the newer counts. One menu is a second
+The player picks the layout once: Home's list asks at the app's start until one is picked (`dev.peanuts.ui.LayoutChoice`; Later asks once more at the
+next start, then no more; a new player is asked at the start after the one with the first start's setup), with a picture of each (`drawable/pil_layout_*.xml` from `design/peanuts-native/layouts/layouts.py`): Two menus (the game menu at the left,
+the quick menu at the right; kept until one is picked), One menu at the right, and on a device with a second screen (the AYN Thor) Bottom screen (one
+menu there), where the focus starts there. The menu's own settings change it later (Layout). `PeanutsPrefs.menuLayout` keeps both with when, the newer counts. One menu is a second
 quick menu whose rail starts with Game (the game menu's rows, `dev.peanuts.ingame.GameRows`) above the quick menu's tabs; Home pressed, − and + held and
 Back open it on Game, Home held (or the controller's Back held) on the tab shown last, L and R step over Game and the tabs, B closes it. On Game
 its own header (the cover, the name, the version, this session's time) is the top, as in the game menu, without the tabs' header over it.
@@ -3166,8 +3167,8 @@ Peanuts-owned: `dev.peanuts.ingame.BottomScreen`, `GameRows`, `BottomMenu` (the 
 ### Quick menu button: a button of your own opens the in-game quick menu at once (2026-11-24, on the in-game menus; none set by default)
 
 On a device whose Home belongs to Android (the AYN Thor: Home goes to the launcher and closes the game, Back opens the game menu) no button opened the
-quick menu at once. Settings › Controls › Controller › Quick menu button takes one: the player presses it (`dev.peanuts.ui.QuickButton`). Home's list asks
-at the app's start while none is set and a controller is attached, after the layout's question (Set up, Later, Never; once a run). A button games use (A, B, X, Y, the shoulders,
+quick menu at once. Settings › Controls › Controller › Quick menu button takes one: the player presses it (`dev.peanuts.ui.QuickButton`). The app's start
+asks nothing about it. A button games use (A, B, X, Y, the shoulders,
 the sticks' presses, the D-pad, + and −) gets a warning first: while it opens the quick menu, the game no longer gets it. Home stays the game menu's
 and, held, the quick menu's; Android's own buttons and the volume are refused. In a game the button opens the quick menu (with one menu: on the tab
 shown last) and closes whichever menu is open; a button the menus move with keeps that job while one is open. The game menu's Quick menu row names it.
@@ -3178,8 +3179,7 @@ Kept in "peanuts" (`PeanutsPrefs.quickKey`), which the launcher writes and the g
 | `android/app/src/main/java/dev/nxnative/android/GameActivity.java` | 1 | `dispatchKeyEvent`: `InGamePanel.quickKey` after the controller's Back, before the combination | `// PEANUTS` |
 | `android/app/src/main/java/dev/nxnative/android/InGamePanel.java` | (Peanuts' own) | `quickKey`; the Quick menu row's value | Peanuts' own file |
 
-Peanuts-owned: `dev.peanuts.ui.QuickButton`, its row in `LibrarySettings`, `SettingsSections` and `SettingsHelp`, the question in `Library.fill`,
-`PeanutsPrefs.quickKey` and `quickKeyNever`. Tests: `peanuts/tests/test_ingame_menus.py` (QuickMenuButton).
+Peanuts-owned: `dev.peanuts.ui.QuickButton`, its row in `LibrarySettings`, `SettingsSections` and `SettingsHelp`, `PeanutsPrefs.quickKey`. Tests: `peanuts/tests/test_ingame_menus.py` (QuickMenuButton).
 
 ### Round 65, amiibo: a virtual stand the app places amiibo on (2026-11-24, GitHub issue #582, Part A: engine and store; opt-in since 2026-11-26)
 

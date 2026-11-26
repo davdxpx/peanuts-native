@@ -14,31 +14,36 @@ import dev.nxnative.android.R;
 import dev.peanuts.PeanutsPrefs;
 
 /**
- * How the in-game menus look, picked once by the player: after the update, and for a new player after the first start's setup, Home's list shows the
- * layouts as pictures (drawable/pil_layout_*.xml, made by design/peanuts-native/layouts/layouts.py) until one is picked. Two menus (the game menu at the
- * left, the quick menu at the right), One menu at the right, and on a device with a second screen One menu on the bottom screen, which the focus starts on
- * there. Later keeps the two menus and asks again at the next start. The menu's own settings change it later (Layout, dev.nxnative.android.InGamePanel).
+ * How the in-game menus look, picked once by the player: at the first start after the update, and for a new player at the start after the one that ran the
+ * first start's setup (one question a start), Home's list shows the layouts as pictures (drawable/pil_layout_*.xml, made by
+ * design/peanuts-native/layouts/layouts.py). Two menus (the game menu at the left, the quick menu at the right), One menu at the right, and on a device with
+ * a second screen Bottom screen (one menu there), which the focus starts on there. Later (or closing it) keeps the two menus and asks once more at the next
+ * start, then no more. The menu's own settings change it later (Layout, dev.nxnative.android.InGamePanel).
  */
 public final class LayoutChoice {
     private LayoutChoice() {}
 
     private static boolean asked;   // once a run of the app
-    private static android.app.Dialog open;   // the question while it shows
-    private static final java.util.List<Runnable> waiting = new java.util.ArrayList<>();   // a later offer's then, run when the question closes
+    private static boolean setupRun;   // this run showed the first start's setup: its new player is asked at the next start
+    /** Shown at most this often: closed without a pick, once more at the next start */
+    static final int TIMES = 2;
+    /** Each picture's box: the cards, their names and lines fit a handheld's screen under the title */
+    private static final int PICTURE_DP = 108;
 
     private static final int[] LAYOUTS = {PeanutsPrefs.LAYOUT_TWO, PeanutsPrefs.LAYOUT_RIGHT, PeanutsPrefs.LAYOUT_BOTTOM};
     private static final String[] PICTURES = {"pil_layout_two", "pil_layout_right", "pil_layout_bottom"};   // Peanuts' res (src/peanuts/res): by name
-    private static final String[] NAMES = {"Two menus", "One menu at the right", "One menu on the bottom screen"};
+    private static final String[] NAMES = {"Two menus", "One menu at the right", "Bottom screen"};   // short: each name fits one line of its card, so the lines under them start level
     private static final String[] LINES = {
             "The game menu at the left, the settings at the right.",
             "Everything in one place over the game.",
             "The game in full view on top, the menu below."};
 
-    /** Home's list: the question while no layout is picked; then runs once it closes, or at once when it does not show */
-    public static void offer(Activity a, Runnable then) {
-        if (open != null && open.isShowing() && open.getOwnerActivity() == a) { if (then != null) waiting.add(then); return; }   // Home's list fills again while it shows (each refresh): its then waits for the close
-        if (asked || a.isFinishing() || !PeanutsPrefs.setupDone(a) || PeanutsPrefs.menuLayoutPicked(a)) { if (then != null) then.run(); return; }
+    /** Home's list, each time it fills: the question while no layout is picked, once a run, at most TIMES in all, never in the run of the setup */
+    public static void offer(Activity a) {
+        if (!PeanutsPrefs.setupDone(a)) { setupRun = true; return; }
+        if (asked || setupRun || a.isFinishing() || PeanutsPrefs.menuLayoutPicked(a) || PeanutsPrefs.menuLayoutAsked(a) >= TIMES) return;
         asked = true;
+        PeanutsPrefs.menuLayoutAsked(a, PeanutsPrefs.menuLayoutAsked(a) + 1);
         boolean second = dev.peanuts.Companion.hasSecondDisplay(a);
         int count = second ? 3 : 2;
         float dp = a.getResources().getDisplayMetrics().density;
@@ -60,6 +65,7 @@ public final class LayoutChoice {
         box.addView(intro, ip);
         LinearLayout cards = new LinearLayout(a);
         cards.setOrientation(wide ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
+        cards.setBaselineAligned(false);   // side by side, the cards are one size: as tall as the tallest (a name on two lines)
         View[] made = new View[count];
         for (int i = 0; i < count; i++) {
             int layout = LAYOUTS[i];
@@ -68,7 +74,7 @@ public final class LayoutChoice {
                 PeanutsPrefs.menuLayoutPick(a, layout);
                 d.dismiss();
             });
-            LinearLayout.LayoutParams lp = wide ? new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            LinearLayout.LayoutParams lp = wide ? new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
                     : new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             int gap = Math.round(6 * dp);
             lp.setMargins(gap, Math.round(14 * dp), gap, 0);
@@ -90,15 +96,6 @@ public final class LayoutChoice {
         bp.topMargin = Math.round(8 * dp);
         box.addView(later, bp);
         d.setContentView(box);
-        d.setOwnerActivity(a);
-        d.setOnDismissListener(x -> {
-            open = null;
-            if (then != null) then.run();
-            java.util.List<Runnable> after = new java.util.ArrayList<>(waiting);
-            waiting.clear();
-            for (Runnable r : after) r.run();
-        });
-        open = d;
         if (d.getWindow() != null) {
             d.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT));
             int sw = a.getResources().getDisplayMetrics().widthPixels;
@@ -138,11 +135,9 @@ public final class LayoutChoice {
         ImageView pic = new ImageView(a);
         int id = a.getResources().getIdentifier(PICTURES[i], "drawable", a.getPackageName());
         if (id != 0) pic.setImageResource(id);
-        pic.setAdjustViewBounds(true);
-        pic.setMaxHeight(Math.round(108 * dp));   // the cards, their names and lines fit a handheld's screen under the title
         pic.setScaleType(ImageView.ScaleType.FIT_CENTER);
         android.widget.FrameLayout top = new android.widget.FrameLayout(a);   // the picture, with the two screens' badge in its corner
-        top.addView(pic, new android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        top.addView(pic, new android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         if (twoScreens) {
             TextView tag = PUi.text(a, "For two screens", 12, R.color.bn_on_banana, 600);
             int h = Math.round(8 * dp), v = Math.round(3 * dp);
@@ -151,7 +146,7 @@ public final class LayoutChoice {
             top.addView(tag, new android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
                     android.view.Gravity.TOP | android.view.Gravity.START));
         }
-        c.addView(top, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        c.addView(top, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.round(PICTURE_DP * dp)));   // one box for every picture, so the names line up
         TextView name = PUi.text(a, NAMES[i], 15, R.color.bn_text, 700);
         name.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
         LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);

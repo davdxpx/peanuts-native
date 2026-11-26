@@ -11,16 +11,13 @@ import dev.peanuts.PeanutsPrefs;
 
 /**
  * The player's own button for the in-game quick menu (Settings › Controls › Controller › Quick menu button). On a device whose Home belongs to Android
- * (the AYN Thor: Home goes to the launcher and closes the game, Back opens the game menu) no button opens the quick menu at once. It is set up by pressing
- * the button: at the app's start while none is set and a controller is attached (Home's list asks once a run, until the player says Never), or from its
- * row. A button games use (A, the shoulders, the sticks' presses, the D-pad, + and −) gets a warning first: while it opens the quick menu, the game no
- * longer gets it. Home stays the game menu's (pressed) and the quick menu's (held). The game's process reads it at the start
- * (dev.nxnative.android.InGamePanel.quickKey).
+ * (the AYN Thor: Home goes to the launcher and closes the game, Back opens the game menu) no button opens the quick menu at once. It is set up from its
+ * row by pressing the button; the app's start asks nothing, and the game menu's Quick menu row names the button once one is set. A button games use (A,
+ * the shoulders, the sticks' presses, the D-pad, + and −) gets a warning first: while it opens the quick menu, the game no longer gets it. Home stays the
+ * game menu's (pressed) and the quick menu's (held). The game's process reads it at the start (dev.nxnative.android.InGamePanel.quickKey).
  */
 public final class QuickButton {
     private QuickButton() {}
-
-    private static boolean offered;   // Home's list asked in this run of the app
 
     /** The button's key code, 0 none */
     public static int key(Context c) { return PeanutsPrefs.quickKey(c); }
@@ -95,28 +92,6 @@ public final class QuickButton {
         if ((e.getSource() & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD) return true;
         InputDevice d = e.getDevice();
         return d != null && !d.isVirtual() && (d.supportsSource(InputDevice.SOURCE_GAMEPAD) || d.supportsSource(InputDevice.SOURCE_JOYSTICK));
-    }
-
-    private static boolean padAttached() {
-        for (int id : InputDevice.getDeviceIds()) {
-            InputDevice d = InputDevice.getDevice(id);
-            if (d != null && !d.isVirtual() && d.supportsSource(InputDevice.SOURCE_GAMEPAD)) return true;
-        }
-        return false;
-    }
-
-    /** Home's list, at the app's start: while no button is set, a controller is attached and the player did not say Never; once a run */
-    public static void offer(Activity a) {
-        if (offered || a.isFinishing() || key(a) != 0 || PeanutsPrefs.quickKeyNever(a) || !PeanutsPrefs.setupDone(a) || !padAttached()) return;
-        offered = true;
-        new AlertDialog.Builder(a)
-                .setTitle("A button for the quick menu")
-                .setMessage("In a game, Home opens the game menu (on the AYN Thor: Back), and held, the quick menu. A button of your own opens the "
-                        + "quick menu at once. You can change it in Settings › Controls.")
-                .setPositiveButton("Set up", (d, w) -> setUp(a, null))
-                .setNegativeButton("Later", null)
-                .setNeutralButton("Never", (d, w) -> PeanutsPrefs.quickKeyNever(a, true))
-                .show();
     }
 
     /** The settings row: set one up, or with one set, change or remove it; done refreshes the row */

@@ -331,7 +331,7 @@ public final class Library {
      */
     @SuppressWarnings("unchecked")
     public static <G> void fill(Activity a, LinearLayout box, List<G> games, View ondeviceCard, Predicate<G> shows, Function<G, View> card, Consumer<G> manage, Runnable refresh) {
-        box.post(() -> LayoutChoice.offer(a, () -> QuickButton.offer(a)));   // how the in-game menus look, asked at the app's start until it is picked; then a button for the quick menu while none is set
+        box.post(() -> LayoutChoice.offer(a));   // how the in-game menus look, asked at the app's start until it is picked (twice at most)
         if (current == null || current.a != a) current = new Library(a);
         Library l = current;
         l.box = box; l.games = new ArrayList<>(games); l.ondeviceCard = ondeviceCard; gen++;

@@ -131,7 +131,8 @@ Banana Native ships several releases a day, so this fork is kept as a **thin ove
      (the game menu, a swipe in from the left edge), the combination through `InGamePanel.key` (Home held: the quick menu) and `InGamePanel.toggle` (Home
      pressed, − and + held: the game menu), the controller's own Back through `InGamePanel.backKey` (pressed the game menu, held the quick menu: the
      Thor's Home is Android's), `menuKey` and `menuMotion` (the game menu has the controller), Back through `InGamePanel.back`, and `runSave()`
-     (the save the game runs on). SaveStore: `backupLocked` not private (the game menu's Back up the save, under the running game's own lock).
+     (the save the game runs on). SaveStore: `backupRunning` (the game menu's Back up the save, under the running game's own lock: the copy without the
+     recovery, refused while the host's swap at a Commit has its marker beside the save).
      (2026-11-24, one menu: Layout) SidePanel: `rows()` gives the panel's rows to a second panel, the one menu at the right or on the bottom screen
      (`InGamePanel.openRight`, `openBottom`); `open()` starts with `InGamePanel.instead` (one menu at the right: the swipe and the controls' button open it).
      (2026-11-24, the quick menu button) GameActivity: `dispatchKeyEvent` hands the player's own button to `InGamePanel.quickKey` (dev.peanuts.ui.QuickButton).

@@ -240,7 +240,7 @@ public final class GameMenu extends FrameLayout {
         it.bind(value);
         if (it.chevron) {
             ImageView ch = new ImageView(c);
-            Drawable cd = dev.peanuts.ui.Icons.get(c, "chevron-right", dev.peanuts.ui.Icons.Ink.QUIET);
+            Drawable cd = c.getDrawable(dev.nxnative.android.R.drawable.ic_chevron);   // the launcher's own (PUi.Setting.chevron)
             if (cd != null) { cd = cd.mutate(); cd.setTint(Look.QUIET); ch.setImageDrawable(cd); }
             int chs = Look.dp(c, 18);
             LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(chs, chs);

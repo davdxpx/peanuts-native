@@ -415,8 +415,10 @@ public final class InGamePanel {
 
     /**
      * Back up the save while the game runs: the save the game started with (GameActivity.runSave, the player's), copied where Back up saves puts its copies
-     * (SaveUi.target). This process holds the save's lock, so the copy runs as SaveStore's own under it (backupLocked); the host writes a save only by an atomic
-     * swap at the game's Commit, and SaveStore checks the save twice around the copy, so a Commit in between fails the copy, which is tried again (3 times)
+     * (SaveUi.target). This process holds the save's lock, so the copy runs as SaveStore's own under it, without the recovery (backupRunning): the game's start
+     * recovered the save, and a marker beside it now is the host's own swap at a Commit, still being written, which only the host finishes. The host writes a save
+     * only by that swap, and SaveStore checks the save and its markers around the copy, so a Commit in between fails the copy, which is tried again (3 times,
+     * as is a copy that failed otherwise: a Commit may have moved a file away under it)
      */
     private static void backup(Activity a) {
         File save = GameActivity.runSave();
@@ -429,10 +431,10 @@ public final class InGamePanel {
             String err = null;
             SaveStore.Backup b = null;
             for (int i = 0; i < 3 && b == null; i++) {
-                try { b = SaveStore.backupLocked(save, to, SaveUi.stamp()); err = null; }
+                try { b = SaveStore.backupRunning(save, to, SaveUi.stamp()); err = null; }
                 catch (IOException | RuntimeException e) {
                     err = String.valueOf(e.getMessage());
-                    if (!err.contains("changed while")) break;
+                    if (err.contains("no save folder")) break;   // else a Commit may have met the copy part way (a file it moved away): the copy only reads, so again
                     try { Thread.sleep(400); } catch (InterruptedException ie) { break; }
                 }
             }
@@ -827,7 +829,7 @@ public final class InGamePanel {
         Activity a = (Activity) p.getContext();
         box.addView(head(p, "Layout"));
         boolean second = dev.peanuts.Companion.hasSecondDisplay(a);
-        String[] names = {"Two menus: the game at the left, settings at the right", "One menu at the right", "One menu on the bottom screen"};
+        String[] names = {"Two menus", "One menu at the right", "Bottom screen"};   // the launcher's question's names (LayoutChoice); the line under them says more
         String[] notes = {
                 "Home or Back opens the game menu at the left, held the quick menu at the right.",
                 "Home or Back opens one menu at the right with Game first; held, on the tab shown last.",
