@@ -3114,7 +3114,7 @@ outside host by default; Part B has the row); off, nothing is fetched and Peanut
 
 Peanuts-owned: `dm/peanuts/peanuts_amiibo.c`, `dev.peanuts.amiibo` (`AmiiboDb`, `AmiiboBin`, `AmiiboStore`, `AmiiboTag`, `AmiiboImport`, `AmiiboFiles`,
 `AmiiboStand`, `AmiiboSwitch`, `AmiiboPictures`), `Bridge.amiibo*`, AmiiboAPI's line in `AboutData`, Settings' amiibo row (`LibrarySettings`, `SettingsSections`,
-`SettingsHelp`) and the game's (`GameAreas`, `GameHelp`), the `amiibo` action of `dev.peanuts.ctl.GameLive` and `GameLink`, `peanuts/scripts/amiibo-db.py`,
+`SettingsHelp`; `SettingsPage` hands Users' amiibo group to `UsersPage`, which draws it under the users) and the game's (`GameAreas`, `GameHelp`), the `amiibo` action of `dev.peanuts.ctl.GameLive` and `GameLink`, `peanuts/scripts/amiibo-db.py`,
 `amiibo_db.tsv`. Tests: `peanuts/tests/test_amiibo_host.py` (the stand in C with made-up IDs, off without `PN_AMIIBO=1`, and that its symbols are
 the upstream block's, which stays whole),
 `peanuts/tests/test_amiibo.py` (`AmiiboJvmTest`: the table, dumps made in the test, imports, the store, the host's description; no keys or dumps in the
