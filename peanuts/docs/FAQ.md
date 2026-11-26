@@ -90,13 +90,13 @@ Both come from your own console. The app contains no keys and no firmware, and i
 
 1. Open Settings › Console › **Keys**. The same row is on the first-run card, and a game's sheet has **Add keys…** while keys are missing.
 2. The file picker opens with the hint **Pick your prod.keys**. Pick the `prod.keys` file from your own console. A file larger than 1 MB is refused.
-3. The app copies the file into its own storage and checks it.
+3. The app checks the file and, when it is a usable `prod.keys`, keeps it in its own storage.
 
-What you should see: the message **Keys accepted**. The row then reads **prod.keys is in the app (N bytes)**.
+What you should see: the message **Keys loaded**. The row then reads **prod.keys is in the app (N bytes)**.
 
-### The app says "The importer does not accept these keys". What is wrong?
+### The app says "That file is not a prod.keys the app can read". What is wrong?
 
-The file is not a usable `prod.keys`. The message names what is missing, for example **has no header_key** or **has no key_area_key_application_00**. Pick the right file to replace it. Note that the rejected file is kept, so the row still reads **prod.keys is in the app**. A build will fail until you replace it.
+The file you picked is not a usable `prod.keys` (the app's log names what is missing, for example **has no header_key**). Nothing was changed: keys you added before stay as they were. Pick the `prod.keys` from your own console.
 
 ### A build stops with "prod.keys has no titlekek_…". What now?
 
