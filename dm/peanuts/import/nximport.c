@@ -137,7 +137,7 @@ static void prep_tick(void *u, uint64_t n) {
 }
 
 // What a title's file is in the messages (nx_sec_verify and the checks below): "<file>: the base game", "<file>: the update v131072", "<file>: the DLC <id>".
-// The app's card takes the file and the role from there (dev.peanuts.build.DamagedFile)
+// The app's card takes the file from there (dev.peanuts.build.Compressed.failure)
 static void title_what(const NxTitle *t, char *out, size_t n) {
     const char *f = leaf_of(t->c->path);
     if (t->kind == 0) snprintf(out, n, "%s: the base game", f);
@@ -151,7 +151,7 @@ static void title_what(const NxTitle *t, char *out, size_t n) {
 static int nca_checks(NxNca *n, const NxTitle *t, const NxEntry *e) {
     char what[320]; title_what(t, what, sizeof what);
     uint64_t hs; memcpy(&hs, n->hdr + 0x208, 8);
-    if (hs != e->size) { nx_err("%s is damaged or incomplete: %s is %llu bytes, its header says %llu", what, e->name, (unsigned long long)e->size, (unsigned long long)hs); return -1; }
+    if (hs != e->size) { nx_err("%s is damaged: %s is %llu bytes, its header says %llu", what, e->name, (unsigned long long)e->size, (unsigned long long)hs); return -1; }
     int ex = nx_nca_find_section(n, NX_FS_PFS0), ro = nx_nca_find_section(n, NX_FS_ROMFS);
     if (ex >= 0 && nx_sec_verify(n, ex, what)) return -1;
     if (ro >= 0 && n->sec[ro].crypt_type != 4 && nx_sec_verify(n, ro, what)) return -1;
@@ -174,7 +174,7 @@ static NxNca *job_nca(Job *j, const NxTitle *t, const char *id, const uint8_t sh
     } else {
         if (size && e->size != size) {   // the container's entry is not the NCA the title's CNMT records (a damaged container header): nothing of it is read
             char what[320]; title_what(t, what, sizeof what);
-            nx_err("%s is damaged or incomplete: %s is %llu bytes, its title's metadata says %llu", what, e->name, (unsigned long long)e->size, (unsigned long long)size);
+            nx_err("%s is damaged: %s is %llu bytes, its title's metadata says %llu", what, e->name, (unsigned long long)e->size, (unsigned long long)size);
             return NULL;
         }
         if (nx_nca_open(n, c, e)) return NULL;
@@ -587,19 +587,7 @@ int nximport_write_nup(const char *out_nup, const char **inputs, int n_inputs, c
     for (int i = 0; i < n_inputs; i++) src[i].c.fd = -1;
     j->progress = progress; j->user = user;
     if (progress) progress(user, "probe", 0, 0);
-    for (int i = 0; i < n_inputs; i++) {
-        if (nx_container_open(&src[i].c, inputs[i])) goto out;
-        // a cut copy (a download or a transfer that stopped early): its last files end after the file does. Said here, for the file, before its title metadata
-        // (often the last file) fails to open with an NCA's name only
-        struct stat st; const NxContainer *c = &src[i].c;
-        if (!fstat(c->fd, &st)) for (int k = 0; k < c->n; k++) {
-            const NxEntry *e = &c->e[k];
-            if ((uint64_t)st.st_size < e->off || e->size > (uint64_t)st.st_size - e->off)
-                NX_FAIL("%s is damaged or incomplete: the file is cut off %llu bytes before the end of %s inside it (a copy that stopped early?)", leaf_of(c->path),
-                        (unsigned long long)(e->off + e->size - (uint64_t)st.st_size), e->name);
-        }
-        if (nx_container_titles(&src[i].c, &src[i].ts, &src[i].n)) goto out;
-    }
+    for (int i = 0; i < n_inputs; i++) { if (nx_container_open(&src[i].c, inputs[i])) goto out; if (nx_container_titles(&src[i].c, &src[i].ts, &src[i].n)) goto out; }
     for (int i = 0; i < n_inputs; i++) j->cap += src[i].n;
     if (j->cap < 1) j->cap = 1;
     if (!(j->pk = calloc((size_t)j->cap, sizeof *j->pk)) || !(j->ncas = calloc((size_t)j->cap, sizeof *j->ncas)) || !(j->ncz = calloc((size_t)j->cap, sizeof *j->ncz)))

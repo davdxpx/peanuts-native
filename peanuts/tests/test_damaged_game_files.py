@@ -5,15 +5,12 @@ damaged update, stopped the shader split with a raw struct.error and a Retry tha
 - The split (dm/gfx/tools/shader_split.py): the FlatBuffers readers of Trinity's data.trpfd / data.trpfs check every offset against the file. A synthetic pair
   written here from the format trpfs_jobs documents is read as before; an index that points past the end of either file ends the split with one [RED] line
   that says the game file is damaged and names it, and a pack table that points outside the file does the same for trinity_shaders.
-- The app (javac/java only, the pattern of test_compressed.py): dev.peanuts.build.DamagedFile turns the importer's messages (dm/peanuts/import nx_verify.c,
-  nximport.c) into the card's words, naming the file and whether it is the game, its update or a DLC. The source checks say the build and the split's failure
-  use it: FILE_DAMAGED (the game's sheet, no Retry) for both.
+- The app: the source checks say the importer's messages carry the words dev.peanuts.build.Compressed.failure looks for (its card words, beside the cut-off
+  file's of #697, are tested in test_compressed.py), and that the build and the split's failure end as FILE_DAMAGED (the game's sheet, no Retry).
 The importer's check itself is tested in C (dm/peanuts/import/tests/verify_test.c); PrepareText's words in PrepareTextJvmTest. No game data."""
 import os
 import re
-import shutil
 import struct
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -146,80 +143,24 @@ class Trinity(unittest.TestCase):
         self.assertIn('/arc/data.trpfs: the game file is damaged', str(e.exception.code))
 
 
-RUNNER = r'''package dev.peanuts.build;
-public final class DamagedFileTest {
-    public static void main(String[] a) {
-        String f = DamagedFile.failure(a[0], a[1], a[2].equals("1"));
-        System.out.println(f == null ? "null" : f);
-    }
-}
-'''
-
-
-@unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'no JDK')
-class CardWords(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.tmp = tempfile.TemporaryDirectory(prefix='damaged_')
-        root = Path(cls.tmp.name); cls.classes = root / 'classes'; cls.classes.mkdir()
-        (root / 'DamagedFileTest.java').write_text(RUNNER, encoding='utf-8')
-        subprocess.run(['javac', '-Xlint:all', '-Werror', '-encoding', 'UTF-8', '-d', str(cls.classes), str(JAVA / 'dev/peanuts/build/DamagedFile.java'),
-                        str(root / 'DamagedFileTest.java')], check=True)
-
-    @classmethod
-    def tearDownClass(cls): cls.tmp.cleanup()
-
-    def card(self, message, name='Pokémon Legends: Z-A', unchanged=True):
-        r = subprocess.run(['java', '-Dfile.encoding=UTF-8', '-Dstdout.encoding=UTF-8', '-cp', str(self.classes), 'dev.peanuts.build.DamagedFileTest', message, name,
-                            '1' if unchanged else '0'], capture_output=True, text=True, encoding='utf-8')
-        self.assertEqual(r.returncode, 0, r.stderr)
-        return r.stdout.rstrip('\n')
-
-    def test_the_update(self):
-        said = self.card('Z-A Update [0100F43008C44800][v393216].nsp: the update v393216 is damaged or incomplete: the bytes at 0x11b5a0000 of its RomFS do not '
-                         'match their checksum')
-        self.assertEqual(said, 'The update file Z-A Update [0100F43008C44800][v393216].nsp is damaged or incomplete, so Pokémon Legends: Z-A was not imported. '
-                               'Nothing was changed. Copy it again, or dump it again from your console.')
-
-    def test_the_base_and_a_dlc(self):
-        self.assertTrue(self.card('Base.nsp: the base game is damaged or incomplete: hash level 1 of its RomFS does not match its checksum').startswith(
-            'The game file Base.nsp is damaged or incomplete, so'))
-        self.assertTrue(self.card('Extra.nsp: the DLC 0100f43008c45001 is damaged or incomplete: the bytes at 0x60 of its RomFS do not match their checksum').startswith(
-            'The DLC file Extra.nsp is damaged'))
-
-    def test_a_file_cut_short(self):
-        said = self.card('Base.xci is damaged or incomplete: the file is cut off 12288 bytes before the end of 0123.nca inside it (a copy that stopped early?)', 'Game', False)
-        self.assertEqual(said, 'The game file Base.xci is damaged or incomplete, so Game was not imported. Copy it again, or dump it again from your console.')
-
-    def test_other_errors_are_not_taken(self):
-        for m in ('keys not loaded (nximport_keys)', 'the import was stopped', 'write failed: No space left on device', ''):
-            self.assertEqual(self.card(m), 'null', m)
-
-    def test_card_text_keeps_the_rules(self):   # UI-RULES: no em dash, no technical part on the card
-        said = self.card('G.nsp: the update v65536 is damaged or incomplete: the bytes at 0x4000 of its ExeFS do not match their checksum')
-        self.assertNotIn('—', said); self.assertNotIn('0x', said); self.assertNotIn('ExeFS', said)
-
-
 class Wiring(unittest.TestCase):
     def src(self, rel): return (REPO / rel).read_text(encoding='utf-8')
 
     def test_the_import_and_the_split_end_as_file_damaged(self):
         bs = self.src('android/app/src/main/java/dev/peanuts/build/BuildService.java')
-        self.assertRegex(bs, r'damaged = Compressed\.failure\(why, name, !deleted\);\s*\n\s*if \(damaged == null\) damaged = DamagedFile\.failure\(why, name, !deleted\);')
+        self.assertRegex(bs, r'damaged = Compressed\.failure\(why, name, !deleted\);(?:[^\n]*\n){1,6}?\s*if \(damaged != null\) throw new BuildListener\.Failure\([^;]*BuildListener\.FILE_DAMAGED\);')
         self.assertRegex(self.src('android/app/src/main/java/dev/peanuts/build/Prepare.java'),
-                         r'if \(DamagedFile\.CAUSE\.equals\(cause\)\) throw new BuildListener\.Failure\(err, BuildListener\.FILE_DAMAGED\);')
+                         r'if \(dev\.nxnative\.android\.PrepareText\.CAUSE_DAMAGED\.equals\(cause\)\) throw new BuildListener\.Failure\(err, BuildListener\.FILE_DAMAGED\);')
         pt = self.src('android/app/src/main/java/dev/nxnative/android/PrepareText.java')
-        cause = re.search(r'CAUSE_DAMAGED = "([^"]+)"', pt).group(1)
-        self.assertIn(f'CAUSE = "{cause}"', self.src('android/app/src/main/java/dev/peanuts/build/DamagedFile.java'))
         phrase = re.search(r'String DAMAGED = "([^"]+)"', pt).group(1)
         self.assertIn(phrase.strip(': '), self.src('dm/gfx/tools/shader_split.py'))
         self.assertRegex(pt, r'if \(red\.contains\(DAMAGED\)\)\s*\n\s*return new Failure\([^;]*FIX_NONE, CAUSE_DAMAGED')
 
-    def test_the_importers_words(self):   # every message of the check carries the words DamagedFile looks for, after "<file>: <role>"
-        mark = re.search(r'MARK = "([^"]+)"', self.src('android/app/src/main/java/dev/peanuts/build/DamagedFile.java')).group(1)
+    def test_the_importers_words(self):   # every message of the check carries the words Compressed.failure looks for, after "<file>: <role>"
+        mark = re.search(r'String DAMAGED = "([^"]+)"', self.src('android/app/src/main/java/dev/peanuts/build/Compressed.java')).group(1)
         v = self.src('dm/peanuts/import/nx_verify.c'); n = self.src('dm/peanuts/import/nximport.c')
-        self.assertIn(f'nx_err("%s{mark}: %s", what, why)', v)
-        self.assertGreaterEqual(n.count(mark), 3)
+        self.assertIn(f'nx_err("%s{mark}%s", what, why)', v)
+        self.assertGreaterEqual(n.count(f'"%s{mark}%s is %llu bytes'), 2)
         for role in ('"%s: the base game"', '"%s: the update v%u"', '"%s: the DLC %016llx"'): self.assertIn(role, n)
 
 

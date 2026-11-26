@@ -432,7 +432,7 @@ The script fetches, rebases `peanuts` onto the target, then checks that every `P
 - 2026-11-24 (GitHub issue #561, a damaged game file at the import): the importer checks every plain NCA against its own hash layers as it writes the `.nup`
   (`dm/peanuts/import/nx_verify.c`: the fs header's SHA-256, a RomFS's IVFC levels, an ExeFS's hash table, each data block as it is read), its size against
   the CNMT and its header, and a container that ends early. A damaged or cut-off file stops the import with its name and role ("the update v393216"), and the
-  card says so without Retry (`dev.peanuts.build.DamagedFile`, `FILE_DAMAGED`). A `.nup` imported before this check: the shader split's FlatBuffers readers
+  card says so without Retry (`dev.peanuts.build.Compressed.failure`, beside the cut-off file's words of #697, `FILE_DAMAGED`). A `.nup` imported before this check: the shader split's FlatBuffers readers
   check their offsets, and an index outside its file ends the split with "the game file is damaged" (`PrepareText` `CAUSE_DAMAGED`, no Retry). Tests:
   `dm/peanuts/import/tests/verify_test.c`, `peanuts/tests/test_damaged_game_files.py`, `PrepareTextJvmTest`. `peanuts/UPSTREAM-EDITS.md` Round 64.
   On an AYN Thor (2026-11-25): Z-A base + 2.0.2 + DLC imports in about a second more (11.6/12.7 s against 10.9/11.7 s, the same `.nup`), and a copy of

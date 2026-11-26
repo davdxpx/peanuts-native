@@ -119,15 +119,15 @@ int main(void) {
 
     // ---- damaged copies
     char what_base[300], what_upd[300];
-    snprintf(what_base, sizeof what_base, "%s: the base game is damaged or incomplete", "base.nsp");
-    snprintf(what_upd, sizeof what_upd, "%s: the update v131072 is damaged or incomplete", "update.nsp");
+    snprintf(what_base, sizeof what_base, "%s: the base game is damaged: ", "base.nsp");
+    snprintf(what_upd, sizeof what_upd, "%s: the update v131072 is damaged: ", "update.nsp");
     char bp[700], up[700]; snprintf(bp, sizeof bp, "%s/base.nsp", dir); snprintf(up, sizeof up, "%s/update.nsp", dir);
     Loc b, u; locate(g.base, &b); locate(g.upd, &u);
     if (nx_nca_set_base(&u.n, 1, &b.n, 1)) abort();
     const char *in[] = { bp, up };
     // a copy that stopped early
     copy_file(g.base, bp); copy_file(g.upd, up); cut(up, 0x3000);
-    { const char *e[] = { "update.nsp is damaged or incomplete: the file is cut off", NULL }; refused("an update cut short", in, 2, TID, e); }
+    { const char *e[] = { "update.nsp: ", " lies outside its file (", "the file is cut off", NULL }; refused("an update cut short", in, 2, TID, e); }   // nx_nca.c's words (#697)
     // the container's entry shorter than the NCA its CNMT records (entry 0, the program NCA: its size @0x18 of the PFS0)
     copy_file(g.upd, up);
     { size_t n; uint8_t *f = slurp(up, &n); uint64_t s; memcpy(&s, f + 0x18, 8); s -= 0x200; memcpy(f + 0x18, &s, 8); fx_write(up, f, n); free(f); }
@@ -166,7 +166,7 @@ int main(void) {
     // the add-on's own data
     { Loc l; locate(a.path, &l); snprintf(p, sizeof p, "%s/dlcbad.nsp", dir); copy_file(a.path, p);
       flip(p, at_sec(&l, 0, FX_HASH + 0x60)); unlocate(&l);
-      char want[300]; snprintf(want, sizeof want, "dlcbad.nsp: the DLC %016llx is damaged or incomplete", (unsigned long long)(TID + 0x1000 + 1));
+      char want[300]; snprintf(want, sizeof want, "dlcbad.nsp: the DLC %016llx is damaged: ", (unsigned long long)(TID + 0x1000 + 1));
       const char *din[] = { g.base, g.upd, p }; const char *e[] = { want, NULL }; refused("a byte of the add-on's RomFS", din, 3, TID, e); }
 
     if (getenv("VERIFY_TEST_KEEP")) printf("kept: %s\n", dir); else rm_tree(dir);

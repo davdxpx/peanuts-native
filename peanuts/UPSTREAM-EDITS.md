@@ -2924,9 +2924,10 @@ hashed whole), so the damage went into the `.nup` and came out later as a raw er
 - The importer checks every plain NCA it writes from against the NCA's own hash layers (`dm/peanuts/import/nx_verify.c`, Peanuts' own): the fs header against
   its SHA-256 in the NCA header, a RomFS's IVFC levels and an ExeFS's hash table from the master hash down when the NCA is opened, and the data blocks as the
   writer reads them (`nx_sec_read_raw`; a patch's levels through the patched image, its base's bytes against the base's own levels). The CNMT's size and the
-  NCA header's size of each content NCA, and a container that ends before its last file, are checked too. A mismatch stops the import before the `.nup` is
-  complete (`<file>: the update v393216 is damaged or incomplete: …`), which the card turns into the player's words naming the file and whether it is the game,
-  its update or a DLC (`dev.peanuts.build.DamagedFile`), with the game's sheet and no Retry (`BuildListener.FILE_DAMAGED`).
+  NCA header's size of each content NCA are checked too; a container that ends before its last file keeps `nx_nca.c`'s message of #697. A mismatch stops the
+  import before the `.nup` is complete (`<file>: the update v393216 is damaged: …`), which `dev.peanuts.build.Compressed.failure` turns into the player's words
+  beside #697's cut-off file (one sentence shape: "<file> is damaged, so <game> was not imported. …"), with the game's sheet and no Retry
+  (`BuildListener.FILE_DAMAGED`).
 - Hashing the raw NCA whole against its CNMT SHA-256, as an NCZ is, was the other way: it reads every byte a second time (at a microSD card's speed minutes
   for Z-A's 15 GB). The hash layers cost only the hashing of bytes the writer reads anyway, spread over its worker threads.
 - A `.nup` imported before this check still reaches the split. The FlatBuffers readers there check every offset against the file (`fb_u`, `fb_array`); an index
@@ -2936,11 +2937,12 @@ hashed whole), so the damage went into the `.nup` and came out later as a raw er
 | File | Hunks | Change | Marker |
 |---|---|---|---|
 | `dm/gfx/tools/shader_split.py` | 11 | `FbOutside`, `fb_u`, `fb_array`, `damaged` (one `PEANUTS begin/end` block); `fb_field`, `fb_vec`, `fb_refs`, `fb_root` through them; `trpfs_jobs`' two index reads in `try` with `damaged`; `trinity_shaders`' reads checked, its call in `scan_file` in `try` | `PEANUTS` per hunk |
-| `android/app/src/main/java/dev/nxnative/android/PrepareText.java` | 2 | `CAUSE_DAMAGED`, `DAMAGED`; `toolStopped`'s case for the split's line | `PEANUTS`, `PEANUTS begin/end` |
+| `android/app/src/main/java/dev/nxnative/android/PrepareText.java` | 2 | `CAUSE_DAMAGED` (public: `dev.peanuts.build.Prepare` reads it), `DAMAGED`; `toolStopped`'s case for the split's line | `PEANUTS`, `PEANUTS begin/end` |
 | `android/app/src/jvmtest/java/dev/nxnative/android/PrepareTextJvmTest.java` | 1 | the damaged file's card: no Retry, its cause, the file in the player's words | inside the `PEANUTS begin/end` block |
 
-Peanuts' own files, no marker: `dm/peanuts/import/nx_verify.c` (new), `nx_internal.h`, `nx_nca.c`, `nximport.c`, `CMakeLists.txt`, `HOOKS.md`,
-`tests/nsp_fixture.h` (the fixture's NCAs carry real hash layers and fs header hashes now), `tests/verify_test.c` (new);
-`android/app/src/main/java/dev/peanuts/build/DamagedFile.java` (new), `BuildService.java`, `Prepare.java`; `peanuts/tests/test_damaged_game_files.py` (new).
+Peanuts' own files, no marker: `dm/peanuts/import/nx_verify.c` (new), `nx_internal.h`, `nx_nca.c`, `nximport.c`, `nximport_cli.c` (`check` reads a plain
+NCA through the check too), `CMakeLists.txt`, `HOOKS.md`, `tests/nsp_fixture.h` (the fixture's NCAs carry real hash layers and fs header hashes now),
+`tests/verify_test.c` (new); `android/app/src/main/java/dev/peanuts/build/Compressed.java`, `Prepare.java`; `peanuts/tests/test_damaged_game_files.py` (new),
+`test_compressed.py` (the damaged cases beside #697's cut-off ones), `test_nup_icon.py` (its build of `nup_meta_test` takes `nx_verify.c`).
 The host's copy of `nx_nca.c` never sets a check (`nx_verify.c` is not in `android/host/CMakeLists.txt`'s `NSP_C`). Upstream candidate: the split's bounds
 checks (general: any FlatBuffers index); the rest is Peanuts' importer.

@@ -41,11 +41,11 @@ typedef struct Verify {
     char what[320];          // "<file>: the update v131072"
 } Verify;
 
-// "<what> is damaged or incomplete: <why>" as the error (the app's card names the file from it: dev.peanuts.build.DamagedFile). Always -1
+// "<what> is damaged: <why>" as the error (the app's card names the file from it: dev.peanuts.build.Compressed.failure). Always -1
 static int damaged(const char *what, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 static int damaged(const char *what, const char *fmt, ...) {
     char why[384]; va_list ap; va_start(ap, fmt); vsnprintf(why, sizeof why, fmt, ap); va_end(ap);
-    nx_err("%s is damaged or incomplete: %s", what, why);
+    nx_err("%s is damaged: %s", what, why);
     return -1;
 }
 

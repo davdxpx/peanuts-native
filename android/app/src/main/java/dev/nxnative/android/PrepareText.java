@@ -52,8 +52,8 @@ public final class PrepareText {   // PEANUTS: Home and Prepare use the same fai
 
     /** PEANUTS: a failure's cause (Failure.cause): shaders that come from files the import does not have, in an import without add-on content (addonNotImported) */
     static final String CAUSE_ADDON = "addon_not_imported";
-    /** PEANUTS: a failure's cause: a game file whose index points outside it (shader_split.py damaged(), GitHub issue #561); the same as dev.peanuts.build.DamagedFile.CAUSE */
-    static final String CAUSE_DAMAGED = "game_file_damaged";
+    /** PEANUTS: a failure's cause: a game file whose index points outside it (shader_split.py damaged(), GitHub issue #561); dev.peanuts.build.Prepare ends the build as FILE_DAMAGED on it */
+    public static final String CAUSE_DAMAGED = "game_file_damaged";
     /** PEANUTS: what shader_split.py's [RED] line for such a file says after the file's path */
     static final String DAMAGED = ": the game file is damaged: ";
 

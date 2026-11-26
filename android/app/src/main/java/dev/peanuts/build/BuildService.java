@@ -816,7 +816,6 @@ public final class BuildService extends Service {
             if (rc != 0) { tmp.delete();
                 deleteUnpacked(tmp);
                 String why = Importer.lastError(), damaged = Compressed.failure(why, name, !deleted);
-                if (damaged == null) damaged = DamagedFile.failure(why, name, !deleted);   // a plain file whose bytes do not match its checksums, or cut short (issue #561)
                 log("import: the importer returned " + rc + ": " + why + " (after " + (System.currentTimeMillis() - importStart) / 1000 + " s)");
                 if (BuildWatch.full(why)) throw new BuildListener.Failure("The storage filled up while " + name + " was imported, so the import was stopped." + (again ? kept : " What it had written was deleted.")
                         + " Free up some space, then tap Retry.\n" + why, BuildListener.OUT_OF_SPACE);

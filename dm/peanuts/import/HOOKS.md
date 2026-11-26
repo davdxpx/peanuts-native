@@ -75,13 +75,14 @@ that covers a block only in part reads the rest of it with `nx_sec_read_unchecke
 so the base's damage is named as the base's. A section with a hash type or a layout this reader does not know, and a sparse base (its update's check covers
 what is read of it), is not checked: the import goes on as before. NCZs are not checked again (`nx_ncz_prepare` hashes them whole).
 
-Messages: `<file>: the base game|the update v<n>|the DLC <id> is damaged or incomplete: <why>` (`title_what`), or `<file> is damaged or incomplete: <why>`
-for a container cut short; `dev.peanuts.build.DamagedFile` makes the card's words of them (`BuildListener.FILE_DAMAGED`: the game's sheet, no Retry).
+Messages: `<file>: the base game|the update v<n>|the DLC <id> is damaged: <why>` (`title_what`). A container cut short is `nx_nca.c`'s own
+`<file>: <nca> lies outside its file (…): the file is cut off` (#697). `dev.peanuts.build.Compressed.failure` makes the card's words of both, one
+sentence shape (`BuildListener.FILE_DAMAGED`: the game's sheet, no Retry).
 `NX_DEBUG=1` prints each check as it is set up and, after a `.nup` is written, how many blocks of each checked section were read.
 
 Tests: `verify_test` (off Windows; ctest). The fixture's NCAs carry real hash layers and fs header hashes (`tests/nsp_fixture.h` `fx_layers`): a plain and an
 LZ4 base with their updates and an add-on import, with and without the base's own package, and reading every file of the patched RomFS and the ExeFS checks
-every block. Then a file cut short, a container entry shorter than its NCA, and a byte flipped in a base file the update reads, in a base file the update
+every block. Then a file cut short (`nx_nca.c`'s message, #697), a container entry shorter than its NCA, and a byte flipped in a base file the update reads, in a base file the update
 replaced (never read: the import goes through), in the update's RomFS header, in the last byte of a file the update carries, in its main, in the base's first
 hash level, in its fs header, in an LZ4 base's stored bytes and in an add-on: each refused with the file and its role, no `.nup`. `nsp_test`, `ncz_test`,
 `xci_test` and `nup_meta_test` (whose NCA has no hash layers this reader knows) pass as before.
@@ -91,7 +92,8 @@ update 2.0.2 (2.1 GB) and a DLC into a 6.03 GB `.nup` took 11.6 and 12.7 s with 
 Both `.nup`s were the same byte for byte. Peak memory went from 261 to 281 MiB: the last hash level stays in memory (32 bytes per 16 KiB block). Without the
 `sync`, the write-back of the previous run's `.nup` made both swing between 13 and 24 s. `nximport_cli check` read the three files whole in 15 s, all good.
 The update with one byte changed in its middle: upstream main wrote a `.nup` from it in 15.3 s; this importer stopped with
-`…v2.0.2 (damaged copy).nsp: the update v393216 is damaged or incomplete: the bytes at 0x1627d8000 of its RomFS do not match their checksum`, no `.nup`.
+`…v2.0.2 (damaged copy).nsp: the update v393216 is damaged or incomplete: the bytes at 0x1627d8000 of its RomFS do not match their checksum`, no `.nup`
+(its words then; "is damaged: " now).
 
 ## Java side (this is the class the JNI binds to)
 

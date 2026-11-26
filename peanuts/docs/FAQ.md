@@ -366,9 +366,9 @@ The dumps must still be in their folders. If one is missing, the app names it an
 
 The new file is written beside the old one, so for a while both are on the storage. If there is not enough room, the app says how much is needed. When deleting the old file first would make room, it offers that as a second choice. The risk: if the import then fails or is stopped, the game has no `.nup` and cannot be played until a build from its sheet has made one.
 
-### The build says a game file is damaged or incomplete
+### The build says a game file is cut off or damaged
 
-The import checks every part of the game against the checksums the game's own files carry, as it reads them. A file that was copied or downloaded only in part, or whose bytes changed on the way, stops the build with its name and with what it is (the game, its update or a DLC), and nothing is changed. The check adds about a second to the import of a 6 GB game on an AYN Thor. Retry would stop at the same place, so the card offers the game's sheet instead: copy the file again from where you keep your dumps, or dump it again from your console, then build again.
+The import checks every part of the game against the sizes and the checksums the game's own files carry, as it reads them. A file that was copied or downloaded only in part ("is cut off"), or whose bytes changed on the way ("is damaged"), stops the build with its name, and nothing is changed. The check adds about a second to the import of a 6 GB game on an AYN Thor. Retry would stop at the same place, so the card offers the game's sheet instead: copy the file again from where you keep your dumps, or dump it again from your console, then build again.
 
 A game imported with an older version of the app was not checked this way. If its build stops at **Finding the shaders** with "A game file is damaged", the damage is inside its `.nup`: put good files in place and tap **Import again** on the game's sheet.
 
