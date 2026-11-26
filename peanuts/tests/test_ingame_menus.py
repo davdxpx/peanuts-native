@@ -184,9 +184,10 @@ class Bottom(unittest.TestCase):
         self.assertIn('if (oneMode(a)) { openOne(a, true, pad); return; }', b, 'Home pressed opens one menu on Game')
         self.assertIn('openOne(a, false, true)', b, 'Home held opens it on the last tab')
         self.assertIn('if (bottomMode(a)) openBottom(a, onGame, pad); else openRight(a, onGame, pad);', b, 'on the bottom screen, else at the right')
-        self.assertIn('onActivityPaused(Activity x) { if (x == a) { resumed = false; closeBottom(true); } }', b, 'the screen is given back when the game leaves it')
+        self.assertIn('onActivityPaused(Activity x) { if (x == a && panelOf == panel) { resumed = false; closeBottom(true); } }', b, "the screen is given back when the game leaves it (never a newer screen's)")
+        self.assertIn('int extra = gameItem != null ? Look.dp(c, 41) : Look.dp(c, 16) + n * Look.dp(c, 2);', (INGAME / 'Rail.java').read_text(encoding='utf-8'), 'with Game first, its separator counted too')
         self.assertIn('if (!resumed || a.isFinishing() || a.isDestroyed()) return;', b, "the bottom screen's swipe opens nothing for a game not in front")
-        self.assertIn('if (dev.peanuts.ingame.BottomMenu.opener == opener[0]) dev.peanuts.ingame.BottomMenu.opener = null;', b, 'the opener goes with its screen')
+        self.assertIn('if (x == a && dev.peanuts.ingame.BottomMenu.opener == opener[0]) dev.peanuts.ingame.BottomMenu.opener = null;', b, 'the opener goes with its screen')
         self.assertIn('s.setOnDismissListener(x -> { if (s == bottomScreen) bottomGone(); });', b, 'its display gone, the menu goes with its window and the keys it held')
         close = b[b.index('static void closeBottom(boolean now)'):]
         self.assertIn('dropBottom();', close[:close.index('\n    }\n')], 'the bottom panel is made anew for each window: listeners added before attach reach the first window only')

@@ -102,13 +102,13 @@ public final class InGamePanel {
         menuStop = stop;
         Runnable[] opener = {null};
         a.registerActivityLifecycleCallbacks(new android.app.Application.ActivityLifecycleCallbacks() {   // the game leaves the screen: the bottom one is given back
-            @Override public void onActivityPaused(Activity x) { if (x == a) { resumed = false; closeBottom(true); } }
+            @Override public void onActivityPaused(Activity x) { if (x == a && panelOf == panel) { resumed = false; closeBottom(true); } }   // never a newer screen's (a recreated one attached before this one went)
             @Override public void onActivityCreated(Activity x, android.os.Bundle b) {}
             @Override public void onActivityStarted(Activity x) {}
             @Override public void onActivityResumed(Activity x) { if (x == a) resumed = true; }
             @Override public void onActivityStopped(Activity x) {}
             @Override public void onActivitySaveInstanceState(Activity x, android.os.Bundle b) {}
-            @Override public void onActivityDestroyed(Activity x) { if (x == a) { closeBottom(true); if (dev.peanuts.ingame.BottomMenu.opener == opener[0]) dev.peanuts.ingame.BottomMenu.opener = null; } }
+            @Override public void onActivityDestroyed(Activity x) { if (x == a && panelOf == panel) closeBottom(true); if (x == a && dev.peanuts.ingame.BottomMenu.opener == opener[0]) dev.peanuts.ingame.BottomMenu.opener = null; }
         });
         opener[0] = () -> { if (bottomMode(a)) openBottom(a, true, false); };   // the bottom screen's swipe up (the game's stats page)
         dev.peanuts.ingame.BottomMenu.opener = opener[0];

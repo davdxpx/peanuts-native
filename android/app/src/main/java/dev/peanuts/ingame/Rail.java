@@ -176,7 +176,9 @@ public final class Rail {
     private int itemHeight() {
         int n = Math.max(1, names.length + (gameItem != null ? 1 : 0)), screen = c.getResources().getDisplayMetrics().heightPixels;
         int want = Look.dp(c, gameItem != null || names.length > 6 ? 46 : 50);
-        return Math.max(Look.dp(c, 36), Math.min(want, (screen - Look.dp(c, 16) - n * Look.dp(c, 2)) / n));
+        // around the items: the column's padding and the gaps between them, with Game first also its separator and its margins
+        int extra = gameItem != null ? Look.dp(c, 41) : Look.dp(c, 16) + n * Look.dp(c, 2);
+        return Math.max(Look.dp(c, 36), Math.min(want, (screen - extra) / n));
     }
 
     private View item(String icon, String name) {
