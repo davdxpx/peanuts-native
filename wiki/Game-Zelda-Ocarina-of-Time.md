@@ -32,7 +32,7 @@ Tap **Recommended** at the top of the game's page. On Qualcomm phones it selects
 | Texture pool x2 | Twice the game's starting graphics memory. Max resolution needs it. | With Max resolution. | More memory. | Off |
 | Unlocked frame rate | Game logic follows real time, so speed holds when fps changes. Does not raise fps. | If the game runs slow when fps drops. | Not a speedup. | Off |
 | Keep cave walls (Qualcomm) | Fixes walls and rocks that vanish on Death Mountain Trail with Qualcomm's driver. | If you see holes. | Costs GPU time on some phones. | Off |
-| Frame rate cap (in-game panel) | 60 or 30. | 30 is steadier and cooler. | Measured in Link's house on Qualcomm's driver: 30.0 fps, frame time 33.3 ms, phone 51 to 62-64 degrees C over a run, where uncapped it ran 37-38 fps. | 60 |
+| Frame rate cap (in-game quick menu) | 60 or 30. | 30 is steadier and cooler. | Measured in Link's house on Qualcomm's driver: 30.0 fps, frame time 33.3 ms, phone 51 to 62-64 degrees C over a run, where uncapped it ran 37-38 fps. | 60 | <!-- PEANUTS -->
 | Aspect ratio | 21:9, 4:3, 10:9, 1:1 and Screen shape. | For a wide or square screen. | The 3D view fills the picture. The HUD, menus and movies stay in the middle 16:9; some pages (the journal's tapestry pictures) show extra edge content at 1:1. | 16:9 |
 | Cheats | Rupees 999, ammunition and items 99, Gold Skulltula tokens 100, infinite health and magic (experimental). | If you want them. | Not phone-checked yet in the notes. See [Cheats](Cheats). | Off |
 

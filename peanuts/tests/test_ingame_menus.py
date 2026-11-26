@@ -1,6 +1,6 @@
 """The in-game menus: the game menu at the left (dev.peanuts.ingame.GameMenu) and the quick
 menu at the right (upstream's SidePanel with its tabs on a rail, dev.peanuts.ingame.Rail), joined by dev.nxnative.android.InGamePanel. Checks the marked
-hooks in upstream's files, the rail's order and icons, the game menu's rows, the solid icons against design's icons.py output, and the text the player
+hooks in upstream's files, the rail's order and icons, the game menu's rows, the solid icons from peanuts/scripts/icons.py, and the text the player
 reads against UI-RULES.md. On the JVM (InGameBackupJvmTest with SaveStore): Back up the save beside the host's Commit. Skipped without a JDK."""
 import re
 import shutil
@@ -70,7 +70,12 @@ class Hooks(unittest.TestCase):
         self.assertIn('SaveStore.backupRunning(save, to, SaveUi.stamp())', b, "the game menu's backup: SaveStore's own copy, without the recovery")
         self.assertNotIn('backupLocked', b)
         self.assertIn('GameActivity.runSave()', b, 'the save the game runs on (the player picked at the start)')
-        self.assertIn('if (err.contains("no save folder")) break;', b, 'a Commit during the copy is tried again')
+        self.assertIn('if (err.contains("no save folder") || full(err)) break;', b, 'a Commit during the copy is tried again; no save or a full storage is not')
+        self.assertIn('boolean saving = err.contains("changed while");', b, 'a Commit met the copy: tried again for a while (a slow SD card)')
+        self.assertIn('if (backingUp.get()) return;', b, 'one copy at a time: a second would share the temp folder, and its cleanup would delete the first')
+        self.assertIn('if (n == lookup && !backingUp.get() && backupRow != null)', b, "the last backup's look-up never overwrites Backing up")
+        self.assertIn('THREAD_PRIORITY_BACKGROUND', b, "the copy behind the game's threads")
+        self.assertIn('} catch (Throwable t) {   // never a row left at "Backing up"', b)
 
 
 @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'no JDK')
@@ -115,7 +120,7 @@ class Menus(unittest.TestCase):
             self.assertIn(f'<style name="{s}">', styles)
         for f in (RES / 'drawable').glob('pis_*.xml'):
             x = f.read_text(encoding='utf-8')
-            self.assertIn('generated from icons.py', x, f'{f.name}: made by design/peanuts-native/icons/icons.py')
+            self.assertIn('written by peanuts/scripts/icons.py', x, f'{f.name}: made by the repository icons.py (its SOLID set; test_icons checks the bytes)')
             self.assertNotRegex(x, r'fillColor="#(?!00000000)', f'{f.name}: colours come from the theme (?attr/pnSolid*)')
 
     def test_ui_text_rules(self):

@@ -366,7 +366,7 @@ public final class MainActivity extends Activity {
                 .value("The small button at the top centre that hides the on-screen controls").view);
         // How a controller opens the in-game panel (PadPanel); the panel opens by touch with a swipe in from the right edge or Back
         Ui.Setting padPanel = new Ui.Setting(this, "🎛️", "Controller: in-game panel", null).chevron(this);
-        padPanel.view.setOnClickListener(v -> new PadFocus.Builder(this).setTitle("Open the in-game panel with a controller")
+        padPanel.view.setOnClickListener(v -> new PadFocus.Builder(this).setTitle("Open the in-game menus with a controller")   // PEANUTS: the in-game menus (InGamePanel)
                 .setSingleChoiceItems(PadPanel.OPEN_NAMES, Prefs.panelPad(this), (d, w) -> { Prefs.panelPad(this, w); padPanel.value(padPanelLabel(w)); d.dismiss(); })
                 .setNegativeButton("Cancel", null).show());
         padPanel.value(padPanelLabel(Prefs.panelPad(this)));
@@ -1699,7 +1699,7 @@ public final class MainActivity extends Activity {
     void error(String msg) { new PadFocus.Builder(this).setMessage(msg).setPositiveButton("OK", null).show(); }
 
     private static String padPanelLabel(int v) {
-        return PadPanel.OPEN_NAMES[v] + ". By touch: swipe in from the right edge, or Back";
+        return PadPanel.OPEN_NAMES[v] + ". By touch: the left edge or Back, the game menu; the right edge, the quick menu";   // PEANUTS: the in-game menus (InGamePanel)
     }
     private static String touchLabel(int m) { return m == TouchControls.MODE_AUTO ? "Auto: hidden while a controller is connected" : TouchControls.MODE_NAMES[m]; }
     private static String rotationLabel(boolean auto) { return auto ? "Automatic: the game follows the phone's rotation, portrait too" : "Landscape: the game window stays horizontal on a phone"; }

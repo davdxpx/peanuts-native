@@ -33,6 +33,9 @@ import java.util.TreeMap;
  * <ul>
  * <li><b>Lock</b>: every backup, restore and recover holds &lt;save&gt;.lock (FileChannel.lock), which a game start takes too and keeps while its process lives
  *     (GameActivity), so a backup or restore never meets a running game of that save, and two never meet each other.</li>
+ * <li><b>Back up while playing</b> (PEANUTS: the in-game game menu's row, {@link #backupRunning}): the one copy beside a running game, in its own process under
+ *     the lock that game holds. It runs no recovery (a marker beside the save then is the host's own swap at a Commit, which only the host finishes) and fails
+ *     while a marker is there, before the copy and after its second scan, so a Commit meets no copy.</li>
  * <li><b>Back up</b> copies into &lt;Switch2&gt;/save-backups/&lt;id&gt;/.partial-&lt;name&gt;/ (main/, device/), checks the copy file by file against the save (path,
  *     size, SHA-256) and scans the save again (a save that changed during the copy fails), writes the manifest &lt;name&gt;.manifest.tsv beside it, and only then gives
  *     the folder its name &lt;yyyyMMdd-HHmmss&gt;. The save is only read. Nothing ever deletes a finished backup.</li>

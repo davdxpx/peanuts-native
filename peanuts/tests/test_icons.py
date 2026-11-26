@@ -1,5 +1,5 @@
-"""The Peanuts icons (android/app/src/peanuts/res/drawable/pi_*.xml) are what peanuts/scripts/icons.py writes: every file, byte for byte, and no
-pi_*.xml without its icon there. The files said they came from an icons.py that was not in the repository (igawa6's note on #315); the script is
+"""The Peanuts icons (android/app/src/peanuts/res/drawable/pi_*.xml, and the in-game menus' solid pis_*.xml) are what peanuts/scripts/icons.py
+writes: every file, byte for byte, and no pi_*.xml or pis_*.xml without its icon there. The files said they came from an icons.py that was not in the repository (igawa6's note on #315); the script is
 now the one source, so a new icon or a changed one goes through it."""
 import contextlib
 import importlib.util
@@ -38,7 +38,7 @@ class Icons(unittest.TestCase):
         m = load()
         with tempfile.TemporaryDirectory(prefix='icons_') as t:
             out = Path(t)
-            for f in DRAWABLE.glob('pi_*.xml'):
+            for f in [*DRAWABLE.glob('pi_*.xml'), *DRAWABLE.glob('pis_*.xml')]:
                 shutil.copy(f, out / f.name)
             m.OUT = out
             with contextlib.redirect_stdout(io.StringIO()):
@@ -55,6 +55,21 @@ class Icons(unittest.TestCase):
                 self.assertEqual(m.main(['icons.py', '--check']), 0)
             self.assertFalse((out / 'pi_stray.xml').exists())
             self.assertEqual((out / 'pi_key.xml').read_bytes(), (DRAWABLE / 'pi_key.xml').read_bytes())
+
+    def test_each_solid_file_names_its_source(self):
+        files = sorted(DRAWABLE.glob('pis_*.xml'))
+        self.assertGreater(len(files), 10)
+        for f in files:
+            self.assertIn('written by peanuts/scripts/icons.py', f.read_text(encoding='utf-8').splitlines()[1], f.name)
+
+    def test_solid_layers_follow_the_rules(self):
+        m = load()
+        for name, layers in m.SOLID.items():
+            self.assertRegex(name, r'^[a-z][a-z-]*$', 'a resource name: pis_' + name.replace('-', '_'))
+            self.assertTrue({k for k, _ in layers} <= set('baBA'), name + ': base and accent, filled (b, a) or stroked (B, A)')
+            for _, d in layers:
+                self.assertRegex(d, r'^M', name + ': path data starts with a move')
+                self.assertNotIn('"', d, name)
 
     def test_layers_follow_the_rules(self):
         m = load()

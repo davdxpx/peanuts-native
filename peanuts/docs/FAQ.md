@@ -431,7 +431,7 @@ With an update, the `.nup` now holds the update alone. The update already carrie
 
 ### How do I start and stop a game, and which controls work?
 
-Tap a ready cover. To stop, open the in-game panel and choose **Stop the game**. The panel opens with a swipe in from the right edge, with Back, or on a controller with Home or by holding − and + for half a second.
+Tap a ready cover. To stop, open the game menu and choose **Stop the game**. The game menu opens with a swipe in from the left edge, with Back, or on a controller with Home or by holding − and + for half a second.
 
 Games take the handheld's own buttons and sticks, external controllers and on-screen touch controls. Settings has **On-screen controls** (Auto, On, Off), **Button mapping** and **Rumble**. Each game can override them in its own settings.
 
@@ -465,7 +465,7 @@ Some of these rows show only with Settings › Developer › **Tester settings**
 
 Yes. **Console mode** is in Settings › Graphics and in each game's settings (hold the cover › **Performance** › Picture). **Docked** makes the game draw as it does on a TV, up to 1080p. **Handheld** makes it draw as on the Switch's own screen, up to 720p: that is lighter, so it can hold a higher frame rate, and the app's upscaler fills the screen. Handheld also turns on the game's touch screen. With nothing chosen, each game uses its own mode, which is Docked for most.
 
-The row applies from the next start. To change it while you play, open the in-game panel: **Console mode** is at the top of its first tab, above **Frame rate cap**. It changes at once, as when a Switch leaves its dock, and is kept for that game. Some games take the new picture size only at their next scene or their next start.
+The row applies from the next start. To change it while you play, open the in-game quick menu: **Console mode** is at the top of its first tab, above **Frame rate cap**. It changes at once, as when a Switch leaves its dock, and is kept for that game. Some games take the new picture size only at their next scene or their next start.
 
 A few games are fixed to Handheld because they need the touch screen or the pointer there. Games that have their own **Resolution** row do not show Console mode: their Resolution sets it.
 
@@ -485,7 +485,7 @@ The game's page › **Graphics** › **Display** (the **Performance** tab on a n
 
 ### Is there a CRT look?
 
-Yes. Settings › Graphics › **CRT filter** is **Off**, **Scanlines**, **CRT** (scanlines, a mask and a vignette) or **Curved CRT** for every game; each game can have its own in its page's **Graphics** area. The in-game panel's **Display** tab changes it while you play.
+Yes. Settings › Graphics › **CRT filter** is **Off**, **Scanlines**, **CRT** (scanlines, a mask and a vignette) or **Curved CRT** for every game; each game can have its own in its page's **Graphics** area. The in-game quick menu's **Display** tab changes it while you play.
 
 ### Can I play on a TV or monitor?
 
@@ -713,7 +713,7 @@ In Settings, the second screen explains what the D-pad is on: a section with its
 
 During a game without a companion the second screen shows the game's live stats by default (Settings › Screens › **Games without a companion**, which can also show the game's cover or leave the screen to Android): the frame rate against the game's target and how many frames are on pace, a frame-time graph, the 1% low, the GPU's load and clock, the CPU's clock, the SoC's temperature, the battery's power in watts and the time left, the RAM, and whether the phone is throttling; tap it again for the game's cover. The gear in the stats card's corner picks what it shows (**Simple**, **Normal**, **Full**, or each item by hand) and the screen guards for an OLED panel: a black background, a pixel shifter that moves the page a pixel every 30 seconds, dimmer fixed labels, a dim after 10 minutes without a touch and a black screen after 30. A touch brings it back. The choices are kept for every game.
 
-Tap the console mode (**DOCKED** or **HANDHELD**) or the frame rate on the stats page to change it for the running game, as the in-game panel does. While the stats page shows, the overlay over the game hides, since the same values are below; Settings › Graphics › **Overlay** › **With bottom stats** brings it back.
+Tap the console mode (**DOCKED** or **HANDHELD**) or the frame rate on the stats page to change it for the running game, as the in-game quick menu does. While the stats page shows, the overlay over the game hides, since the same values are below; Settings › Graphics › **Overlay** › **With bottom stats** brings it back.
 
 A four-finger tap on the game hides the companion or the stats page and gives the second screen to Android until the next four-finger tap, which shows it again.
 
@@ -860,7 +860,7 @@ Once it reads **Ready**, every start of the game uses the mods that are on: the 
 
 Open the game's page › **Mods & Cheats**. Cheats that come with the app are listed there. **Add** takes a cheat file (`.txt`), a `.zip` or a folder, in the Atmosphère, Eden, Yuzu or Ryujinx layout. Each cheat has a switch; a switch works at once while the game runs and is kept for its next start. A file made for another game is refused, and one for another version of the game asks first.
 
-While you play, the in-game panel has a **Mods** tab with the same switches, each with its state (**Running**, the buttons it waits for, **Not possible here** or **Next start**). A cheat that sets a number has a field to change it; the cheat file itself is never changed. Settings › App › **Mods tab** turns the tab off.
+While you play, the in-game quick menu has a **Cheats** tab with the same switches, each with its state (**Running**, the buttons it waits for, **Not possible here** or **Next start**). A cheat that sets a number has a field to change it; the cheat file itself is never changed. Settings › App › **Mods tab** turns the tab off.
 
 ## Troubleshooting
 

@@ -35,7 +35,7 @@ final class PackUi {
     private static boolean ready(MainActivity a, Game g) {
         if (a.needAccess()) return false;
         if (busy(g.titleId)) { a.error("An export or import of " + g.name + "'s pack is still working."); return false; }
-        if (SaveUi.gameRunning(a, g)) { a.error(g.name + " is running: stop it first (its in-game panel › Stop the game)."); return false; }
+        if (SaveUi.gameRunning(a, g)) { a.error(g.name + " is running: stop it first (its game menu › Stop the game)."); return false; }   // PEANUTS: the in-game menus (InGamePanel): Stop is the game menu's
         return true;
     }
 

@@ -424,3 +424,4 @@ dm/games/01004BC0166CC000/pso_pairs.tsv	Generated supplemental pipeline key pair
 dm/games/01004BC0166CC000/pso_manifest.tsv	Generated pipeline seed list.
 dm/games/01004BC0166CC000/bf_want.tsv	Generated shader auxiliary table.
 android/app/src/main/java/dev/nxnative/android/ModsPanel.java	a Peanuts-owned file (its class comment starts with "PEANUTS:") in upstream's launcher package since mod menu Part E, in main since 0.1.8: every line of it is Peanuts', so its hunks carry no marker of their own (in-game menus)
+android/app/src/main/java/dev/nxnative/android/InGamePanel.java	a Peanuts-owned file (its class comment starts with "PEANUTS:") in upstream's launcher package, as ModsPanel.java, for the package-private parts of GameActivity, SidePanel and the saves: every line of it is Peanuts', so it carries no marker of its own (in-game menus)

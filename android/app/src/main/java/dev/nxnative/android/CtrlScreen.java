@@ -43,6 +43,7 @@ final class CtrlScreen {
 
     /** Back: cancels the screen while it shows; false when it does not */
     static boolean back() { if (!open) return false; Native.ctrlButton(0); return true; }
+    static boolean shown() { return open; }   // PEANUTS: the in-game menus leave the controller's Back to onBackPressed while the join screen is up (InGamePanel.backKey)
 
     private static String state() { byte[] b = Native.ctrlState(); return b == null ? "closed" : new String(b, StandardCharsets.UTF_8); }
 

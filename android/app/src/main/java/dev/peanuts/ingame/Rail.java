@@ -194,7 +194,11 @@ public final class Rail {
             tabs.removeAllViews();
             selected = -1;
             placed = false;
-            int h = Look.dp(c, 50);
+            // 50 dp a tab, less on a short screen (a phone in landscape with a large display size), so every tab and General fit the rail
+            int n = Math.max(1, names.length), screen = c.getResources().getDisplayMetrics().heightPixels;
+            int h = Math.max(Look.dp(c, 36), Math.min(Look.dp(c, 50), (screen - Look.dp(c, 16) - n * Look.dp(c, 2)) / n));
+            block.getLayoutParams().height = h;
+            block.requestLayout();
             for (int i = 0; i < names.length; i++) {
                 int k = i;
                 FrameLayout item = new FrameLayout(c);

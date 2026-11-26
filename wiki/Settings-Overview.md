@@ -1,6 +1,6 @@
 # Settings overview
 
-Banana Native has settings in three places: the **Settings** page on the home screen, each game's own page (the **...** button on its card, or a long press), and the **in-game panel** that slides over a running game. This page says which place holds what, and which value wins when the same setting is set in more than one.
+Banana Native has settings in three places: the **Settings** page on the home screen, each game's own page (the **...** button on its card, or a long press), and the **in-game menus** that slide over a running game. This page says which place holds what, and which value wins when the same setting is set in more than one. <!-- PEANUTS -->
 
 <!-- TODO screenshot: Home screen with the Settings button and a game card with its ... button -->
 
@@ -10,15 +10,15 @@ Banana Native has settings in three places: the **Settings** page on the home sc
 |---|---|---|---|
 | **Settings** (home screen) | the settings button on Home | defaults for every game, plus app-wide items (GPU driver, folders, users, help) | at the next game start |
 | **Game page** | the **...** on a game's card, or a long press on it | that one game's values. Tabs: **Performance**, **Game**, **Saves**, **Storage** | at the next game start (a few rows are marked as live) |
-| **In-game panel** | swipe in from the right edge, the phone's Back, a long press on the on-screen controls' show / hide button, or a controller (Home, or hold - and +) | the settings that can change while the game runs | at once, and kept for the next start |
+| **In-game menus** | the game menu: swipe in from the left edge, the phone's Back, or a controller (Home, or hold - and +). The quick menu: swipe in from the right edge, a long press on the on-screen controls' show / hide button, or a controller (Home held), or the game menu's Quick menu row | the game menu: this session (pause, back up the save, stop). The quick menu: the settings that can change while the game runs | at once, and kept for the next start | <!-- PEANUTS -->
 
-Details: [Settings: Performance](Settings-Performance) · [Settings: Game](Settings-Game) · [Settings: Controls](Settings-Controls) · [Settings: Advanced](Settings-Advanced) · [The in-game panel](Side-Panel-In-Game) · [Cheats](Cheats).
+Details: [Settings: Performance](Settings-Performance) · [Settings: Game](Settings-Game) · [Settings: Controls](Settings-Controls) · [Settings: Advanced](Settings-Advanced) · [The in-game menus](Side-Panel-In-Game) · [Cheats](Cheats). <!-- PEANUTS -->
 
 ## Which value wins
 
 For a setting that exists both globally and per game, the app looks in this order and takes the first value it finds:
 
-1. The value you set for this game (game page or in-game panel).
+1. The value you set for this game (game page or in-game quick menu). <!-- PEANUTS -->
 2. The value the game's profile **recommends for your phone** (see below), when there is one.
 3. The default you set in **Settings** on the home screen.
 4. The built-in default.

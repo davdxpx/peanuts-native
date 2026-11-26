@@ -146,10 +146,10 @@ After an app update, rebuilding every game is strongly recommended: hold the cov
 ## Settings worth knowing
 
 - **Console mode**: Docked or Handheld, for all games in Settings and per game on its page. It can also be changed
-  while the game runs, from the in-game panel.
+  while the game runs, from the in-game quick menu.
 - **Resolution scale** (first version): 0.5x to 2x of the size the game draws at. Not every effect follows it.
 - **Mods & Cheats**: hold the cover, then **Mods & Cheats**. Cheats work for every game: add a cheat file, a zip or a
-  folder, and each cheat has a switch that works at once, also from the in-game panel's **Mods** tab. Install a mod
+  folder, and each cheat has a switch that works at once, also from the in-game quick menu's **Cheats** tab, and mods from its **Mods** tab. Install a mod
   from a folder or a zip. It is on
   from the game's next start, and each mod has a switch and a delete button. A mod that changes the game's code gets
   a build with mods, which starts by itself (it waits while another build runs). Until that build is ready, **Play**

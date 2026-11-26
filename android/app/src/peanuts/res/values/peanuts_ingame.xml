@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- The in-game menus' solid icons (drawable/pis_*.xml, design/peanuts-native/icons SOLID): a solid shell and a kernel in the accent.
+    <!-- The in-game menus' solid icons (drawable/pis_*.xml, written by peanuts/scripts/icons.py from its SOLID set): a solid shell and a kernel in the accent.
          dev.peanuts.ingame.Look applies one of the styles below to a copy of the theme and draws the icon with it -->
     <attr name="pnSolidBase" format="color" />
     <attr name="pnSolidAccent" format="color" />
@@ -20,6 +20,4 @@
         <item name="pnSolidBase">#FFE8EAED</item>
         <item name="pnSolidAccent">#FFFFD54F</item>
     </style>
-    <!-- PanelPolish: a row already moved clear of the focus frame (a view tag) -->
-    <item type="id" name="pn_inset" />
 </resources>

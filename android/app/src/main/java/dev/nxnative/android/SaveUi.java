@@ -82,7 +82,7 @@ final class SaveUi {
         if (!UserSaves.ready(a, g, what)) return false;   // PEANUTS: a removed user's save is not restored or imported into
         if (save != null && !CopyPlan.inApp(AppStorage.root(a), save.getPath()) && a.needAccess()) return false;   // a save folder on shared storage (picked in Folders)
         if (busy(g.titleId)) { a.error("A save backup or restore of " + g.name + " is still working."); return false; }
-        if (gameRunning(a, g)) { a.error(g.name + " is running (it holds its save): stop it first (its in-game panel › Stop the game), then " + what + ". The game may be writing its save."); return false; }
+        if (gameRunning(a, g)) { a.error(g.name + " is running (it holds its save): stop it first (its game menu › Stop the game), then " + what + ". The game may be writing its save."); return false; }   // PEANUTS: the in-game menus (InGamePanel): Stop is the game menu's
         return true;
     }
 

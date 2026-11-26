@@ -44,7 +44,7 @@ final class SidePanel extends FrameLayout {
     private final Runnable tick = this::refresh;
 
     // The tabs: each a builder of its own (build); Performance's rows refresh twice a second while it shows
-    static String[] TAB_NAMES = {"Performance", "Display", "Controls", "General"};   // PEANUTS: not final, ModsPanel.opening puts Mods between Controls and General
+    static String[] TAB_NAMES = {"Performance", "Display", "Controls", "General"};   // PEANUTS: not final, ModsPanel.opening puts Cheats and Mods before Controls
     private static final int TAB_PERF = 0, TAB_DISPLAY = 1; static int TAB_CONTROLS = 2, TAB_GENERAL = 3;   // PEANUTS: TAB_CONTROLS and TAB_GENERAL not final: ModsPanel puts Cheats and Mods before Controls, General last
     private int tab = TAB_PERF;
     private static final int FOCUS = 0xFFFFD54F;   // the tab bar's selected tab and the focus frame: a banana yellow, dark text on it

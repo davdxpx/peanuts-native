@@ -3160,7 +3160,8 @@ so every title's profile.bin is regenerated with the APK, as for any new key), `
 the generic profile field, `join_cap` cut from vka_mem.c with the profile at 0 and 512 and the player's line set and unset). No rewrite key or shader input
 changes: `place_join_mb` is not a build row (`pack_android.py build_rows`), and `vka_mem.c` does not feed `DMSH_VK_CHAIN`. Upstream candidate: the key, if
 upstream wants a per-game join cap.
-### In-game menus: a game menu at the left, a quick menu at the right (2026-11-24, on main 0.1.8)
+
+### In-game menus: a game menu at the left, a quick menu at the right (2026-11-24; on dev-0.1.9 since 2026-11-26)
 
 Upstream's one in-game panel with five text tabs becomes two menus, as a console's: everything about this session at the left, everything that tunes
 the running game at the right. The game keeps running behind both.
@@ -3182,7 +3183,7 @@ the running game at the right. The game keeps running behind both.
   pressed the game menu with the selection shown, held the quick menu (`InGamePanel.backKey`); in the quick menu it goes one step back, and a Back made
   from an unused B or by the edge swipe goes on to `onBackPressed` as before. A tool that watches the keys (on the Thor an accessibility service with a
   screen swap on Back held) hands Back on as Android's own: that Back opens the game menu with the selection shown too while a controller is attached.
-- **Icons**: a solid set for the rail and the game menu (`drawable/pis_*.xml` from `design/peanuts-native/icons/icons.py` SOLID, colours per state in
+- **Icons**: a solid set for the rail and the game menu (`drawable/pis_*.xml`, written by `peanuts/scripts/icons.py` from its SOLID set, colours per state in
   `values/peanuts_ingame.xml`): at rest a muted grey with a muted banana, selected peanut cream with banana yellow.
 - **Motion**: in 240 ms decelerating, out 180 ms accelerating, the scrim with them; a tab's rows come up 8 dp and fade in; all on translation and alpha
   with hardware layers (`dev.peanuts.ingame.Look`).
@@ -3208,4 +3209,27 @@ the running game at the right. The game keeps running behind both.
 
 Peanuts-owned: `dev.peanuts.ingame` (`GameMenu`, `Rail`, `Look`), `dev.peanuts.ui.MenuFeel`, `drawable/pis_*.xml`, `values/peanuts_ingame.xml`, the halves
 of `ModsTab` and its header action, the heads, valued sliders and row insets of `PanelPolish`. Tests: `peanuts/tests/test_ingame_menus.py` (the hooks, the rail's order, the rows, the text against UI-RULES.md, the
-icons against icons.py), `peanuts/tests/test_cheat_loader.py` (Part E's hooks in their new place).
+icons from peanuts/scripts/icons.py), `peanuts/tests/test_cheat_loader.py` (Part E's hooks in their new place).
+
+**Review fixes (2026-11-26, on dev-0.1.9).** igawa6's review and a second pass over the series:
+
+- **Back:** the controller's Back is `onBackPressed`'s again while Preparing shaders shows, a shader preparation runs or the controller applet's join screen is up and no menu is open (`GameActivity.backFree`, `CtrlScreen.shown`), so it cancels them as before. An open menu closes before Back reaches the applet (`InGamePanel.open`).
+- **Keys:** a key a menu took whose release went to a dialog (Button mapping, Share log's chooser) no longer eats the game's next release of it: the window losing focus clears the menus' taken keys, held directions and Home or Back timers (`InGamePanel.inputLost`) and the panel's `panelKeys`. The taken keys are per controller. B in a quick menu opened from the game menu no longer stays in `panelKeys` (its release is the game menu's). A direction held as the game menu closes ends with it.
+- **Back up the save:** one copy at a time (`backingUp`); the look-up of the last backup never overwrites "Backing up". A Commit that meets the copy is tried again for 20 seconds (a slow SD card), other failures 3 times, a full storage not at all, with its own note. The copy runs at background priority, and nothing it throws leaves the row at "Backing up". The last backup shown is this user's and not a restore's copy, by the time in its name. Stop during a copy waits for it. A copy kept in the app's own storage (no shared folder) says so.
+- **The game menu:** a row's action is not lost by an opening during the slide-out and does not run twice for a second tap; the width follows a turn of the screen; a long version, time or row value ends in an ellipsis; the sheet keeps clear of a camera cutout (as does the quick menu's at the right).
+- **The quick menu:** a touch on its sheet's empty part no longer closes it; the rail's tabs fit a short screen; the choices' names end in an ellipsis; a closed quick menu forgets that the game menu opened it.
+- **Words:** the first-run hint, the controller row, the help, Stop's place in the launcher's messages, the cheats row and the Mods tab rows name the two menus; the wiki, the READMEs, the FAQ and android/README.md describe them.
+- **Icons:** `peanuts/scripts/icons.py` writes the solid set too (`SOLID`, `pis_*.xml`, `--check` in `test_icons.py`); the files named a generator outside the repository.
+- **Tests:** `PanelPolish` needs no `R` (a weak set of inset rows), so `test_android_hud` compiles it alone; `test_android_padpanel` finds the combination in `InGamePanel.key`.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `android/app/src/main/java/dev/nxnative/android/GameActivity.java` | 7 | `backFree`; `onWindowFocusChanged`'s `panelKeys.clear()` and `InGamePanel.inputLost`; `menuKey`'s release out of `panelKeys`; `onBackPressed`'s `InGamePanel.open`; its javadoc; the save lock's comment; the first-run hint, the handle's description and Stop's place | `// PEANUTS` on each line |
+| `android/app/src/main/java/dev/nxnative/android/CtrlScreen.java` | 1 | `shown()` | `// PEANUTS` |
+| `android/app/src/main/java/dev/nxnative/android/SaveStore.java` | 1 | the class doc's "Back up while playing" | `PEANUTS:` in it |
+| `android/app/src/main/java/dev/nxnative/android/SidePanel.java` | 1 | `TAB_NAMES`' comment | `// PEANUTS` |
+| `android/app/src/main/java/dev/nxnative/android/MainActivity.java` | 2 | the controller row's title and value | `// PEANUTS` |
+| `PackUi.java`, `SaveUi.java`, `StorageUi.java` | 1 each | Stop's place | `// PEANUTS` |
+| `android/app/src/main/res/values/strings.xml` | 1 | `cheats_on`: the quick menu's Cheats tab | `<!-- PEANUTS -->` |
+| `dm/tools/tests/test_android_padpanel.py` | 1 | the combination through `InGamePanel.key` | `# PEANUTS` |
+| `wiki/*.md`, `README.md`, `android/README.md`, `android/TESTING.md`, `docs/guides/saves.md` | | the two menus | `<!-- PEANUTS -->` or a `begin`/`end` pair |

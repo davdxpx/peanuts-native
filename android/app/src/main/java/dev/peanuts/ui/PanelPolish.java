@@ -17,17 +17,18 @@ import android.widget.RadioGroup;
 import android.widget.TextView;
 
 /**
- * PEANUTS: a restyle of the in-game side panel's tabs, called from SidePanel.look() after a tab is built. It only changes looks, never behaviour and never removes a
- * view: short radio groups become segmented controls, the section headings (SidePanel.head: bold, 15 sp, an 18 dp top gap, no side padding) and the grey notes
- * (SidePanel.note: 12 sp, light grey, not bold) get one look each, and the all-caps default Buttons are rounded. A styled view is tagged, so a rebuilt tab
- * (or a second call) is styled once. In the quick menu (the canvas page "In-game menus") a heading is a section head in capitals in peanut tan, and a
- * slider's label ("Size 100 %") reads as its name at the left and its value at the right.
+ * PEANUTS: a restyle of the in-game quick menu's tabs, called from SidePanel.look() after a tab is built. It changes looks, and where the controller's focus
+ * lands in a track of choices (chosen); it removes no view. Short radio groups become segmented controls, the section headings (SidePanel.head: bold, 15 sp,
+ * an 18 dp top gap, no side padding) and the grey notes (SidePanel.note: 12 sp, light grey, not bold) get one look each, and the all-caps default Buttons are
+ * rounded. A styled view is tagged, so a rebuilt tab (or a second call) is styled once. A heading is a section head in capitals in peanut tan, and a
+ * slider's label ("Size 100 %") reads as its name at the left and its value at the right, in a row it adds where the label was.
  */
 public final class PanelPolish {
     private PanelPolish() {}
 
-    private static final String DONE = "pn_polish", INSET = "pn_inset";
-    private static final int INSET_KEY = dev.nxnative.android.R.id.pn_inset;
+    private static final String DONE = "pn_polish";
+    /** The rows inset() moved already (weak: a closed panel's rows go with it). No view tag, so the class needs no R and compiles on its own (test_android_hud) */
+    private static final java.util.Set<View> INSET = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
     private static final int ACCENT = 0xFFFFD54F;   // SidePanel.FOCUS, the selected tab's colour
     private static final int OUTLINE = 0xFF555555;
     private static final int HEAD = 0xFFCDB48C;   // peanut tan: the section heads (dev.peanuts.ingame.Look.TAN)
@@ -86,6 +87,7 @@ public final class PanelPolish {
             b.setButtonDrawable(null);
             b.setGravity(Gravity.CENTER);
             b.setMaxLines(1);   // not setSingleLine: its horizontal scrolling moves the foreground (SidePanel's focus frame) out of sight
+            b.setEllipsize(android.text.TextUtils.TruncateAt.END);   // a name too long for its part ends in … (as setSingleLine's did), not cut mid-word
             b.setMinHeight(Math.round(38 * dp));
             b.setPadding(Math.round(8 * dp), 0, Math.round(8 * dp), 0);
             b.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
@@ -203,14 +205,14 @@ public final class PanelPolish {
     /**
      * A focusable row whose text starts at its edge (a switch, a list row such as Preset): SidePanel's focus frame lies on the row's edge and would cover
      * its first letter. The row reaches 10 dp into the rows' side padding at both ends and its content moves 10 dp in, so the text stays under the
-     * headings and the frame keeps clear of it. Only where the parent has that padding (the panel's rows); once a row (its tag)
+     * headings and the frame keeps clear of it. Only where the parent has that padding (the panel's rows), and once a row (INSET)
      */
     private static void inset(View v, float dp) {
         int in = Math.round(10 * dp);
-        if (INSET.equals(v.getTag(INSET_KEY)) || !(v.getParent() instanceof ViewGroup) || !(v.getLayoutParams() instanceof LinearLayout.LayoutParams)) return;
+        if (INSET.contains(v) || !(v.getParent() instanceof ViewGroup) || !(v.getLayoutParams() instanceof LinearLayout.LayoutParams)) return;
         ViewGroup p = (ViewGroup) v.getParent();
         if (p.getPaddingLeft() < in || p.getPaddingRight() < in) return;
-        v.setTag(INSET_KEY, INSET);
+        INSET.add(v);
         p.setClipToPadding(false);
         LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) v.getLayoutParams();
         lp.leftMargin -= in;

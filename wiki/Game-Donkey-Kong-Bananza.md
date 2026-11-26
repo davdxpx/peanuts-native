@@ -31,7 +31,7 @@ Both are held at 30 fps by the CPU work of recording the frame; 60 fps is planne
 |---|---|---|---|---|
 | Resolution (Game settings > Picture) | The size of the game's window: Original (2880x1620), Phone 1440p, 1080p, 720p, 540p or 480p. | Only if you want the game's own size. | In the author's measurements Original ran at about 30 fps against 52 fps for Phone 1080p when the GPU clocks were not capped, so it costs a lot. | Phone 1080p (1920x1080). This is the app's own default size for every game; this game's profile sets no default of its own. It was Phone 720p only in v0.1.2 |
 | Aspect ratio | 21:9, 4:3, 10:9 or 1:1, plus Screen shape, for a wide or square screen such as a foldable. | On an unfolded foldable or an ultra-wide display. | The 3D camera and the heads-up display follow the shape. Full-screen menu backgrounds (the main menu) stay in the middle 16:9, so a 21:9 main menu shows flat strips at the sides. Speech bubbles above characters may sit closer to the middle than the character. | 16:9 |
-| Frame rate cap (in-game panel) | Holds the game at 30 or 20 fps. 40, 45 and 15 are not offered. | To lower heat or steady the pace. | Game speed stays right at the lower rates. | Game's own |
+| Frame rate cap (in-game quick menu) | Holds the game at 30 or 20 fps. 40, 45 and 15 are not offered. | To lower heat or steady the pace. | Game speed stays right at the lower rates. | Game's own | <!-- PEANUTS -->
 
 See [Settings overview](Settings-Overview) and [Side panel in game](Side-Panel-In-Game) for where each setting is.
 

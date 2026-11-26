@@ -26,7 +26,7 @@ Not every game shows every row. A row appears only when the game's profile has t
   - Native (sharpest, slowest): the game's own network
   - SGSR 1 (sharp, fast, one pass)
 - **When to toggle:** if the picture is too soft, try SGSR 1 or FSR 1; if the frame rate is too low, try Bilinear or Nearest neighbor.
-- **What to expect:** the row appears only for a game whose network the app can replace (it is learned the first time the game runs) and not at all for a game with Resolution presets unless Tester settings are on. Changes apply from the next frame in the in-game panel.
+- **What to expect:** the row appears only for a game whose network the app can replace (it is learned the first time the game runs) and not at all for a game with Resolution presets unless Tester settings are on. Changes apply from the next frame in the in-game quick menu. <!-- PEANUTS -->
 - **Default:** SGSR 1.
 - **FSR sharpness** (shown only with FSR 1): Off, Softer, Soft, Default, Max. Default: Default.
 - **A game on the DLSS stand-in** (Fire Emblem: Fortune's Weave, Star Fox) has its own Upscaler list instead: **GSR 2 (smooth images)**, **FSR 1 (sharp, fast)**, **Bilinear (fastest, softest)**, **FSR 3.1 (sharp, steady)**, with **Motion clarity** and a sharpness row where the mode has them. Fire Emblem: Fortune's Weave recommends FSR 3.1 on any phone.
@@ -39,11 +39,11 @@ Not every game shows every row. A row appears only when the game's profile has t
   - CRT (scanlines, mask, vignette): scanlines, an aperture-grille mask and a light vignette
   - Curved CRT (as CRT, with a curved screen)
 - **When to toggle:** for older games, and for newer 2D HD games drawn in a retro style, such as the Dragon Quest HD-2D remakes.
-- **What to expect:** it takes the place of the Upscaler's scaling to the screen, and costs one full-screen pass. Settings > Graphics > Picture sets it for every game, the game's page sets it for one game, and the in-game panel's Display tab changes it from the next frame and keeps it for that game.
+- **What to expect:** it takes the place of the Upscaler's scaling to the screen, and costs one full-screen pass. Settings > Graphics > Picture sets it for every game, the game's page sets it for one game, and the in-game quick menu's Display tab changes it from the next frame and keeps it for that game. <!-- PEANUTS -->
 - **Default:** Off.
 
 ### Display
-- **What it does:** how the picture sits on the screen: **Fit (keep aspect)** or **Stretch to screen**. The in-game panel adds a size slider and a position; see [The in-game panel](Side-Panel-In-Game).
+- **What it does:** how the picture sits on the screen: **Fit (keep aspect)** or **Stretch to screen**. The in-game quick menu's Display tab adds a size slider and a position; see [The in-game menus](Side-Panel-In-Game). <!-- PEANUTS -->
 - **When to toggle:** Stretch if you prefer to fill the screen over the right shape.
 - **Default:** Fit.
 
@@ -67,7 +67,7 @@ Not every game shows every row. A row appears only when the game's profile has t
 - **Default:** off (a recommendation can change that).
 
 ### Full game speed
-- Only for a game whose profile makes its speed follow its measured frame rate. **On:** normal speed when the frame rate drops. **Off:** the game slows with the frame rate, as on the console. Also in the in-game panel, worded "Full game speed at low frame rates".
+- Only for a game whose profile makes its speed follow its measured frame rate. **On:** normal speed when the frame rate drops. **Off:** the game slows with the frame rate, as on the console. Also in the in-game quick menu, worded "Full game speed at low frame rates". <!-- PEANUTS -->
 - **Default:** on.
 
 ### Dynamic resolution
@@ -97,7 +97,7 @@ Folded on a phone; tap **Show**. These are for testers; the defaults are the tes
 ## Frame generation
 
 - **What it does:** adds generated frames between the game's frames, using Lossless Scaling's frame generation (LSFG). It needs a `Lossless.dll` you already own: the app looks in `Documents/Emulation/bios`, `Switch2` and `Download` on the phone's storage and copies the first it finds, or you pick one with **Pick Lossless.dll**. Without a usable file the overlay says LSFG is unavailable.
-- **Settings:** on / off; **Target frame rate** (Fixed, 60, 90, 120); **Frames per game frame** (2x, 3x, 4x, with Fixed); **Motion estimation resolution** (25, 50, 75, 100 %; lower is faster). The in-game panel applies changes from the next frame.
+- **Settings:** on / off; **Target frame rate** (Fixed, 60, 90, 120); **Frames per game frame** (2x, 3x, 4x, with Fixed); **Motion estimation resolution** (25, 50, 75, 100 %; lower is faster). The in-game quick menu applies changes from the next frame. <!-- PEANUTS -->
 - **What to expect:** the game's own frame is shown last, so the picture is one game frame behind. The app also makes no more generated frames than the screen's refresh leaves room for. A game that is limited by the GPU gets no free frames from it: how much it costs on a phone is **not measured yet** in this wiki.
 - **Default:** off; motion estimation 50 %.
 

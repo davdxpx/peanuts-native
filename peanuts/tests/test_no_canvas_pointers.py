@@ -17,6 +17,8 @@ def ours():
             yield from sorted(java.rglob('*.java'))
     yield from sorted((APP / 'peanuts/res').rglob('*.xml'))
     yield from sorted((APP / 'jvmtest/java/dev/peanuts').rglob('*.java'))
+    for n in ('InGamePanel.java', 'ModsPanel.java'):   # Peanuts' own files in upstream's launcher package (the in-game menus, the mod menu)
+        yield APP / 'main/java/dev/nxnative/android' / n
     for d in ('scripts', 'tests', 'docs'):
         yield from sorted(p for p in (REPO / 'peanuts' / d).rglob('*') if p.suffix in ('.py', '.md', '.sh'))
     yield REPO / 'PEANUTS.md'
@@ -26,7 +28,7 @@ def ours():
 class Pointers(unittest.TestCase):
     def test_files_are_found(self):
         names = {p.name for p in ours()}
-        for n in ('SettingsPage.java', 'SettingsSections.java', 'AboutPage.java', 'PEANUTS.md', 'UPSTREAM-EDITS.md'):
+        for n in ('SettingsPage.java', 'SettingsSections.java', 'AboutPage.java', 'InGamePanel.java', 'PEANUTS.md', 'UPSTREAM-EDITS.md'):
             self.assertIn(n, names)
 
     def test_no_pointer_to_the_design_canvas(self):

@@ -5,7 +5,7 @@ How to start a game, stop it, start it from a launcher or frontend, and where it
 ## Start and stop
 
 - Tap **Play** on the game's card once it says it is ready. If something is missing (pack, shaders, file access) the app says so before it starts, with the reason.
-- Stop with the in-game panel > **Stop the game** ([Side panel in game](Side-Panel-In-Game)). Stop the game before you back up, restore or import a save.
+- Stop with the game menu > **Stop the game** ([In-game menus](Side-Panel-In-Game)). Stop the game before you back up from Home, restore or import a save. The game menu's **Back up the save** works while the game runs. <!-- PEANUTS -->
 - Games with a recommendation for your phone show it at the top of their ... page: one tap applies it.
 - Game language follows the phone (Polish and Thai too, where the game has them) or can be set per game.
 

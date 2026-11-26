@@ -36,7 +36,7 @@ import dev.peanuts.ui.PUi;
  * hook), opened from its row on the Game tab ({@link #entry}); Back returns to the game's page (SettingsPage.onBack's hook), L1 / R1 switch Cheats and Mods
  * (GameSettings.stepTab's hook). Its top (Back, the game, Cheats | Mods, Add) stays at the top while the rest scrolls under it ({@link #stick}).
  * <ul>
- * <li>Cheats: "Show in the game" (the Mods tab of the in-game panel, Package C), then each source (the cheats that come with the app, each import, each enabled
+ * <li>Cheats: "Show in the game" (the quick menu's Cheats and Mods tabs, Package C), then each source (the cheats that come with the app, each import, each enabled
  *     mod's cheat files) with its credit, its masters and the Restore Code line, and its cheats in their groups: a switch each, its kind and its hold buttons as
  *     chips. A switch keeps the toggle for the game's next start (CheatsBridge.on: the toggles the launcher writes into &lt;build&gt;.enabled) and acts at once in a
  *     running game through the in-game panel. A tap on a source opens its sheet: on or off as a whole, other versions, remove.</li>
@@ -396,7 +396,7 @@ public final class CheatsPage {
     private static void cheats(Activity a, LinearLayout content, Model m) {
         Game g = m.g;
         LinearLayout first = PUi.add(content, PUi.listCard(a), 12);
-        PUi.Setting show = new PUi.Setting(a, "", "Show in the game", null).value("The Mods tab in the in-game panel")
+        PUi.Setting show = new PUi.Setting(a, "", "Show in the game", null).value("The Cheats and Mods tabs in the in-game quick menu")
                 .toggle(a, PeanutsPrefs.modsTab(a, g.titleId), (b, x) -> { Feel.toggled(b, x); PeanutsPrefs.modsTab(a, g.titleId, x); explainShow(a, x, b); });
         rowLook(show.view, "controller");
         show.view.setOnClickListener(v -> show.toggle.toggle());
@@ -675,7 +675,7 @@ public final class CheatsPage {
         e.icon = "controller";
         e.title = "Show in the game";
         e.place = "Mods & Cheats";
-        e.text = "The Mods tab of the in-game panel, for this game. Off hides the tab; the cheats you turned on still run.";
+        e.text = "The Cheats and Mods tabs of the in-game quick menu, for this game. Off hides them; the cheats you turned on still run.";
         e.on = on;
         e.flip = sw::toggle;
         e.key = "mods-show";

@@ -63,7 +63,10 @@ public final class GameMenu extends FrameLayout {
     private final TextView name, version, time, note;
     private final FrameLayout bottom;
     private final List<Item> items = new ArrayList<>();
-    private final int widthPx, rowPx;
+    private int widthPx;
+    private final int rowPx;
+    /** A close whose then (the row's action) has not run yet: its slide-out still runs, so an opening meanwhile waits (open) */
+    private Runnable closing;
     private final float text;
     private Item stop;
     private View stopRow;
@@ -75,6 +78,8 @@ public final class GameMenu extends FrameLayout {
     private java.util.function.LongSupplier startedAt = () -> 0;   // read at each opening: the game's start is known only after the menu is made
     /** After it has closed (gone) */
     public Runnable onClosed;
+    /** Keep playing, after Stop was asked (a Stop that waits for something, InGamePanel's backup, no longer stops) */
+    public Runnable onKeep;
 
     public GameMenu(Context c, int widthPx, int rowPx, float text) {
         super(c);
@@ -124,10 +129,14 @@ public final class GameMenu extends FrameLayout {
         version.setBackground(Look.round(Look.CHIP, Look.dp(c, 999)));
         version.setPadding(Look.dp(c, 9), Look.dp(c, 3), Look.dp(c, 9), Look.dp(c, 3));
         version.setVisibility(GONE);
+        version.setSingleLine(true);
+        version.setEllipsize(TextUtils.TruncateAt.END);
+        version.setMaxWidth(Look.dp(c, 120));   // a long version ("1.0.1 (build 2025.11.03)") leaves the time its room
         line.addView(version);
         time = label(c, 13, Look.QUIET, Typeface.NORMAL);
         time.setSingleLine(true);
-        LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        time.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
         tl.leftMargin = Look.dp(c, 8);
         line.addView(time, tl);
         col.addView(line);
@@ -228,6 +237,8 @@ public final class GameMenu extends FrameLayout {
         r.addView(t, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         it.value = label(c, 13, Look.QUIET, Typeface.NORMAL);
         it.value.setSingleLine(true);
+        it.value.setEllipsize(TextUtils.TruncateAt.END);
+        it.value.setMaxWidth(Math.round(widthPx * 0.42f));   // a large font: the row's name keeps the rest
         r.addView(it.value);
         it.value(it.valueText, it.valueBad);
         if (it.chevron) {
@@ -241,7 +252,7 @@ public final class GameMenu extends FrameLayout {
         }
         r.setClickable(true);
         r.setContentDescription(it.title);
-        r.setOnClickListener(v -> { pad = false; sel = indexOf(it); paint(); press(it); });
+        r.setOnClickListener(v -> { if (!open) return; pad = false; sel = indexOf(it); paint(); press(it); });   // closed: a second tap during the slide-out runs nothing twice
         return r;
     }
 
@@ -298,6 +309,7 @@ public final class GameMenu extends FrameLayout {
     }
 
     private void cancelStop() {
+        if (onKeep != null) onKeep.run();
         asking = false;
         bottom.removeAllViews();
         bottom.addView(stopRow);
@@ -392,7 +404,7 @@ public final class GameMenu extends FrameLayout {
 
     /** Slides in from the left (OPEN_MS, decelerating) while the scrim fades in; withPad: a controller opened it, the selection shows at once */
     public void open(boolean withPad) {
-        if (open) return;
+        if (open || closing != null) return;   // a row's action runs once the menu is gone (close): an opening in those few ms would cancel the slide-out and the action with it
         open = true;
         pad = withPad;
         MenuFeel.open(this);
@@ -400,6 +412,7 @@ public final class GameMenu extends FrameLayout {
         if (stopRow != null && stopRow.getParent() == null) { bottom.removeAllViews(); bottom.addView(stopRow); }
         sel = 0;
         note(null, false);
+        clearCutout();
         time.setText(played());
         paint();
         scroll.scrollTo(0, 0);
@@ -420,12 +433,38 @@ public final class GameMenu extends FrameLayout {
         clearFocus();
         sheet.animate().cancel();
         scrim.animate().cancel();
-        scrim.animate().alpha(0f).setDuration(Look.CLOSE_MS).setInterpolator(Look.IN).start();
-        sheet.animate().translationX(-widthPx).setDuration(Look.CLOSE_MS).setInterpolator(Look.IN).withLayer().withEndAction(() -> {
+        Runnable done = () -> {
             if (!open) setVisibility(GONE);
             if (then != null) then.run();
             if (onClosed != null) onClosed.run();
+        };
+        if (then != null) closing = done;
+        scrim.animate().alpha(0f).setDuration(Look.CLOSE_MS).setInterpolator(Look.IN).start();
+        sheet.animate().translationX(-widthPx).setDuration(Look.CLOSE_MS).setInterpolator(Look.IN).withLayer().withEndAction(() -> {
+            if (closing == done) closing = null;
+            done.run();
         }).start();
+    }
+
+    /**
+     * A phone in landscape with its camera cutout at the left (the game draws under it): the sheet's content starts clear of it, as the game's overlay
+     * does (GameActivity.insetOverlay)
+     */
+    private void clearCutout() {
+        android.view.WindowInsets w = getRootWindowInsets();
+        android.view.DisplayCutout dc = w == null ? null : w.getDisplayCutout();
+        int left = dc == null ? 0 : dc.getSafeInsetLeft(), base = Look.dp(getContext(), 10);
+        if (sheet.getPaddingLeft() != base + left) sheet.setPadding(base + left, sheet.getPaddingTop(), sheet.getPaddingRight(), sheet.getPaddingBottom());
+    }
+
+    /** The sheet's width, worked out from the screen at each opening (InGamePanel), so it follows a turn of a large screen; only while closed */
+    public void width(int px) {
+        if (open || px <= 0 || px == widthPx) return;
+        widthPx = px;
+        android.view.ViewGroup.LayoutParams lp = sheet.getLayoutParams();
+        lp.width = px;
+        sheet.setLayoutParams(lp);
+        sheet.setTranslationX(-px);
     }
 
     /** "Playing for 42 min", from when this session started */

@@ -11,7 +11,14 @@ Every icon is a shell with at most one kernel, like the nut, on a 24 x 24 grid. 
 Only path data is used (no circle or rect elements), so the strings are VectorDrawable pathData as they are. Ink and kernel come from the
 theme, so one file serves the light and the dark theme; Drawable.setTint() on a filled button turns the whole icon one colour.
 
-  python3 peanuts/scripts/icons.py           writes every pi_<name>.xml and removes a pi_*.xml no icon here names
+The in-game menus' solid set (SOLID: the quick menu's rail and the game menu) is the same icons a step bolder, written as pis_<name>.xml:
+
+  "b"  base fill    and  "a"  accent fill   (even-odd, so holes are cut), with a 0.6 stroke of their own colour for soft corners
+  "B"  base stroke  and  "A"  accent stroke (2.4 wide)
+
+Base and accent come from the theme (?attr/pnSolidBase, ?attr/pnSolidAccent), which dev.peanuts.ingame.Look sets per state (values/peanuts_ingame.xml).
+
+  python3 peanuts/scripts/icons.py           writes every pi_<name>.xml and pis_<name>.xml, and removes one no icon here names
   python3 peanuts/scripts/icons.py --check   writes nothing; exit 1 when a file differs from what this would write (peanuts/tests/test_icons.py)
 
 A new icon: add its layers below, run the script, and use it by name (dev.peanuts.ui.Icons.get, SettingsSections).
@@ -24,6 +31,7 @@ STROKE = 1.75
 REPO = pathlib.Path(__file__).resolve().parents[2]
 OUT = REPO / 'android/app/src/peanuts/res/drawable'
 HEAD = '<!-- Peanuts icon, written by peanuts/scripts/icons.py. Change it there and run the script, not here. -->'
+SOLID_HEAD = '<!-- Peanuts in-game icon (solid), written by peanuts/scripts/icons.py. Change it there and run the script, not here. -->'
 
 
 def circle(cx, cy, r):
@@ -188,6 +196,40 @@ ICONS = {
 }
 
 
+
+# The in-game set (the quick menu's rail and the game menu): the same icons a step bolder. The shell is solid, the kernel is cut free from it by a 0.9 gap
+# and filled with the accent; open shapes are 2.4 strokes. Layers: "b" base fill and "a" accent fill (even-odd, so holes are cut), "B" base stroke and
+# "A" accent stroke. Fills carry a 0.6 stroke of their own colour, so their corners are as soft as the outline set's. Two colours per state: at rest a
+# muted grey base with a muted banana accent, selected the peanut cream base with the banana accent (on the peanut brown block).
+SOLID_STROKE, SOLID_SOFT = 2.4, 0.6
+_PAD = "M6.4 9.6h1.9v1.9h1.9v1.9H8.3v1.9H6.4v-1.9H4.5v-1.9h1.9Z"
+_PAD_BODY = ("M7 6.5h10c3 0 5 2.7 5 6.5v2.6c0 2.5-1.6 3.9-3.3 3.9-1.6 0-2.5-1.1-3.2-2.2l-.7-1.1H9.2l-.7 1.1"
+             "c-.7 1.1-1.6 2.2-3.2 2.2C3.6 19.5 2 18.1 2 15.6V13C2 9.2 4 6.5 7 6.5Z")
+SOLID = {
+    # The quick menu's rail
+    "bolt": [("a", "M8.6 2.5H16.8L14.3 8.5H8.1Z"), ("b", "M7.6 10.1H19.2L8.4 21.5 10.6 13.4H5Z")],
+    "gauge": [("B", "M4.2 17.2a8 8 0 1 1 15.6 0"), ("A", "M12 15.4 15.6 10"), ("a", circle(12, 15.6, 2.4))],
+    "display": [("b", rrect(2.5, 4.5, 19, 13.5, 3) + rrect(4.6, 6.6, 14.8, 9.3, 1.4)), ("a", rrect(6.1, 8.1, 11.8, 6.3, 1)), ("B", "M8.5 20.6h7")],
+    "cheats": [("B", "M8.2 6.6 2.8 12l5.4 5.4M15.8 6.6l5.4 5.4-5.4 5.4"), ("A", "M13.7 4.6 10.3 19.4")],
+    "mods": [("b", "M5 7.5H7.8A2.6 2.6 0 1 1 12.2 7.5H15A1.5 1.5 0 0 1 16.5 9V11.8A2.6 2.6 0 1 1 16.5 16.2V19A1.5 1.5 0 0 1 15 20.5H5A1.5 1.5 0 0 1 3.5 19V9A1.5 1.5 0 0 1 5 7.5Z" + rrect(5.9, 9.9, 8.2, 8.2, 2)), ("a", rrect(7, 11, 6, 6, 1.2))],
+    "controller": [("b", _PAD_BODY + _PAD + circle(15.6, 10.9, 1.9) + circle(18.5, 13.8, 1.9)), ("a", circle(15.6, 10.9, 1.1) + circle(18.5, 13.8, 1.1))],
+    "settings": [("B", "M3.5 6h8.4M18.6 6H20.5M3.5 12h1.9M12.6 12H20.5M3.5 18h5.9M16.6 18H20.5"),
+                 ("a", circle(15.2, 6, 2.6) + circle(9, 12, 2.6) + circle(13, 18, 2.6))],
+    "game": [("b", rrect(4.8, 2.5, 14.4, 19, 3.2) + rrect(7.3, 5.2, 9.4, 8.6, 1.9) + rrect(9.2, 16.3, 5.6, 2, 1)), ("a", rrect(8.4, 6.3, 7.2, 6.4, 1.1))],
+    # The game menu
+    "play": [("b", "M6.6 3.9 20.2 12 6.6 20.1Z")],
+    "pause": [("B", circle(12, 12, 8.6)), ("a", rrect(8.6, 7.9, 2.3, 8.2, 1.15) + rrect(13.1, 7.9, 2.3, 8.2, 1.15))],
+    "panel": [("b", rrect(2, 4.5, 20, 15, 3) + rrect(3.9, 6.4, 9.8, 11.2, 1.4) + rrect(15.1, 6.4, 5, 11.2, 1.3)),
+              ("a", rrect(16.1, 7.7, 3, 1.9, .95) + rrect(16.1, 11.05, 3, 1.9, .95) + rrect(16.1, 14.4, 3, 1.9, .95))],
+    "save-up": [("b", rrect(2.8, 3.5, 18.4, 5, 1.6)), ("b", "M4.4 10.1H19.6V18.1A2.6 2.6 0 0 1 17 20.7H7A2.6 2.6 0 0 1 4.4 18.1Z" + "M12 11.2 17.2 18.6H6.8Z"),
+                ("a", "M12 13.1 15.1 17.6H8.9Z")],
+    "buttons": [("b", circle(6.2, 12, 2.9) + circle(17.8, 12, 2.9) + circle(12, 17.8, 2.9)), ("a", circle(12, 6.2, 2.9))],
+    "log": [("b", rrect(4.5, 2.2, 15, 19.6, 3.2) + rrect(7.2, 5.1, 9.6, 4.6, 1.8) + rrect(8, 12.4, 8, 2, 1) + rrect(8, 16, 5, 2, 1)), ("a", rrect(8.2, 6.1, 7.6, 2.6, 1.3))],
+    "stop": [("B", "M7.1 6.9a7.6 7.6 0 1 0 9.8 0"), ("A", "M12 3.4v8.2")],   # the power sign (David 2026-11-24, variant A): ending the game as a console ends it
+    "close": [("B", "M6.5 6.5l11 11M17.5 6.5l-11 11")],
+    "back": [("B", "M19 12H5.5M11 6.5 5.5 12l5.5 5.5")],
+}
+
 def vector(layers):
     rows = []
     for kind, d in layers:
@@ -207,9 +249,30 @@ def vector(layers):
             + "\n".join(rows) + "\n</vector>\n")
 
 
+def solid_vector(layers):
+    rows = []
+    for kind, d in layers:
+        if kind not in "baBA":
+            raise ValueError(f"a solid layer is b, a, B or A, not {kind!r}")
+        col = "?attr/pnSolidBase" if kind in "bB" else "?attr/pnSolidAccent"
+        if kind in "ba":
+            rows.append(f'    <path android:pathData="{d}" android:fillColor="{col}" android:fillType="evenOdd"\n'
+                        f'        android:strokeColor="{col}" android:strokeWidth="{SOLID_SOFT}" android:strokeLineJoin="round"/>')
+        else:
+            rows.append(f'    <path android:pathData="{d}" android:strokeColor="{col}" android:strokeWidth="{SOLID_STROKE}"\n'
+                        f'        android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000"/>')
+    return ('<?xml version="1.0" encoding="utf-8"?>\n'
+            + SOLID_HEAD + '\n'
+            '<vector xmlns:android="http://schemas.android.com/apk/res/android"\n'
+            '    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">\n'
+            + "\n".join(rows) + "\n</vector>\n")
+
+
 def files():
-    """pi_<name>.xml -> its text, for every icon"""
-    return {f"pi_{name}.xml": vector(layers) for name, layers in ICONS.items()}
+    """pi_<name>.xml and pis_<name>.xml -> its text, for every icon"""
+    out = {f"pi_{name}.xml": vector(layers) for name, layers in ICONS.items()}
+    out.update({f"pis_{name.replace('-', '_')}.xml": solid_vector(layers) for name, layers in SOLID.items()})
+    return out
 
 
 def main(argv):
@@ -217,7 +280,7 @@ def main(argv):
     if argv[1:] and not check:
         raise SystemExit("usage: icons.py [--check]")
     want = files()
-    have = {p.name for p in OUT.glob("pi_*.xml")}
+    have = {p.name for p in OUT.glob("pi_*.xml")} | {p.name for p in OUT.glob("pis_*.xml")}
     wrong = sorted(n for n, text in want.items() if not (OUT / n).is_file() or (OUT / n).read_bytes() != text.encode("utf-8"))
     extra = sorted(have - set(want))
     if check:

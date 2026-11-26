@@ -18,7 +18,7 @@ Words the app and this wiki use, in plain terms.
 | **Upscaler** | The method that enlarges the picture to your screen (for example FSR or GSR 2). See [Settings Performance](Settings-Performance). |
 | **Frame generation** | Makes extra pictures between real ones, for smoother motion. Needs your own `Lossless.dll` ([Settings Performance](Settings-Performance)). It adds delay. |
 | **Cheat file** | A list of game tweaks in a text file (gold, stats). Only some games have one ([Cheats](Cheats)). |
-| **Side panel** | The panel you open while playing to change settings without leaving the game ([Side panel in game](Side-Panel-In-Game)). |
+| **In-game menus** | The two menus you open while playing without leaving the game: the game menu (pause, back up the save, stop) and the quick menu (settings that change while you play). See [In-game menus](Side-Panel-In-Game). | <!-- PEANUTS -->
 | **Readiness check** | **Settings** > **Readiness check**: the app tests whether your phone can run your games. |
 | **Supported / Experimental** | How well a game runs. Supported: played through real sessions on the author's phones. Experimental: it starts but is little tested. See [Games](Games). |
 | **Issue** | A report on the project's [issue tracker](https://git.eden-emu.dev/moceure/BananaNative/issues). Reports with a log are the most useful. |

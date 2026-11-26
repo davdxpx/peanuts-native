@@ -21,12 +21,13 @@ import dev.peanuts.mods.ModsTab;
  * PEANUTS: the in-game panel's Mods tab (SPEC-mod-menu.md Package C; dev.peanuts.mods.ModsTab) in upstream's SidePanel, whose tabs, close and look are
  * package-private. A Peanuts Native file in upstream's launcher package, as CheatsBridge.java. SidePanel's hooks:
  * <ul>
- * <li>open: {@link #opening} gives the tabs (Performance, Display, Controls, Mods, General; Mods only when the game has cheats or mods and neither Settings ›
- *     App › Mods tab nor the game's Show in the game hides it) and the tab to open on (the last one shown, by name, kept across runs);</li>   <!-- PEANUTS: #827 -->
+ * <li>open: {@link #opening} gives the tabs (Performance, Display, Cheats, Mods, Controls, General; Cheats and Mods each only when the game has some and
+ *     neither Settings › App › Mods tab nor the game's Show in the game hides them) and the tab to open on (the last one shown, by name, kept across runs);</li>   <!-- PEANUTS: #827 -->
  * <li>build: {@link #build} builds the Mods tab when it is the one shown, and keeps which tab shows;</li>
  * <li>General: its cheat switches only when there is no Mods tab ({@link #shows});</li>
  * <li>padKey: Y and X on the Mods tab ({@link #padKey});</li>
- * <li>tabBar: with five tabs each as wide as its label, and the tab text fit after the bar's layout ({@link #afterLayout}).</li>
+ * <li>tabBar: with five tabs each as wide as its label, and the tab text fit after the bar's layout ({@link #afterLayout}); the in-game quick menu's rail
+ *     (InGamePanel.rail) takes the tabs before it, so this is for a tab bar of upstream's look only.</li>
  * </ul>
  */
 final class ModsPanel {

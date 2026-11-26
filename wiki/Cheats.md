@@ -7,10 +7,12 @@ Banana Native can apply cheat files in the Atmosphère format to a running game.
 ## Turn cheats on
 
 1. Open the game's page (the **...** on its card), tab **Game**, section **Game options**.
-2. Turn on **Cheats**. The row says "Cheat list in the in-game panel (General). Cheated values are stored when the game saves."
-3. Start the game. Open the in-game panel (see [The in-game panel](Side-Panel-In-Game)), tab **General**: the cheats are listed under a **Cheats** heading, grouped by section, one switch each. Each switch is live.
+<!-- PEANUTS begin: the in-game menus (InGamePanel): the cheats are the quick menu's Cheats tab -->
+2. Turn on **Cheats**. The row says "Cheat list in the in-game quick menu (Cheats tab). Cheated values are stored when the game saves."
+3. Start the game. Open the quick menu (see [The in-game panel](Side-Panel-In-Game)), tab **Cheats**: the cheats are listed grouped by section, one switch each. Each switch is live; **All off** in the tab's header turns them all off.
 
-With **Cheats** off, nothing is passed to the game and the panel shows no cheat list. A game without a cheat file has no Cheats row.
+With **Cheats** off, nothing is passed to the game and the quick menu has no Cheats tab.
+<!-- PEANUTS end --> A game without a cheat file has no Cheats row.
 
 **Warning:** a cheated value is written into the game's memory, and the game stores it when it saves. A cheat turned off leaves the last value in place, and the game's next save keeps it. If you care about a save, keep a copy ([Saves and storage](Saves-and-Storage)).
 

@@ -7,8 +7,8 @@ A game's save is in the app's own storage, `Android/data/<app>/files/saves/<titl
 to `save-backups/<title ID>/` next to the game folder, for example `Switch2/save-backups/040074A01BF12000/`, which the
 app never deletes.
 
-Stop the game before you back up, restore or import a save (its in-game panel › **Stop the game**): the app refuses
-while the game runs, because the game may be writing its save.
+Stop the game before you back up, restore or import a save (its game menu › **Stop the game**): the app refuses
+while the game runs, because the game may be writing its save. The game menu's **Back up the save** works while the game runs: it only reads the save, and tries again if the game saves during the copy. <!-- PEANUTS -->
 
 None of this needs **All files access**. Without it, backups are exported as a `.zip` and saves are imported through the
 system picker, as below. Only a save folder you picked yourself on the phone's storage (in **Folders**) still needs it.

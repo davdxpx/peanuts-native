@@ -28,7 +28,7 @@
     <!-- Cheats (a game whose profile has cheat files: Game settings › Game options, its Cheat files sheet, and the in-game panel's General tab; Cheats.java, CheatsUi.java) -->
     <string name="cheats_title">Cheats</string>
     <string name="cheats_caution">Cheated values are stored when the game saves.</string>
-    <string name="cheats_on">Cheat list in the in-game panel (General). Cheated values are stored when the game saves</string>
+    <string name="cheats_on">Cheat list in the in-game quick menu (Cheats tab). Cheated values are stored when the game saves</string>   <!-- PEANUTS: the in-game menus (InGamePanel) -->
     <string name="cheats_off">No cheats</string>
     <string name="cheats_files_title">Cheat files</string>
     <string name="cheats_files_note">The game\'s own file, and Atmosphère-format files you import for this game\'s build</string>

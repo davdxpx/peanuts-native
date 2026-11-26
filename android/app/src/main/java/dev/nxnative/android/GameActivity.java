@@ -171,7 +171,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) downX[0] = -1;
             return true;
         });
-        handle.setContentDescription("Open the in-game panel");
+        handle.setContentDescription(InGamePanel.HANDLE);   // PEANUTS: "Open the quick menu" (the in-game menus, InGamePanel)
         handle.setOnClickListener(v -> panel.open());   // TalkBack's double tap
         root.addView(handle, root.indexOfChild(panel), new FrameLayout.LayoutParams(Math.round(20 * dp), Math.round(140 * dp), Gravity.END | Gravity.TOP));
         // Auto with a gamepad connected, or Off: the handle goes with the controls (Back or a gamepad's Home button opens the panel)
@@ -1317,12 +1317,13 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         String want = i.getStringExtra("title_id"), have = getIntent().getStringExtra("title_id");
         if (want == null || want.equals(have)) return;
         new AlertDialog.Builder(this).setTitle(getIntent().getStringExtra("name") + " is running")
-                .setMessage("Stop it first (the in-game panel › Stop the game), then start " + i.getStringExtra("name") + ". One game runs at a time.")
+                .setMessage("Stop it first (the game menu › Stop the game), then start " + i.getStringExtra("name") + ". One game runs at a time.")   // PEANUTS: the in-game menus (InGamePanel): Stop is the game menu's
                 .setPositiveButton("OK", null).show();
     }
 
     // ---- The save's lock (SaveStore.Lock on <save>.lock): taken before the save is recovered and kept while this process lives, so a backup or restore of this save
     // never runs beside the game (SaveUi asks SaveStore.inUse); the process ending releases it ----
+    // PEANUTS: but the game menu's Back up the save, in this process under this lock (SaveStore.backupRunning)
     private static SaveStore.Lock saveLock;
     private static File saveLocked;
     static File runSave() { return saveLocked; }   // PEANUTS: the save this game runs on, for the game menu's Back up the save (InGamePanel)
@@ -1594,10 +1595,10 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         if (Prefs.panelHinted(this)) return;
         Prefs.panelHinted(this, true);
         int how = Prefs.panelPad(this);
-        String pad = how == PadPanel.OPEN_OFF ? "" : how == PadPanel.OPEN_HOME ? "\nController: press Home" : how == PadPanel.OPEN_MINUS_PLUS ? "\nController: hold − and +"
-                : "\nController: press Home, or hold − and +";
+        String pad = how == PadPanel.OPEN_OFF ? "" : how == PadPanel.OPEN_HOME ? "\nController: press Home; hold it for the quick menu" : how == PadPanel.OPEN_MINUS_PLUS ? "\nController: hold − and +"
+                : "\nController: press Home, or hold − and +; hold Home for the quick menu";   // PEANUTS: the in-game menus (InGamePanel)
         TextView h = new TextView(this);
-        h.setText("Menu: swipe in from the right edge, or press Back" + pad);
+        h.setText("Game menu: swipe in from the left edge, or press Back\nQuick menu: swipe in from the right edge" + pad);   // PEANUTS: the in-game menus (InGamePanel)
         h.setTextColor(Color.WHITE);
         h.setTextSize(14);
         float dp = getResources().getDisplayMetrics().density;
@@ -1679,7 +1680,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
     @Override public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) immersive();   // the bars come back after a dialog, the keyboard or the notification shade
-        else combo.reset();   // a dialog or the background: the combination's keys may come up elsewhere
+        else { combo.reset(); panelKeys.clear(); InGamePanel.inputLost(); }   // a dialog or the background: the combination's keys may come up elsewhere (PEANUTS: and the panel's and the in-game menus' taken keys, InGamePanel.inputLost)
         // Gamepad sticks, triggers and a DualShock's d-pad (hat axes) come as joystick motion events, which Android batches by default and hands over at the window's next
         // frame (Choreographer): up to one display refresh late (16.7 ms at 60 Hz), later when the main thread is busy then. Unbuffered, each reaches onGenericMotionEvent
         // and the host (Native.axes) as it arrives; the game reads it at its next input read. Button presses (key events) were never batched. Asked of the window's root
@@ -1796,6 +1797,9 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
     }
     @Override public void onInputDeviceChanged(int id) { deviceAxes.remove(id); }
 
+    /** PEANUTS: Back is onBackPressed's own while the game screen has something that answers it: Preparing shaders (its Close), a shader preparation (Back cancels it), the controller applet's join screen (Back cancels it). InGamePanel.backKey takes the controller's Back only otherwise */
+    boolean backFree() { return prewarmCover == null && !dev.peanuts.build.ShaderCapture.active(this) && !CtrlScreen.shown(); }
+
     @Override public boolean dispatchKeyEvent(KeyEvent e) {
         if (dev.peanuts.build.ShaderCapture.active(this) && gamepad(e.getSource())) return true;   // PEANUTS: no gameplay input during preparation
         if (prewarmCover != null && gamepad(e.getSource())) return super.dispatchKeyEvent(e);   // PEANUTS: Preparing shaders: the pad moves over its buttons; nothing goes to the game or the panel under it
@@ -1813,7 +1817,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             ui.removeCallbacks(comboHeld);
             if (due >= 0) ui.postAtTime(comboHeld, due);   // the event's time is uptimeMillis
         }
-        if (InGamePanel.menuKey(this, e, gamepad(e.getSource()))) return true;   // PEANUTS: the game menu has the controller while it is open
+        if (InGamePanel.menuKey(this, e, gamepad(e.getSource()))) { if (up) panelKeys.remove(k); return true; }   // PEANUTS: the game menu has the controller while it is open (a release it took is no longer the panel's: B in the quick menu back to the game menu)
         if (panel.isOpen() && gamepad(e.getSource())) {
             boolean took = panel.padKey(e);
             if (took && down) panelKeys.add(k);
@@ -1871,9 +1875,9 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
     }
 
 
-    /** Back (the phone's button or its edge swipe) opens and closes the in-game panel, which has Stop; while the controller applet's join screen shows, it cancels that */
+    /** Back (the phone's button or its edge swipe) opens the game menu, which has Stop, and closes an open menu (PEANUTS: InGamePanel.back); while the controller applet's join screen shows and no menu is open, it cancels that */
     @SuppressWarnings("deprecation")
-    @Override public void onBackPressed() { if (prewarmCover != null) return; /* PEANUTS: Preparing shaders has its own Close; the panel is under it */ if (dev.peanuts.build.ShaderCapture.active(this)) { dev.peanuts.build.ShaderCapture.cancel(this); return; } /* PEANUTS: Back cancels preparation */ if (panel != null && !panel.isOpen() && CtrlScreen.back()) return; if (panel != null) InGamePanel.back(this); /* PEANUTS: the game menu, or one step back in the quick menu (InGamePanel) */ else end(); }
+    @Override public void onBackPressed() { if (prewarmCover != null) return; /* PEANUTS: Preparing shaders has its own Close; the panel is under it */ if (dev.peanuts.build.ShaderCapture.active(this)) { dev.peanuts.build.ShaderCapture.cancel(this); return; } /* PEANUTS: Back cancels preparation */ if (panel != null && !InGamePanel.open(this) && CtrlScreen.back()) return; /* PEANUTS: an open in-game menu closes first (InGamePanel.open) */ if (panel != null) InGamePanel.back(this); /* PEANUTS: the game menu, or one step back in the quick menu (InGamePanel) */ else end(); }
 
     // For CtrlScreen: the view tree it goes into (under the in-game panel), and whether a gamepad is connected (then the on-screen controls are hidden and cannot join)
     FrameLayout rootView() { return rootView; }

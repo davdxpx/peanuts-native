@@ -12,7 +12,7 @@ import java.util.Map;
 
 /**
  * The in-game menus' look: upstream's grey panel, the banana-yellow focus, the peanut browns,
- * and the solid icons (res drawable/pis_*.xml from design/peanuts-native/icons, colours per state from res values/peanuts_ingame.xml). Also their motion.
+ * and the solid icons (res drawable/pis_*.xml, written by peanuts/scripts/icons.py SOLID; colours per state from res values/peanuts_ingame.xml). Also their motion.
  */
 public final class Look {
     private Look() {}

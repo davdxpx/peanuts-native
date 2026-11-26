@@ -16,7 +16,8 @@ TEST = REPO / 'android/app/src/jvmtest/java/dev/nxnative/android/PadPanelJvmTest
 class Wiring(unittest.TestCase):
     def test_activity(self):
         t = (JAVA / 'GameActivity.java').read_text()
-        self.assertIn('combo.key(', t)                  # every pad key goes through the combination first
+        self.assertIn('InGamePanel.key(this, combo, ', t)   # PEANUTS: every pad key goes through the combination first, by the in-game menus' InGamePanel.key
+        self.assertIn('combo.key(', (JAVA / 'InGamePanel.java').read_text())   # PEANUTS: which asks the combination (Home held: the quick menu)
         self.assertIn('panel.padMotion(e)', t)          # sticks and the hat move through the open panel, never the game
         self.assertIn('releaseGameInput', t)            # the game's held buttons are released when the panel opens
         self.assertIn('PadPanel.confirmBack(', t)       # confirm / back from the game's mapping

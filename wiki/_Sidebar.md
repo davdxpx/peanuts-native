@@ -12,7 +12,7 @@
 - [Playing](Playing)
 - [Saves and storage](Saves-and-Storage)
 - [GPU drivers](GPU-Drivers)
-- [Side panel in game](Side-Panel-In-Game)
+- [In-game menus](Side-Panel-In-Game) <!-- PEANUTS -->
 - [Cheats](Cheats)
 
 **Settings and speed**

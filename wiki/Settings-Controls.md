@@ -1,6 +1,6 @@
 # Settings: Controls
 
-How you play: the on-screen controls, a controller, rumble, button mapping and motion aim. Global defaults are on **Settings > Controls**; per-game values are on the game page's **Game** tab (Controls section) or in the in-game panel's **Controls** tab ([The in-game panel](Side-Panel-In-Game)).
+How you play: the on-screen controls, a controller, rumble, button mapping and motion aim. Global defaults are on **Settings > Controls**; per-game values are on the game page's **Game** tab (Controls section) or in the in-game quick menu's **Controls** tab ([The in-game panel](Side-Panel-In-Game)). <!-- PEANUTS: the in-game menus -->
 
 <!-- TODO screenshot: Settings page, Controls card (On-screen controls, Rumble, Button mapping) -->
 
@@ -8,23 +8,25 @@ How you play: the on-screen controls, a controller, rumble, button mapping and m
 
 - **What it does:** the touch buttons over the game. **Auto** (default) draws nothing while a gamepad is connected, **On** always draws them, **Off** never. For every game.
 - **When to toggle:** Off if the controls get in the way and you play with a controller.
-- **Show / hide button** (a switch): the small button at the top centre that hides the on-screen controls. Default on. A long press on it opens the in-game panel.
-- In the in-game panel (Controls tab): **Opacity**, **Size** (60 to 150 %), **Vibrate on press**, **Show the log over the game**, **Show / hide button (top centre)**, **Reset the controls**, **Edit the controls layout…** (drag a group to move it; a second finger resizes it, 50 to 200 %; the layout is kept per screen shape, so a foldable keeps one layout per screen) and **Position (this screen)** for the picture: Top, Centre, Bottom.
+- **Show / hide button** (a switch): the small button at the top centre that hides the on-screen controls. Default on. A long press on it opens the in-game quick menu. <!-- PEANUTS -->
+- In the in-game quick menu (Controls tab): <!-- PEANUTS --> **Opacity**, **Size** (60 to 150 %), **Vibrate on press**, **Show the log over the game**, **Show / hide button (top centre)**, **Reset the controls**, **Edit the controls layout…** (drag a group to move it; a second finger resizes it, 50 to 200 %; the layout is kept per screen shape, so a foldable keeps one layout per screen) and **Position (this screen)** for the picture: Top, Centre, Bottom.
 
 ## Screen rotation
 - **What it does:** **Landscape** (default) or **Automatic**, for the game screen.
 
 ## Controller: in-game panel
-- **What it does:** how a controller opens the in-game panel: **Home, or hold - and + (half a second)** (default), **Home button only**, **Hold - and + only (half a second)**, or **Off**. In the panel the D-pad or left stick moves the focus, A presses, B closes, L and R switch tabs.
-- **What to expect:** while the panel is open no controller input reaches the game, and every button the game holds is released when it opens.
+<!-- PEANUTS begin: the in-game menus (InGamePanel) -->
+- **What it does:** how a controller opens the in-game menus: **Home, or hold - and + (half a second)** (default), **Home button only**, **Hold - and + only (half a second)**, or **Off**. Home pressed, or - and + held, opens the game menu; Home held for half a second opens the quick menu. On a device whose Home is Android's (the AYN Thor), the controller's own Back does the same: pressed the game menu, held the quick menu. In a menu the D-pad or left stick moves the selection, A presses, B goes back; in the quick menu up and down on its rail switch the tab.
+- **What to expect:** while a menu is open no controller input reaches the game, and every button the game holds is released when it opens.
+<!-- PEANUTS end -->
 
 ## Players and controllers
-Each connected gamepad is a player of its own. The in-game panel's **Controllers > Player 1** (shown while a gamepad is connected) picks which one is player 1, or **Automatic**; the choice is kept for every game.
+Each connected gamepad is a player of its own. The in-game quick menu's **Controllers > Player 1** <!-- PEANUTS --> (shown while a gamepad is connected) picks which one is player 1, or **Automatic**; the choice is kept for every game.
 
 ## Rumble
 - **What it does:** the game's vibration, on the controller or on the phone when there is no controller. Per game; Settings has the default.
 - **When to toggle:** off if it is too much or drains the battery faster for you (battery effect not measured yet).
-- **What to expect:** in the in-game panel it applies at once, including turning it on in a game that started with it off.
+- **What to expect:** in the in-game quick menu it applies at once, including turning it on in a game that started with it off. <!-- PEANUTS -->
 - **Default:** on.
 
 ## Button mapping

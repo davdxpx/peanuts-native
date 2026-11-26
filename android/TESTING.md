@@ -80,7 +80,7 @@ The screen stays black with the last log lines at the bottom. Give it a minute: 
 
 **On-screen controls.** With no gamepad connected, a semi-transparent Pro Controller is drawn over the game: the left stick high and the D-pad low on the left, A / B / X / Y high and the right stick (the camera) low on the right, ZL / L and R / ZR in the top corners with − and + next to them, and small L3 / R3 (stick clicks) beside the sticks. They sit in the black bars beside the 16:9 picture as far as they fit. Several fingers work at once; each press gives a short tick (when the phone's touch vibration is on). A touch that starts on a control drives only the control; touches elsewhere in the picture are the game's touchscreen. The small round button at the top centre hides or shows them (crossed out while hidden); hold it for the settings: opacity, size and the tick, kept for the next run. They hide by themselves when a gamepad connects and come back when the last one goes. The log says `[nxlaunch] on-screen controls: 15 in a 2420x1080 view …` and `[dm] input: on-screen controls: 15, the launcher's layout`.
 
-**In-game panel with a controller.** Mid-game, press Home or hold − and + for half a second (Settings › Controller: in-game panel): the panel opens with a yellow frame on its first row and the game stops getting the controller (a button or stick held while it opened is released, nothing stays pressed). The D-pad or the left stick moves the frame (held: it repeats), left / right change a slider or a radio group, A presses, L / R switch tabs (Performance, Display, Controls, General), B closes it. By touch the panel opens with a swipe in from the right edge or Back; a hint says so once per install.
+**In-game menus with a controller.** Mid-game, press Home or hold − and + for half a second (Settings › Controller: in-game panel): the game menu opens with a yellow frame on its first row and the game stops getting the controller (a button or stick held while it opened is released, nothing stays pressed). Hold Home for half a second instead: the quick menu opens. The D-pad or the left stick moves the frame (held: it repeats), left / right change a slider or a radio group, A presses, B goes back or closes; in the quick menu, up and down on the rail switch the tab (Performance, Display, Controls, General, and Cheats and Mods when the game has them). By touch the game menu opens with a swipe in from the left edge or Back, the quick menu with a swipe in from the right edge; a hint says so once per install. <!-- PEANUTS -->
 
 ## 7. Send the log back
 
@@ -154,7 +154,7 @@ A game's page (tap its tile) has **Back up saves**, **Restore saves** and **Impo
 
 ## Pause and background power
 
-Press Home with the game running, wait, open it again: the log has `[lifecycle] background: … since the last pause or resume …` and, coming back, `[lifecycle] foreground: … in <s>` with the threads' CPU over the whole background stay (it should be a few tens of milliseconds a minute; any thread named there with real time is a busy loop to look at), then `[lifecycle] foreground, paused: the game waits for a tap`. The screen shows "Paused"; a tap logs `[lifecycle] continued: …`. The in-game panel's **Pause the game** does the same without leaving. With `DM_WATCH_STALL` set, a long pause must not end in `[RED] watchdog`.
+Press Home with the game running, wait, open it again: the log has `[lifecycle] background: … since the last pause or resume …` and, coming back, `[lifecycle] foreground: … in <s>` with the threads' CPU over the whole background stay (it should be a few tens of milliseconds a minute; any thread named there with real time is a busy loop to look at), then `[lifecycle] foreground, paused: the game waits for a tap`. The screen shows "Paused"; a tap logs `[lifecycle] continued: …`. The game menu's **Pause the game** does the same without leaving. With `DM_WATCH_STALL` set, a long pause must not end in `[RED] watchdog`. <!-- PEANUTS -->
 
 ## Diagnostic switches
 
@@ -274,7 +274,7 @@ android/tools/nxctl.sh env DM_VK_DRAW=0          # draws off from the next frame
 android/tools/nxctl.sh capture 30                # one line per frame: ms, draws, passes, barriers, clears / copies, submissions, recording ms, GPU ms
 android/tools/nxctl.sh screenshot shot.png       # the next game frame (the window texture, before the present scales it) → ./shot.png
 android/tools/nxctl.sh stats                     # the last 60 frames' averages, fps, placed memory, the switches set live
-android/tools/nxctl.sh fps 30                    # the frame rate cap, as the in-game panel sets it (0 = the game's own)
+android/tools/nxctl.sh fps 30                    # the frame rate cap, as the in-game quick menu sets it (0 = the game's own) <!-- PEANUTS -->
 android/tools/nxctl.sh A~0.2                     # any other DM_CTL line: a press, dump, ...
 android/tools/nxctl.sh log 40                    # the run's last log lines (nothing sent)
 ```

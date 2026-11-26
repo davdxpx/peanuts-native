@@ -29,7 +29,7 @@ final class StorageUi {
         List<ActivityManager.RunningAppProcessInfo> l = am == null ? null : am.getRunningAppProcesses();
         if (l != null) for (ActivityManager.RunningAppProcessInfo p : l) {
             if (p.processName == null) continue;
-            if (p.processName.endsWith(":game")) return "A game is running: stop it first (its in-game panel › Stop the game).";
+            if (p.processName.endsWith(":game")) return "A game is running: stop it first (its game menu › Stop the game).";   // PEANUTS: the in-game menus (InGamePanel): Stop is the game menu's
             if (p.processName.endsWith(":pack")) return "Prepare is running: wait for it, or pause it, and close the app's Prepare first.";
         }
         if (GameCopy.running()) return "A copy into the app is running: wait for it.";

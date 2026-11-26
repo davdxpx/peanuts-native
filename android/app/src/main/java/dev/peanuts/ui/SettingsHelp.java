@@ -56,7 +56,7 @@ public final class SettingsHelp {
         put(m, "Button mapping", "Which button of your controller presses which Switch button. A game can have its own.", null);
         put(m, "On-screen controls", "When the touch controls show over the game.", "Auto");
         put(m, "Show / hide button", "The small button at the top centre of the game that hides the on-screen controls.", "On");
-        put(m, "Controller: in-game panel", "How a controller opens the in-game panel. By touch it opens with a swipe in from the right edge, or Back.", "Home, or hold − and +");
+        put(m, "Controller: in-game panel", "How a controller opens the in-game menus: Home pressed or − and + held, the game menu; Home held, the quick menu. By touch a swipe in from the left edge or Back opens the game menu, from the right edge the quick menu.", "Home, or hold − and +");
         put(m, "Rumble", "Lets games rumble the controller, or the phone when no controller is connected.", "On");
         // Screens
         put(m, "Bottom screen", "On a device with a second screen: the game you are on, with Play and its page, while you are in the app. Off leaves that screen to Android.", "On");
@@ -72,7 +72,7 @@ public final class SettingsHelp {
         // App
         put(m, "Haptics", "The app's touch feedback. System follows Android's setting, Off turns the app's own feedback off.", "System");
         put(m, "Motion", "The app's animations. System follows Android's setting, Reduced keeps fades and progress only.", "System");
-        put(m, "Mods tab", "The in-game panel's Mods tab: the game's cheats and mods while it runs. A game's own Mods & Cheats page can hide it for that game.", "On");
+        put(m, "Mods tab", "The quick menu's Cheats and Mods tabs in a game: its cheats and mods while it runs. A game's own Mods & Cheats page can hide them for that game.", "On");
         put(m, "Check for updates", "Looks for a newer version of the app on GitHub.", null);
         // Help
         put(m, "Readiness check", "Checks whether this device can run your games: Android, memory, file access, the GPU and its driver, and each game's needs.", null);
