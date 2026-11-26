@@ -131,6 +131,15 @@ class OffMeansOff(unittest.TestCase):
         self.assertIn('if (!prewarm && g->swh) sw_used(g);', c)
         self.assertNotIn('vka_pw_hash', c)
 
+    def test_the_switch_has_its_row(self):
+        # docs/env_switches.tsv: the fork's switch, kept while vka_pso.c reads it (env_switches.py fork_rows); env-only until the Peanuts tab is open
+        rows = [l.split('\t') for l in read(REPO / 'docs/env_switches.tsv').split('\n')]
+        row = [r for r in rows if r[0] == 'PN_SHADERWATCH']
+        self.assertEqual(len(row), 1)
+        self.assertEqual(row[0][1], 'switch')
+        self.assertIn('DM_VK_PREWARM_MEM_MB', row[0][2])
+        self.assertIn('Extra environment', row[0][2])
+
     def test_the_memory_floor_never_waits(self):
         # on a driver that does not prewarm every thread stops below the floor, before the wait for the others (which would wait for a thread that stopped)
         m = body(self.s, 'static void *pw_main(void *a)')
