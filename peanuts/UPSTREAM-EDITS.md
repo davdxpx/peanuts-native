@@ -3289,3 +3289,20 @@ Peanuts-owned: `dev.peanuts.ingame.BottomScreen`, `GameRows`, `BottomMenu` (the 
   layout opens that menu, not the quick menu over the full-view game. The layout editor closes the one menus and the dim too (`InGamePanel.closeAll`,
   one line in `GameActivity`'s `onEditStart`, marked). The bottom screen's window has no search field (it never takes typing, `ModsTab.Host.typing`).
   Game's rows have the panel's text size, and B in its Stop question goes back to the Stop row, as in the game menu.
+
+### Quick menu button: a button of your own opens the in-game quick menu at once (2026-11-24, on the in-game menus; none set by default)
+
+On a device whose Home belongs to Android (the AYN Thor: Home goes to the launcher and closes the game, Back opens the game menu) no button opened the
+quick menu at once. Settings › Controls › Controller › Quick menu button takes one: the player presses it (`dev.peanuts.ui.QuickButton`). The app's start
+asks nothing about it. A button games use (A, B, X, Y, the shoulders,
+the sticks' presses, the D-pad, + and −) gets a warning first: while it opens the quick menu, the game no longer gets it. Home stays the game menu's
+and, held, the quick menu's; Android's own buttons and the volume are refused. In a game the button opens the quick menu (with one menu: on the tab
+shown last) and closes whichever menu is open; a button the menus move with keeps that job while one is open. The game menu's Quick menu row names it.
+Kept in "peanuts" (`PeanutsPrefs.quickKey`), which the launcher writes and the game's process reads at its start.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `android/app/src/main/java/dev/nxnative/android/GameActivity.java` | 1 | `dispatchKeyEvent`: `InGamePanel.quickKey` after the controller's Back, before the combination | `// PEANUTS` |
+| `android/app/src/main/java/dev/nxnative/android/InGamePanel.java` | (Peanuts' own) | `quickKey`; the Quick menu row's value | Peanuts' own file |
+
+Peanuts-owned: `dev.peanuts.ui.QuickButton`, its row in `LibrarySettings`, `SettingsSections` and `SettingsHelp`, `PeanutsPrefs.quickKey`. Tests: `peanuts/tests/test_ingame_menus.py` (QuickMenuButton).

@@ -15,7 +15,7 @@ LAUNCHER = APP / 'main/java/dev/nxnative/android'
 INGAME = APP / 'main/java/dev/peanuts/ingame'
 RES = APP / 'peanuts/res'
 UI_FILES = [LAUNCHER / 'InGamePanel.java', INGAME / 'GameMenu.java', INGAME / 'Rail.java', INGAME / 'Look.java', INGAME / 'GameRows.java', INGAME / 'BottomMenu.java', INGAME / 'BottomScreen.java', APP / 'main/java/dev/peanuts/ui/MenuFeel.java',
-            APP / 'main/java/dev/peanuts/ui/LayoutChoice.java']
+            APP / 'main/java/dev/peanuts/ui/LayoutChoice.java', APP / 'main/java/dev/peanuts/ui/QuickButton.java']
 
 
 def marked(src, call):
@@ -286,6 +286,31 @@ class Bottom(unittest.TestCase):
         rows = (INGAME / 'GameRows.java').read_text(encoding='utf-8')
         self.assertIn('c.getDrawable(dev.nxnative.android.R.drawable.ic_chevron)', rows, "Game's rows that open a page show the launcher's chevron")
         self.assertIn('if (i == dev.peanuts.PeanutsPrefs.LAYOUT_BOTTOM && !second) continue;', b, 'the bottom screen only with a second display')
+
+
+class QuickMenuButton(unittest.TestCase):
+    def test_set_up_by_pressing_it(self):
+        q = (APP / 'main/java/dev/peanuts/ui/QuickButton.java').read_text(encoding='utf-8')
+        self.assertIn('d.setOnKeyListener(', q, "the controller's next press is the button")
+        self.assertIn('if (games(k)) warn(a, k, done); else take(a, k, done);', q, 'a button games use is taken only after the warning')
+        for k in ('KEYCODE_BUTTON_A', 'KEYCODE_BUTTON_THUMBL', 'KEYCODE_BUTTON_THUMBR', 'KEYCODE_DPAD_UP', 'KEYCODE_BUTTON_L2'):
+            self.assertIn(f'case KeyEvent.{k}:', q[q.index('static boolean games('):], f'{k} warns: games use it')
+        self.assertIn('if (k == KeyEvent.KEYCODE_BUTTON_MODE) return', q, "Home stays the game menu's")
+        self.assertNotIn('static void offer(', q, "the app's start asks nothing about it: its row in Settings › Controls sets it up")
+        self.assertNotIn('QuickButton', (APP / 'main/java/dev/peanuts/ui/Library.java').read_text(encoding='utf-8'), "Home's list asks nothing about it")
+        prefs = (APP / 'main/java/dev/peanuts/PeanutsPrefs.java').read_text(encoding='utf-8')
+        self.assertIn('getInt("quick_key", 0)', prefs, 'none by default')
+        self.assertIn('r("Quick menu button", "controller")', (APP / 'main/java/dev/peanuts/ui/SettingsSections.java').read_text(encoding='utf-8'))
+        self.assertIn('"Quick menu button"', (APP / 'main/java/dev/peanuts/ui/SettingsHelp.java').read_text(encoding='utf-8'))
+
+    def test_it_opens_the_quick_menu(self):
+        g = (LAUNCHER / 'GameActivity.java').read_text(encoding='utf-8')
+        self.assertTrue(marked(g, 'if (InGamePanel.quickKey(this, e)) return true;'), 'GameActivity: the marked hook')
+        self.assertLess(g.index('InGamePanel.quickKey('), g.index('InGamePanel.key(this, combo'), 'before the combination and the game')
+        p = (LAUNCHER / 'InGamePanel.java').read_text(encoding='utf-8')
+        self.assertIn('if (open && dev.peanuts.ui.QuickButton.moves(quickKey)) return false;', p, 'a button the menus move with keeps that job in them')
+        self.assertIn('else if (oneMode(a)) openOne(a, false, true);', p, 'one menu: on the tab shown last')
+        self.assertIn('quickRow.value(dev.peanuts.ui.QuickButton.name(qk), false);', p, "the game menu's Quick menu row names the button")
 
 
 if __name__ == '__main__':

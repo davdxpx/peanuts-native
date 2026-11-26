@@ -57,6 +57,7 @@ public final class SettingsHelp {
         put(m, "On-screen controls", "When the touch controls show over the game.", "Auto");
         put(m, "Show / hide button", "The small button at the top centre of the game that hides the on-screen controls.", "On");
         put(m, "Controller: in-game panel", "How a controller opens the in-game menus: Home pressed or − and + held, the game menu; Home held, the quick menu. By touch a swipe in from the left edge or Back opens the game menu, from the right edge the quick menu.", "Home, or hold − and +");
+        put(m, "Quick menu button", "A button of your own that opens the quick menu in a game at once. Home (on the AYN Thor: Back) still opens the menus, pressed and held, as before.", "Not set");
         put(m, "Rumble", "Lets games rumble the controller, or the phone when no controller is connected.", "On");
         // Screens
         put(m, "Bottom screen", "On a device with a second screen: the game you are on, with Play and its page, while you are in the app. Off leaves that screen to Android.", "On");

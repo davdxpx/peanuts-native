@@ -1809,6 +1809,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         int k = e.getKeyCode();
         boolean down = e.getAction() == KeyEvent.ACTION_DOWN, up = e.getAction() == KeyEvent.ACTION_UP;
         if (InGamePanel.backKey(this, e)) return true;   // PEANUTS: the controller's Back pressed opens the game menu, held the quick menu
+        if (InGamePanel.quickKey(this, e)) return true;   // PEANUTS: the player's own button for the quick menu (dev.peanuts.ui.QuickButton)
         if (gamepad(e.getSource()) || k == KeyEvent.KEYCODE_BUTTON_MODE) {
             int c = InGamePanel.key(this, combo, k, down, e.getRepeatCount(), e.getEventTime());   // PEANUTS: Home held opens the quick menu
             if (c == PadPanel.TOGGLE) { InGamePanel.toggle(this, true); return true; }   // PEANUTS: Home pressed opens the game menu, or closes either menu

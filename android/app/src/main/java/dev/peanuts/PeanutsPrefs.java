@@ -291,6 +291,11 @@ public final class PeanutsPrefs {
     public static boolean modsTabAll(Context c) { return of(c).getBoolean("mods_tab", true); }
     public static void modsTabAll(Context c, boolean on) { of(c).edit().putBoolean("mods_tab", on).apply(); }
 
+    /** Settings › Controls › Controller › Quick menu button (dev.peanuts.ui.QuickButton): the key code of the player's own button for the in-game quick menu,
+     *  0 none; the launcher writes it, the game's process reads it at its start */
+    public static int quickKey(Context c) { return of(c).getInt("quick_key", 0); }
+    public static void quickKey(Context c, int keyCode) { of(c).edit().putInt("quick_key", keyCode).apply(); }
+
     /**
      * The in-game menus' layout: two menus (the game menu at the left, the quick menu at the right), one menu at the right, or one menu on the bottom screen.
      * Picked once in the launcher's question (dev.peanuts.ui.LayoutChoice, kept in "peanuts", which the launcher writes) and changed later in the menu's own

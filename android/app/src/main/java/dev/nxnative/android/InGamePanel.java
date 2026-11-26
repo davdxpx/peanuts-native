@@ -82,6 +82,8 @@ public final class InGamePanel {
         rows.add(new GameMenu.Item("pause", "Pause the game", false, () -> menu.close(() -> { if (a instanceof GameActivity) ((GameActivity) a).pause(); })));
         quickRow = new GameMenu.Item("panel", "Quick menu", true, () -> quick(a, true, padOpened));
         rows.add(quickRow);
+        int qk = dev.peanuts.PeanutsPrefs.quickKey(a);
+        if (qk != 0) quickRow.value(dev.peanuts.ui.QuickButton.name(qk), false);   // the player's own button for it
         backupRow = new GameMenu.Item("save-up", "Back up the save", false, () -> backup(a));
         rows.add(backupRow);
         rows.add(new GameMenu.Item("buttons", "Button mapping", true, () -> PadMapUi.forGame(a, game(a), () -> {})));   // applies at the next start, as its page says
@@ -198,6 +200,25 @@ public final class InGamePanel {
         if (holdRun != null) UI.removeCallbacks(holdRun);
         if (homeHeld) { homeHeld = false; return PadPanel.EAT; }
         return PadPanel.TOGGLE;
+    }
+
+    // The player's own button for the quick menu (dev.peanuts.ui.QuickButton, set up in the launcher): read at the game's start
+    private static int quickKey = -1;
+
+    /** GameActivity.dispatchKeyEvent: the player's own button opens the quick menu (one menu: on the tab shown last), or closes whichever menu is open */
+    static boolean quickKey(Activity a, KeyEvent e) {
+        if (quickKey < 0) quickKey = dev.peanuts.PeanutsPrefs.quickKey(a);
+        if (quickKey == 0 || e.getKeyCode() != quickKey || !dev.peanuts.ui.QuickButton.fromController(e)) return false;
+        SidePanel p = panel(a);
+        boolean open = one() != null || p != null && p.isOpen() || menu != null && menu.isOpen();
+        if (open && dev.peanuts.ui.QuickButton.moves(quickKey)) return false;   // a button the menus move with (the D-pad, A, B, L, R) keeps that job in them
+        if (e.getAction() != KeyEvent.ACTION_DOWN || e.getRepeatCount() > 0) return true;   // its release and repeats are the button's too
+        if (one() != null) one().close();
+        else if (p != null && p.isOpen()) { fromGame = false; p.close(); }
+        else if (menu != null && menu.isOpen()) quick(a, true, true);
+        else if (oneMode(a)) openOne(a, false, true);
+        else quick(a, false, true);
+        return true;
     }
 
     /** Home or the controller's Back held: the quick menu (from the game menu when that is open), unless it is open already */

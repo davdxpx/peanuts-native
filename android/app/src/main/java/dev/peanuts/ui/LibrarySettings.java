@@ -135,6 +135,10 @@ public final class LibrarySettings {
                 .toggle(a, PeanutsPrefs.modsTabAll(a), (b, on) -> { Feel.toggled(b, on); PeanutsPrefs.modsTabAll(a, on); });
         modsTab.view.setOnClickListener(v -> modsTab.toggle.toggle());
         card.addView(modsTab.view);
+        // The player's own button for the in-game quick menu (QuickButton; SettingsSections puts the row under Controls › Controller)
+        PUi.Setting quick = new PUi.Setting(a, "", "Quick menu button", null).chevron(a).value(QuickButton.label(a));
+        quick.view.setOnClickListener(v -> QuickButton.row(a, () -> quick.value(QuickButton.label(a))));
+        card.addView(quick.view);
         refreshRows();
     }
 
