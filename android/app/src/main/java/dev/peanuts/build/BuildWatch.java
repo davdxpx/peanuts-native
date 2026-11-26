@@ -8,8 +8,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
@@ -158,18 +161,55 @@ final class BuildWatch {
         p.pause();
     }
 
-    /** The processes named name, in proc (/proc): an app's process, and the processes it forked, which keep its command line */
+    /**
+     * The packer's processes, in proc (/proc): the ones named name (an app's process, and the processes it forked, which keep its command line) and every
+     * process below them, found by its parent (stat's field 4). The split's and the shader library's workers run nxpack_worker through /system/bin/linker64,
+     * so their command line is the linker's and only their parent ties them to the packer. The named ones first, then each level below them
+     */
     static List<Integer> pids(File proc, String name) {
         List<Integer> out = new ArrayList<>();
         String[] kids = proc.list();
         if (kids == null) return out;
+        Map<Integer, List<Integer>> below = new HashMap<>();
         for (String k : kids) {
             if (k.isEmpty() || k.charAt(0) < '0' || k.charAt(0) > '9') continue;
             int pid;
             try { pid = Integer.parseInt(k); } catch (NumberFormatException e) { continue; }
             if (name.equals(cmdline(new File(proc, k + "/cmdline")))) out.add(pid);
+            Stat s = Stat.read(new File(proc, k + "/stat"));
+            if (s != null) below.computeIfAbsent(s.parent, p -> new ArrayList<>()).add(pid);
+        }
+        Set<Integer> seen = new HashSet<>(out);
+        for (int i = 0; i < out.size(); i++) {
+            List<Integer> b = below.get(out.get(i));
+            if (b != null) for (int pid : b) if (seen.add(pid)) out.add(pid);
         }
         return out;
+    }
+
+    /**
+     * The packer's processes that run now ({@link #pids}), each with its start ({@link #started}): the ones a stop ends, kept before the first is ended,
+     * since a worker whose parent ended has another parent then
+     */
+    static Map<Integer, Long> running(File proc, String name) {
+        Map<Integer, Long> out = new LinkedHashMap<>();
+        for (int pid : pids(proc, name)) {
+            long s = started(proc, pid);
+            if (s >= 0) out.put(pid, s);
+        }
+        return out;
+    }
+
+    /** Whether any of these processes ({@link #running}) still runs: the same pid with the same start, since Linux gives a free pid to a new process */
+    static boolean anyLeft(File proc, Map<Integer, Long> procs) {
+        for (Map.Entry<Integer, Long> e : procs.entrySet()) if (started(proc, e.getKey()) == e.getValue()) return true;
+        return false;
+    }
+
+    /** A process's start (stat's field 22, clock ticks since boot), -1 when it is not there or has ended (a zombie: its parent was not told yet) */
+    static long started(File proc, int pid) {
+        Stat s = Stat.read(new File(proc, pid + "/stat"));
+        return s == null || s.state == 'Z' || s.state == 'X' ? -1 : s.start;
     }
 
     private static String cmdline(File f) {
@@ -184,8 +224,8 @@ final class BuildWatch {
     }
 
     /**
-     * The CPU time the processes named name used so far, in clock ticks: each one's user and system time and its waited-for children's (a forked worker's
-     * time moves to its parent when it ends). -1 when none can be read
+     * The CPU time the packer's processes ({@link #pids}) used so far, in clock ticks: each one's user and system time and its waited-for children's (a
+     * worker's time moves to its parent when it ends, so it is counted once: while it runs, then in its parent). -1 when none can be read
      */
     static long cpuTicks(File proc, String name) {
         long sum = 0;
@@ -197,18 +237,39 @@ final class BuildWatch {
         return any ? sum : -1;
     }
 
-    /** proc/&lt;pid&gt;/stat's utime, stime, cutime and cstime (fields 14 to 17), -1 when it cannot be read. The command in parentheses may hold spaces,
-     *  so the count starts after its last ')': the state is field 3 */
+    /** proc/&lt;pid&gt;/stat's utime, stime, cutime and cstime (fields 14 to 17), -1 when it cannot be read */
     static long statTicks(File stat) {
-        try {
-            String s = new String(Files.readAllBytes(stat.toPath()), StandardCharsets.UTF_8);
-            int close = s.lastIndexOf(')');
-            if (close < 0) return -1;
-            String[] f = s.substring(close + 1).trim().split("\\s+");
-            if (f.length < 15) return -1;
-            return Long.parseLong(f[11]) + Long.parseLong(f[12]) + Long.parseLong(f[13]) + Long.parseLong(f[14]);
-        } catch (IOException | RuntimeException e) {
-            return -1;
+        Stat s = Stat.read(stat);
+        return s == null ? -1 : s.ticks;
+    }
+
+    /** What the watchdog reads of proc/&lt;pid&gt;/stat. The command in parentheses may hold spaces, so the count starts after its last ')': the state is
+     *  field 3 */
+    private static final class Stat {
+        final char state;
+        final int parent;
+        final long ticks, start;
+
+        private Stat(char state, int parent, long ticks, long start) {
+            this.state = state;
+            this.parent = parent;
+            this.ticks = ticks;
+            this.start = start;
+        }
+
+        /** null when it cannot be read */
+        static Stat read(File stat) {
+            try {
+                String s = new String(Files.readAllBytes(stat.toPath()), StandardCharsets.UTF_8);
+                int close = s.lastIndexOf(')');
+                if (close < 0) return null;
+                String[] f = s.substring(close + 1).trim().split("\\s+");
+                if (f.length < 20 || f[0].isEmpty()) return null;
+                return new Stat(f[0].charAt(0), Integer.parseInt(f[1]),
+                        Long.parseLong(f[11]) + Long.parseLong(f[12]) + Long.parseLong(f[13]) + Long.parseLong(f[14]), Long.parseLong(f[19]));
+            } catch (IOException | RuntimeException e) {
+                return null;
+            }
         }
     }
 

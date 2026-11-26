@@ -101,11 +101,14 @@ class Wiring(unittest.TestCase):
         self.assertEqual(p.count('if (stops(reason))'), 2)
         self.assertNotIn('reason.equals("user") || reason.equals("timeout")', p)
         self.assertRegex(p, r'case HUNG:\s+case ENDED: return true;')
-        # every stop keeps the job as paused; a hang ends the packer's processes (the forked ones too, from /proc)
+        # every stop keeps the job as paused; a hang ends the packer's processes (the forked ones and the workers below them too, from /proc), kept
+        # before the first is ended, and waits until those are gone
         self.assertEqual(p.count('endPacker(file, ENDED, null, false);'), 2)
         self.assertIn('endPacker(file, HUNG, ', p)
         self.assertIn('endPacker(otherFile, HUNG, ', p)
-        self.assertIn('for (int pid : BuildWatch.pids(PROC, packName()))', p)
+        self.assertIn('ended.putAll(BuildWatch.running(PROC, packName()));', p)
+        self.assertIn('for (int pid : ended.keySet()) android.os.Process.killProcess(pid);', p)
+        self.assertIn('return !BuildWatch.anyLeft(PROC, ended);', p)
         self.assertIn('if (!"running".equals(Upstream.jobState(j))) return;', p)
         # uptime, CPU time, and a packer that went keeps its time when Android binds a new one
         self.assertRegex(p, r'long now = SystemClock\.uptimeMillis\(\);\s+Link l = link;\s+if \(w\.cpuDue\(now\)\) w\.cpu\(now, BuildWatch\.cpuTicks\(PROC, packName\(\)\), TICKS\);')

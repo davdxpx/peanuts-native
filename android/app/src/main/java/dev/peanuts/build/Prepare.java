@@ -23,7 +23,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -677,18 +679,19 @@ final class Prepare {
     /**
      * Stops the packer's job for the watchdog (BuildWatch.end): kept as paused with reason (as its own Pause keeps it, so Resume goes on from there, and a
      * packer Android starts again runs only a job that is still running) and, with kill, the packer's processes ended, since its tool does not answer the
-     * packer's own stop: the forked ones too, then paused again once they are gone
+     * packer's own stop: the forked ones and the workers below them too (BuildWatch.running), the named ones first so none starts a worker again, then
+     * paused again once they are gone
      */
     private void endPacker(File jobFile, String reason, String detail, boolean kill) {
+        Map<Integer, Long> ended = new LinkedHashMap<>();
         BuildWatch.end(new BuildWatch.Packer() {
             @Override public void pause() { keepPaused(jobFile, reason, detail); }
             @Override public void kill() {
-                for (int pid : BuildWatch.pids(PROC, packName())) {
-                    log("prepare: ending the packer's process " + pid);
-                    android.os.Process.killProcess(pid);
-                }
+                ended.putAll(BuildWatch.running(PROC, packName()));
+                if (!ended.isEmpty()) log("prepare: ending the packer's processes " + ended.keySet());
+                for (int pid : ended.keySet()) android.os.Process.killProcess(pid);
             }
-            @Override public boolean gone() { return BuildWatch.pids(PROC, packName()).isEmpty(); }
+            @Override public boolean gone() { return !BuildWatch.anyLeft(PROC, ended); }
         }, kill, SystemClock::uptimeMillis, 5000, () -> SystemClock.sleep(50));
     }
 

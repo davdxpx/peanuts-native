@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * <li>CPU time: a little (the service's messages) is idle, a new process starts the count over, none readable leaves the job's changes alone;</li>
  * <li>a stop: paused, ended, then paused again, so a save of the packer between the two is undone; without kill only paused;</li>
  * <li>the packer's processes and their CPU time from a /proc of files, its forked processes counted, others not;</li>
+ * <li>its process tree (PEANUTS: #348): the workers below it at any depth counted and ended, the app's main process's not, and a worker left after its parent;</li>
  * <li>the import's watch: progress keeps it quiet, a hang asks it to stop, a stop that does not return is given up, a return in time is not;</li>
  * <li>a tombstone's crashed thread, and which ends stop a game at once (a native crash in the import's thread, or one the record does not name);</li>
  * <li>a full disk in the importer's and the packer's words, and a process's end in the player's words.</li>
@@ -42,6 +43,7 @@ public final class BuildWatchJvmTest {
         cpu();
         end();
         proc(new File(dir, "proc"));
+        tree(new File(dir, "tree"));   // PEANUTS: #348
         importWatch();
         tombstone();
         full();
@@ -185,10 +187,15 @@ public final class BuildWatchJvmTest {
 
     /** A stat line: pid, the command in parentheses, then the fields from 3 on with utime, stime, cutime, cstime as fields 14 to 17 */
     private static String stat(int pid, String comm, long utime, long stime, long cutime, long cstime) {
-        StringBuilder b = new StringBuilder().append(pid).append(" (").append(comm).append(") S");
-        for (int field = 4; field <= 13; field++) b.append(' ').append(field * 10);
+        return stat(pid, comm, 'S', 40, utime, stime, cutime, cstime, 22);   // PEANUTS: #348, the parent and the start as before
+    }
+
+    /** A stat line with the state and the parent (fields 3 and 4) and the start (field 22) too. PEANUTS: #348, the packer's process tree */
+    private static String stat(int pid, String comm, char state, int parent, long utime, long stime, long cutime, long cstime, long start) {
+        StringBuilder b = new StringBuilder().append(pid).append(" (").append(comm).append(") ").append(state).append(' ').append(parent);
+        for (int field = 5; field <= 13; field++) b.append(' ').append(field * 10);
         b.append(' ').append(utime).append(' ').append(stime).append(' ').append(cutime).append(' ').append(cstime);
-        for (int field = 18; field <= 52; field++) b.append(' ').append(field);
+        for (int field = 18; field <= 52; field++) b.append(' ').append(field == 22 ? start : field);
         return b.append('\n').toString();
     }
 
@@ -222,6 +229,50 @@ public final class BuildWatchJvmTest {
         write(new File(proc, "104/cmdline"), pack + "\0");
         write(new File(proc, "104/stat"), "104 (cut");
         same(-1L, BuildWatch.statTicks(new File(proc, "104/stat")), "a stat cut short");
+    }
+
+    /** PEANUTS: #348, the packer's process tree: the workers the split and the shader library start through the linker, found by their parent */
+    private static void tree(File proc) throws IOException {
+        delete(proc);
+        String pack = "dev.example.app:pack", worker = "/system/bin/linker64\0/data/app/python/bin/nxpack_worker\0";
+        write(new File(proc, "200/cmdline"), pack + "\0");
+        write(new File(proc, "200/stat"), stat(200, "ple.app:pack", 'S', 1, 80, 20, 0, 0, 5_000));
+        write(new File(proc, "201/cmdline"), pack + "\0");   // a forked one: its name and its parent
+        write(new File(proc, "201/stat"), stat(201, "ple.app:pack", 'S', 200, 6, 4, 0, 0, 5_100));
+        write(new File(proc, "210/cmdline"), worker);   // a worker of the packer's own process
+        write(new File(proc, "210/stat"), stat(210, "linker64", 'R', 200, 250, 50, 0, 0, 5_200));
+        write(new File(proc, "211/cmdline"), worker);   // a worker of the forked one
+        write(new File(proc, "211/stat"), stat(211, "linker64", 'R', 201, 40, 10, 0, 0, 5_300));
+        write(new File(proc, "212/cmdline"), "nxpack_worker\0");   // one a worker started
+        write(new File(proc, "212/stat"), stat(212, "nxpack_worker", 'S', 210, 4, 1, 0, 0, 5_400));
+        write(new File(proc, "230/cmdline"), "");   // a worker that ended, its parent not told yet: its time is not in the parent's yet
+        write(new File(proc, "230/stat"), stat(230, "linker64", 'Z', 200, 5, 2, 0, 0, 5_500));
+        write(new File(proc, "220/cmdline"), "dev.example.app\0");   // the app's main process and a worker of its own: not the packer's
+        write(new File(proc, "220/stat"), stat(220, "dev.example.app", 'S', 1, 9_000, 999, 0, 0, 100));
+        write(new File(proc, "221/cmdline"), worker);
+        write(new File(proc, "221/stat"), stat(221, "linker64", 'R', 220, 500, 500, 0, 0, 200));
+        List<Integer> pids = BuildWatch.pids(proc, pack);
+        same(new java.util.HashSet<>(Arrays.asList(200, 201)), new java.util.HashSet<>(pids.subList(0, 2)), "the named ones first");
+        Collections.sort(pids);
+        same(Arrays.asList(200, 201, 210, 211, 212, 230), pids, "and every process below them, at any depth");
+        same(100L + 10 + 300 + 50 + 5 + 7, BuildWatch.cpuTicks(proc, pack), "the workers' CPU time counted, the main process's not");
+        java.util.Map<Integer, Long> run = BuildWatch.running(proc, pack);
+        List<Integer> ends = new ArrayList<>(run.keySet());
+        same(new java.util.HashSet<>(Arrays.asList(200, 201)), new java.util.HashSet<>(ends.subList(0, 2)), "the named ones are ended first");
+        Collections.sort(ends);
+        same(Arrays.asList(200, 201, 210, 211, 212), ends, "a stop ends all but the one that ended");
+        same(5_200L, run.get(210), "each with its start");
+        check(BuildWatch.anyLeft(proc, run), "they run");
+        // the packer's processes end: a worker whose parent ended has another parent, and is still found by what was kept
+        for (int pid : new int[] {200, 201, 211, 212}) delete(new File(proc, String.valueOf(pid)));
+        write(new File(proc, "210/stat"), stat(210, "linker64", 'R', 1, 250, 50, 0, 0, 5_200));
+        same(-1L, BuildWatch.cpuTicks(proc, pack), "no packer: nothing of it to read");
+        check(BuildWatch.anyLeft(proc, run), "the worker is left");
+        write(new File(proc, "210/stat"), stat(210, "linker64", 'Z', 1, 250, 50, 0, 0, 5_200));
+        check(!BuildWatch.anyLeft(proc, run), "it ended (a zombie is no process that runs)");
+        write(new File(proc, "210/stat"), stat(210, "linker64", 'S', 1, 0, 0, 0, 0, 9_000));
+        check(!BuildWatch.anyLeft(proc, run), "its pid given to a new process is not it");
+        same(-1L, BuildWatch.started(proc, 999), "a pid that is not there");
     }
 
     /** Waits up to 5 s for a condition the watch's thread sets */
