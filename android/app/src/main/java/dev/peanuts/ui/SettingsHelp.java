@@ -60,6 +60,7 @@ public final class SettingsHelp {
         put(m, "Controller: in-game panel", "How a controller opens the in-game panel. By touch it opens with a swipe in from the right edge, or Back.", "Home, or hold − and +");
         put(m, "Mods tab", "The in-game panel's Mods tab: the game's cheats and mods while it runs. A game's own Mods & Cheats page can hide it for that game.", "On");
         put(m, "Rumble", "Lets games rumble the controller, or the phone when no controller is connected.", "On");
+        put(m, "amiibo pictures", "Shows each amiibo's picture, loaded from AmiiboAPI's images on raw.githubusercontent.com when a page shows it, and kept on this device. Off, the app fetches nothing for amiibo and shows its own card.", "Off");
         put(m, "amiibo", "Lets games find your amiibo on Peanuts' own stand, no figure or keys needed. Off, a game finds no amiibo, as before. A game's own amiibo switch under its Controls comes first. From the next start.", "Off");
         // Screens
         put(m, "Bottom screen", "On a device with a second screen: the game you are on, with Play and its page, while you are in the app. Off leaves that screen to Android.", "On");

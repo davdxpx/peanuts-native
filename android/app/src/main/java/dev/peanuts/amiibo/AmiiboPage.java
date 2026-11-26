@@ -36,11 +36,12 @@ import dev.peanuts.ui.Icons;
 import dev.peanuts.ui.PUi;
 
 /**
- * The game page's amiibo area (dev.peanuts.ui.GamePage, GameAreas.AMIIBO): the player's own amiibo that fit the game first, then every amiibo that fits it
- * (AmiiboAPI's table), as square pictures with their names; a search over all of them; Import of .bin files, folders and ZIP packs. An amiibo opens its own
- * page in the area: its picture, name, series and type, what it does in this game, the game's data on it with Reset game data, and the other games that use
- * it. Pictures load as the area opens (AmiiboPictures), Peanuts' own card stands in for one that is not there. B goes from an amiibo's page back to the
- * pictures (GamePage.onBack asks {@link #back}).
+ * The game page's amiibo area (dev.peanuts.ui.GamePage, GameAreas.AMIIBO): the game's amiibo switch first (AmiiboSwitch: amiibo is on only where the
+ * player turns it on), then the player's own amiibo that fit the game, then every amiibo that fits it (AmiiboAPI's table), as square cards with their
+ * names; a search over all of them; Import of .bin files, folders and ZIP packs. An amiibo opens its own page in the area: its picture, name, series and
+ * type, what it does in this game, the game's data on it with Reset game data, and the other games that use it. Pictures load as the area opens
+ * (AmiiboPictures), once the player has turned them on (Settings › Controls › amiibo pictures, off by default); Peanuts' own card stands in until then, offline
+ * and for one that is not there. B goes from an amiibo's page back to the pictures (GamePage.onBack asks {@link #back}).
  */
 public final class AmiiboPage {
     private AmiiboPage() {}
@@ -51,8 +52,9 @@ public final class AmiiboPage {
     private static String titleId, game, query = "", detail;
     private static boolean wide, waiting;
 
-    /** The tile's line: "2 of yours fit, 35 in all" */
+    /** The tile's line: "2 of yours fit, 35 in all"; "Off for this game" while amiibo is off for it */
     public static CharSequence tileLine(Context c, String titleId) {
+        if (!AmiiboSwitch.on(c, titleId)) return "Off for this game";
         AmiiboDb db = AmiiboStand.db(c);
         List<AmiiboDb.Amiibo> fit = db.fitting(titleId);
         int mine = AmiiboStore.forGame(AmiiboStore.list(c.getFilesDir()), titleId, ids(fit)).size();
@@ -99,6 +101,7 @@ public final class AmiiboPage {
         PUi.add(body, top, 2);
 
         if (!query.isEmpty()) { results(a, db, all); return; }
+        PUi.add(body, switchRow(a), 14);
         PUi.add(body, PUi.section(a, "Yours"), 18);
         if (mine.isEmpty()) {
             TextView none = PUi.add(body, PUi.small(a, all.isEmpty() ? "None of yours yet. Import .bin files, a folder or a ZIP pack of your own amiibo, or pick one in the game."
@@ -123,8 +126,22 @@ public final class AmiiboPage {
             PUi.add(body, PUi.small(a, "AmiiboAPI lists no amiibo for this game. It looked for one, so any of yours can be placed."), 14)
                     .setPadding(PUi.dp(a, 4), 0, PUi.dp(a, 4), 0);
         }
-        PUi.add(body, PUi.small(a, "Pictures and names come from AmiiboAPI. Each game keeps its own data on an amiibo; nothing is written to a figure."), 18)
+        PUi.add(body, PUi.small(a, (AmiiboSwitch.pictures(a) ? "Pictures and names come from AmiiboAPI."
+                : "Names come from AmiiboAPI's list in the app. Its pictures show once you turn them on in Settings › Controls › amiibo pictures.")
+                + " Each game keeps its own data on an amiibo; nothing is written to a figure."), 18)
                 .setPadding(PUi.dp(a, 4), 0, PUi.dp(a, 4), 0);
+    }
+
+    /** The game's amiibo switch (the same as the one under its Controls): placing needs it on, from the game's next start */
+    private static View switchRow(Activity a) {
+        boolean on = AmiiboSwitch.on(a, titleId);
+        LinearLayout card = PUi.listCard(a);
+        PUi.Setting row = new PUi.Setting(a, "", "amiibo in " + game, null)
+                .value(on ? AmiiboSwitch.ON + "." : "Off: " + game + " finds no amiibo. Turn it on to place yours, from its next start.")
+                .toggle(a, on, (b, now) -> { Feel.toggled(b, now); AmiiboSwitch.game(a, titleId, now); b.post(AmiiboPage::build); });
+        row.view.setOnClickListener(v -> row.toggle.toggle());
+        card.addView(row.view);
+        return card;
     }
 
     private static void results(Activity a, AmiiboDb db, List<AmiiboStore.Own> all) {
@@ -222,7 +239,7 @@ public final class AmiiboPage {
         return col;
     }
 
-    /** The picture of an amiibo into a card: Peanuts' own card (the stand icon) at once, the picture when it has come */
+    /** The picture of an amiibo into a card: Peanuts' own card (the stand icon) at once, the picture when it has come (none while the pictures are off) */
     static void picture(Context c, FrameLayout card, String id, int px) {
         ImageView img = new ImageView(c);
         img.setScaleType(ImageView.ScaleType.FIT_CENTER);

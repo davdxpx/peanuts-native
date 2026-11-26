@@ -2837,12 +2837,15 @@ Peanuts' own classes) as Peanuts-owned.
 ### amiibo Part B: a game's amiibo on its page (2026-11-24, GitHub issue #582, on Round 65)
 
 A game that uses amiibo (AmiiboAPI's table lists it, or it was seen initializing nfp) gets an amiibo tile after Controls. Its area
-(`dev.peanuts.amiibo.AmiiboPage`): the player's own amiibo that fit the game first (the last placed in it first), then every amiibo that fits it, as square
-pictures with their names; a search over all of them (name, series, game series); Import of .bin files or ZIP packs, or a folder (the system's picker,
+(`dev.peanuts.amiibo.AmiiboPage`): the game's amiibo switch (`AmiiboSwitch`, the same as the one under its Controls; 2026-11-26), the player's own amiibo
+that fit the game (the last placed in it first), then every amiibo that fits it, as square pictures with their names; a search over all of them (name, series, game series); Import of .bin files or ZIP packs, or a folder (the system's picker,
 `LibrarySettings.result`, codes 87 and 88). An amiibo opens its page in the area: the picture, series and type, what it does in this game, the game's data on
 it with Reset game data (that game's area only), where it came from and how often it was placed, the other games that use it, and Remove from yours. B goes
-back from the page or the search to the pictures (`GamePage.onBack`). Pictures load when the area shows them (`AmiiboPictures`), Peanuts' own card (the
-stand icon, `pi_amiibo`) stands in until then or when there is none. No upstream file changes.
+back from the page or the search to the pictures (`GamePage.onBack`). Pictures load when the area shows them (`AmiiboPictures`), once the player has
+turned them on: Settings › Controls › amiibo pictures (`LibrarySettings`, `SettingsSections`, `SettingsHelp`), off by default, names the host
+(2026-11-26, igawa6's review of #711 and #712). Peanuts' own card (the stand icon, `pi_amiibo`) stands in until then, while they are off, offline, or when
+there is none. The tile says "Off for this game" while amiibo is off for it. No upstream file changes.
 
 Peanuts-owned: `AmiiboPage`, `GameAreas.AMIIBO`, its lines in `GamePage` and `LibrarySettings`, `pi_amiibo` (`peanuts/scripts/icons.py`). Tests:
-`peanuts/tests/test_amiibo.py` (Page: the wiring, the words, pictures only on demand), `peanuts/tests/test_game_page.py` (`GameAreasJvmTest`: the ten areas).
+`peanuts/tests/test_amiibo.py` (Page: the wiring, the switch, the pictures' row, pictures only on demand, the words),
+`peanuts/tests/test_settings_search.py` ("mii" finds both amiibo rows), `peanuts/tests/test_game_page.py` (`GameAreasJvmTest`: the ten areas).
