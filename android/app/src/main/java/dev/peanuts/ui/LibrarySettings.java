@@ -143,6 +143,12 @@ public final class LibrarySettings {
                 .toggle(a, PeanutsPrefs.modsTabAll(a), (b, on) -> { Feel.toggled(b, on); PeanutsPrefs.modsTabAll(a, on); });
         modsTab.view.setOnClickListener(v -> modsTab.toggle.toggle());
         card.addView(modsTab.view);
+        // amiibo for every game (dev.peanuts.amiibo.AmiiboSwitch; SettingsSections puts the row under Controls › Controller): off by default, a game's own switch
+        // under its Controls comes first
+        PUi.Setting amiibo = new PUi.Setting(a, "", "amiibo", null).value("Games find your amiibo on Peanuts' stand, from their next start. Off: they find none, as before.")
+                .toggle(a, dev.peanuts.amiibo.AmiiboSwitch.all(a), (b, on) -> { Feel.toggled(b, on); dev.peanuts.amiibo.AmiiboSwitch.all(a, on); });
+        amiibo.view.setOnClickListener(v -> amiibo.toggle.toggle());
+        card.addView(amiibo.view);
         refreshRows();
     }
 

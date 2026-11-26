@@ -135,10 +135,11 @@ keeps no choice of its own. For a game that started Game owned before 0.1.8 (opt
 `running`, `running_label`, `caps` (every cap of the menu: `value`, `label`, `offered`) and
 `second_screen` (`on`, `off`, or null when there is no second display or the game is not in front).
 
-`amiibo` works the game's amiibo stand (dm/peanuts/peanuts_amiibo.c): `status` answers it, `off` takes the amiibo off, an ID of
+`amiibo` works the game's amiibo stand (dm/peanuts/peanuts_amiibo.c), in a game started with amiibo on (`peanuts/docs/AMIIBO.md`; in any other the
+answer is `not_for_this_game`): `status` answers it, `off` takes the amiibo off, an ID of
 16 hex digits places that amiibo of the app's list (the player's own copy of it, made the first time) and `own:<key>` one of the player's
 own (`<ID>-<UID>`, the folder's name under `files/amiibo/own`). `data.placed` is `found` when the game was searching and took it at once,
-`ready` when the game takes it at its next search. Every answer carries the stand as `amiibo_lib`, `amiibo_state` (0 initialized,
+`ready` when the game takes it at its next search. Every answer carries the stand as `amiibo_enabled` (1), `amiibo_lib`, `amiibo_state` (0 initialized,
 1 searching, 2 found, 3 taken off, 4 read by the game), `amiibo_search` (searches so far), `amiibo_searching_ms`, `amiibo_on`,
 `amiibo_ready`, `amiibo_reads` and `amiibo_access` (the game's area last opened). No animation and no card: this is the stand alone.
 
@@ -147,7 +148,7 @@ own (`<ID>-<UID>`, the folder's name under `files/amiibo/own`). `data.placed` is
 | `not_running` | No game runs |
 | `other_game` | `title_id` names another game than the one that runs |
 | `not_offered` | `fps_cap`: the game does not offer that cap. `data.offered` lists the ones it does. `amiibo`: no such amiibo |
-| `not_for_this_game` | `console_mode`: the game's Resolution sets the console mode. `amiibo`: the host has no amiibo stand |
+| `not_for_this_game` | `console_mode`: the game's Resolution sets the console mode. `amiibo`: amiibo is off for this game, or the host has no stand |
 | `no_second_screen` | `second_screen`: there is no second display, or the game is not in front |
 | `not_ready` | The game's screen is still starting and has no controls yet |
 | `no_answer` | The game did not answer within 4 s (its screen is starting or stopping) |
