@@ -397,6 +397,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         if (!skipShown) ui.postDelayed(skipRun, 30000);
     }
     private void skipShow(int pct) {
+        if (dev.peanuts.smooth.Smooth.hides(this, dev.peanuts.smooth.SmoothItems.SKIP)) { Native.note("skipped work: " + pct + " % of draws; the notice is off (Smooth Experience)"); return; }   // PEANUTS
         GpuDriver.Info drv = GpuDriver.selected(this, titleId());
         String st = Native.skipStatus();
         Native.note("skipped work: notice shown (" + pct + " % of draws; driver: " + (drv == null ? "system" : drv.label()) + ")");
@@ -425,12 +426,16 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
     // still make while draws are skipped for them (Native.warmStatus): shown, small, at the top, while that is above 0, with the count; gone when it is 0. A host without
     // the entry point (-1) is not asked again. Without it a first run looked broken: EA SPORTS FC 27's pitch was black for a minute with no word why on screen
     private TextView warmView;
+    private boolean warmQuiet;   // Smooth Experience took the notice: its log line is written once a run
     private final Runnable warmRun = this::warmTick;
     private void warmStart() { ui.removeCallbacks(warmRun); ui.postDelayed(warmRun, 1000); }
     private void warmTick() {
         if (rootView == null) return;
         int n = stopped || paused ? 0 : Native.warmStatus();
-        if (dev.peanuts.ui.WarmNotice.shown(n)) {
+        if (dev.peanuts.ui.WarmNotice.shown(n) && dev.peanuts.smooth.Smooth.hides(this, dev.peanuts.smooth.SmoothItems.WARM)) {   // Smooth Experience: the log only, once
+            if (!warmQuiet) Native.note("preparing graphics: " + n + " pipelines waiting; the notice is off (Smooth Experience)");
+            warmQuiet = true;
+        } else if (dev.peanuts.ui.WarmNotice.shown(n)) {
             if (warmView == null) {
                 warmView = new TextView(this);
                 warmView.setTextColor(Color.WHITE);
@@ -987,6 +992,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
 
     private void start() {
         String id = getIntent().getStringExtra("title_id"), name = getIntent().getStringExtra("name");
+        dev.peanuts.ui.StartCover.add(this, rootView, rootView.indexOfChild(pausedView), overlay, this::end);   // PEANUTS: Smooth Experience's start screen in place of the log's lines (dev.peanuts.ui.StartCover)
         File game = new File(getIntent().getStringExtra("game")), packDir = new File(getIntent().getStringExtra("pack"));
         File files = getExternalFilesDir(null);
         try {
@@ -1139,12 +1145,12 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             if (readinessEnv > 0) Native.note("[nxlaunch] readiness check: ran with the game's " + readinessEnv + " environment lines (all but the paths), set before the GPU driver's first device");
             for (String n : unknownNotes) Native.note(n);
             for (String n : quietNotes) Native.note(n);   // PEANUTS
-            if (!unknownNotes.isEmpty()) android.widget.Toast.makeText(this, unknownNotes.get(0).replace("[RED] ", ""), android.widget.Toast.LENGTH_LONG).show();
+            if (!unknownNotes.isEmpty() && !dev.peanuts.smooth.DevView.plain(this)) android.widget.Toast.makeText(this, unknownNotes.get(0).replace("[RED] ", ""), android.widget.Toast.LENGTH_LONG).show();   // PEANUTS: Developer view off: the log only
             if (!refused.isEmpty()) {
                 String msg = "not taken: " + String.join(", ", refused) + ": the launcher sets the game's paths (DM_SAVE, DM_ROMFS, DM_TEMP, DM_ROOT, DM_AOC_DIR, HOME)"
                         + (testApp() ? "; DM_SAVE is taken from env-<title ID>.txt only" : "");
                 Native.note("[RED] env: " + msg);
-                android.widget.Toast.makeText(this, "Environment lines " + msg, android.widget.Toast.LENGTH_LONG).show();
+                if (!dev.peanuts.smooth.DevView.plain(this)) android.widget.Toast.makeText(this, "Environment lines " + msg, android.widget.Toast.LENGTH_LONG).show();   // PEANUTS: Developer view off: the log only
             }
             if (testSave != null) Native.note("[nxlaunch] test app: DM_SAVE from env-" + id + ".txt: " + testSave);
             Native.note("frame generation: " + (Lsfg.on(this) ? "on" : "off") + "; " + Lsfg.note);
@@ -1422,12 +1428,13 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             if (text.contains("[nvn] frame ") || text.contains("[longframe]") || text.contains("window frame rate")) drawing = true;   // the host logs these once frames are presented
             if (text.contains("CRASH sig=") || text.contains("FATAL")) failed = true;
             overlay.setVisibility(!drawing || failed || TouchControls.showLog(this) ? View.VISIBLE : View.GONE);
+            dev.peanuts.ui.StartCover.tail(this, overlay, drawing, failed, TouchControls.showLog(this));   // PEANUTS: the start screen goes at the first frame, a failure shows its card
             String[] lines = text.split("\n");
             StringBuilder s = new StringBuilder();
             for (int i = Math.max(from > 0 ? 1 : 0, lines.length - 8); i < lines.length; i++) s.append(lines[i]).append('\n');
             overlay.setText(s.toString().trim());
         } catch (IOException ignored) { /* next time */ }
-        ui.postDelayed(this::tail, 1000);
+        ui.postDelayed(this::tail, dev.peanuts.ui.StartCover.next(1000));   // PEANUTS: every 250 ms while the start screen waits for the first frame
     }
 
     // ---- The host's side of the Activity: input devices, audio focus and route, motion, lifecycle ----
@@ -1797,6 +1804,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
     @Override public boolean dispatchKeyEvent(KeyEvent e) {
         if (dev.peanuts.build.ShaderCapture.active(this) && gamepad(e.getSource())) return true;   // PEANUTS: no gameplay input during preparation
         if (prewarmCover != null && gamepad(e.getSource())) return super.dispatchKeyEvent(e);   // PEANUTS: Preparing shaders: the pad moves over its buttons; nothing goes to the game or the panel under it
+        if (dev.peanuts.ui.StartCover.takesPad() && gamepad(e.getSource())) return super.dispatchKeyEvent(e);   // PEANUTS: the start screen's failure card: the pad moves over Share log and Close
         if (panel == null) return super.dispatchKeyEvent(e);   // no host for this game (onCreate): only the message is shown
         // A controller opens and closes the in-game panel (PadPanel.Combo: Home, or − and + held; Settings › Controller: in-game panel); while it is open the pad moves
         // through it and the game gets no pad keys. A key the panel took a press of stays the panel's until it comes up

@@ -152,7 +152,7 @@ public final class ModBuildService extends Service {
     private Notification note(int percent, String detail) {
         Intent cancel = new Intent(this, ModBuildService.class).setAction(ACTION_CANCEL);
         Notification.Builder b = new Notification.Builder(this, CHANNEL).setSmallIcon(android.R.drawable.stat_sys_download).setContentTitle("Building " + name + " with mods")
-                .setContentText(detail).setOnlyAlertOnce(true).setOngoing(true).setProgress(100, Math.max(0, Math.min(100, percent)), false)
+                .setContentText(dev.peanuts.smooth.DevView.build(this, detail)).setOnlyAlertOnce(true).setOngoing(true).setProgress(100, Math.max(0, Math.min(100, percent)), false)
                 .addAction(new Notification.Action.Builder(null, "Cancel", PendingIntent.getService(this, 1, cancel, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT)).build());
         Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
         if (open != null) b.setContentIntent(PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
@@ -160,9 +160,10 @@ public final class ModBuildService extends Service {
     }
 
     private Notification done(boolean ok, String message) {
+        String shown = ok ? dev.peanuts.smooth.DevView.build(this, message) : message;   // Developer view off: no counts or timings in a ready game's message
         Notification.Builder b = new Notification.Builder(this, BuildPipeline.endChannel(nm, CHANNEL, !ok && cancelled)).setSmallIcon(ok ? android.R.drawable.stat_sys_download_done : android.R.drawable.stat_notify_error)
-                .setContentTitle(ok ? name + " is ready to play with mods" : "Building " + name + " with mods stopped").setContentText(message.split("\n")[0])
-                .setStyle(new Notification.BigTextStyle().bigText(message.split("\n")[0])).setAutoCancel(true);
+                .setContentTitle(ok ? name + " is ready to play with mods" : "Building " + name + " with mods stopped").setContentText(shown.split("\n")[0])
+                .setStyle(new Notification.BigTextStyle().bigText(shown.split("\n")[0])).setAutoCancel(true);
         Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
         if (open != null) b.setContentIntent(PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
         return b.build();

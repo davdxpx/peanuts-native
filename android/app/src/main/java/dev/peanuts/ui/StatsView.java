@@ -470,6 +470,7 @@ public final class StatsView extends FrameLayout {
 
     /** The build tag, moved here from over the game while the overlay hides for this page (GameScreen.buildTag); null hides it */
     public void buildTag(CharSequence t) {
+        if (dev.peanuts.smooth.DevView.plain(getContext())) t = null;   // Developer view off: no build tag (the log's first line names the build)
         if (t == null ? buildTagText == null : buildTagText != null && t.toString().contentEquals(buildTagText)) return;
         buildTagText = t;
         if (buildTag != null) { buildTag.setText(t); buildTag.setVisibility(t == null ? GONE : VISIBLE); }
@@ -679,7 +680,7 @@ public final class StatsView extends FrameLayout {
 
     private void slowStats() {
         Context c = getContext();
-        String d = Hud.driverName();
+        String d = dev.peanuts.smooth.DevView.plain(c) ? null : Hud.driverName();   // Developer view off: no driver name (the logs keep it)
         driver.setText(d == null ? "" : d.toUpperCase(Locale.ROOT));
         ((View) driver.getParent()).setVisibility(d == null || !shown.contains(StatsConfig.PILLS) ? View.GONE : View.VISIBLE);
 

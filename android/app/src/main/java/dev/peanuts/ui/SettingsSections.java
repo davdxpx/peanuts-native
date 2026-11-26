@@ -80,12 +80,14 @@ public final class SettingsSections {
             new Section("app", "App", "settings", "How the app feels, its in-game panel, and its updates.",
                     new Group("Feel", r("Haptics", "controller"), r("Motion", "play")),
                     new Group("In-game panel", r("Mods tab", "mods")),
-                    new Group("Updates", r("Check for updates", "download"))),
+                    new Group("Updates", r("Check for updates", "download")),
+                    new Group("Extras", r("Smooth Experience", "peanut"), r("Start screen", "play"), r("Preparing graphics notice", "hourglass"),
+                            r("Graphics driver notice", "driver"))),
             new Section("help", "Help", "info", "Checks for this device, the log, and answers to common questions.",
                     new Group("Checks", r("Readiness check", "check"), r("Graphics self-test", "play")),
                     new Group("Questions and logs", r("Questions and answers", "info"), r("Share log", "share"))),
             new Section("developer", "Developer", "build", "For testing and for adb. Leave these as they are unless you were asked to change one.",
-                    new Group("Testing", r("Advanced", "settings"), r("Tester settings", "build"), r("ADB control (debug)", "build"))),
+                    new Group("Testing", r("Advanced", "settings"), r("Tester settings", "build"), r("ADB control (debug)", "build"), r("Developer view", "terminal"))),
             new Section("about", "About", "peanut", "The app, the games in it and the people who made it.")));
 
     /** What each section holds, in a few words: a tablet's tile of it (SettingsPage's hub) */
@@ -93,8 +95,8 @@ public final class SettingsSections {
             {"library", "Game, update and DLC folders, builds, space and play time"}, {"console", "Keys, firmware and the clock"},
             {"graphics", "GPU driver, picture and speed"}, {"controls", "Buttons, touch controls and the controller"},
             {"screens", "Both screens, a TV, rotation, keeping the screen on"}, {"users", "Users and Miis"},
-            {"app", "Haptics, motion, the in-game panel and updates"},
-            {"help", "Readiness check, self-test, log and answers"}, {"developer", "Advanced, tester settings and adb"},
+            {"app", "Haptics, motion, the in-game panel, updates and Smooth Experience"},
+            {"help", "Readiness check, self-test, log and answers"}, {"developer", "Advanced, tester settings, adb and Developer view"},
             {"about", "The app, its games, credits, licenses and Peanuts cracked"}};
 
     /** A section's few words of what it holds; its line when there are none. twoScreens: the device has a second screen (Screens says so) */

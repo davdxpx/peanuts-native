@@ -1817,7 +1817,7 @@ public final class Library {
             // details and fixes stay on the build card
             i.body = BuildListener.CANCELLED.equals(b.code) ? "The build stopped. Tap Resume on the game's card to go on." : "The build stopped. The game's card says why and what to do.";
         } else {
-            String d = b.detail.trim();
+            String d = dev.peanuts.smooth.DevView.build(a, b.detail).trim();   // Developer view off: no counts, file names or timings (the build log keeps them)
             i.body = (d.isEmpty() ? "Working" : d.endsWith(".") ? d.substring(0, d.length() - 1) : d) + ". It goes on with the screens off.";
             i.stop = stopAsk(name);
         }
@@ -2039,7 +2039,7 @@ public final class Library {
             buildBar.setVisibility(View.GONE);
             buildPct.setVisibility(View.GONE);
         } else {
-            String d = b.detail.trim();
+            String d = dev.peanuts.smooth.DevView.build(a, b.detail).trim();   // Developer view off: no counts, file names or timings (the build log keeps them)
             buildBody.setText((d.isEmpty() ? "Working" : d.endsWith(".") ? d.substring(0, d.length() - 1) : d) + "." + GOES_ON);
             buildBar.setVisibility(View.VISIBLE);
             Motion.progress(buildBar, b.percent, fresh);

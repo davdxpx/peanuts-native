@@ -479,8 +479,8 @@ final class SidePanel extends FrameLayout {
         boolean simple = Prefs.simpleRes(act, game());   // a game with Resolution presets, tester rows off: no Upscaler or Dynamic resolution here (Settings › Help › Tester settings)
         if (!simple && (Prefs.dlssGame(game()) || GameUpscaler.shown(act, game()))) {   // right under the frame rate cap: the Upscaler (the game's own upscaler and the window's scaling to the screen), for games whose network it replaces; for a game on the DLSS stand-in (no network to replace), the stand-in's modes with Motion clarity / sharpness
             GameUpscaler.rows(act, game(), box);
-            note(act instanceof GameActivity && ((GameActivity) act).live() ? "Applies from the next frame, kept for this game (the same setting as Game settings › Upscaler)."
-                    : "Applies at the next start (this run takes no live changes: DM_CTL is off).");
+            note(dev.peanuts.smooth.DevView.panel(act, act instanceof GameActivity && ((GameActivity) act).live() ? "Applies from the next frame, kept for this game (the same setting as Game settings › Upscaler)."
+                    : "Applies at the next start (this run takes no live changes: DM_CTL is off)."));   // PEANUTS: Developer view off: player words (DevView.panel)
         }
         if (Prefs.drsGame(game()) && !simple) {
             TextView drsHead = head("Dynamic resolution");   // the render size's range (Prefs.DRS), applied at each step; the heading shows it
@@ -764,8 +764,8 @@ final class SidePanel extends FrameLayout {
         box.addView(ss);
         if (canFill) note("Fill makes the game draw for this screen's shape, so nothing is stretched and there are no bars: from the next start."
                 + (Profile.of(game()).aspectUntested ? " Untested on this game: it may look wrong or not start; pick Fit to go back." : ""));   // PEANUTS
-        note(live ? "Fit keeps the game's shape, Stretch fills the screen; below 100 % the picture is smaller, with black around it. Applies now, kept for this game."
-                : "Applies at the next start (this run takes no live changes: DM_CTL is off).");
+        note(dev.peanuts.smooth.DevView.panel(act, live ? "Fit keeps the game's shape, Stretch fills the screen; below 100 % the picture is smaller, with black around it. Applies now, kept for this game."
+                : "Applies at the next start (this run takes no live changes: DM_CTL is off)."));   // PEANUTS: Developer view off: player words (DevView.panel)
         rows.position(box);
     }
 
@@ -915,9 +915,9 @@ final class SidePanel extends FrameLayout {
                     : now <= 0 ? "Starting…"
                     : own ? "This game picks its own frame rate."
                     : "Now " + now + " fps" + (cap > 0 ? ", capped at " + cap : ", the game's own") + "." + (f.length > 4 && f[4].equals("1") ? " " + Prefs.HEAT_TEXT : "");   // PEANUTS: held for heat
-            fpsNow.setText(s);
+            fpsNow.setText(dev.peanuts.smooth.DevView.panel(act, s));   // PEANUTS: Developer view off: player words
         }
-        if (lsfgNow != null) { String st = Native.frameGenStatus(); int sp = st.indexOf(' '); lsfgNow.setText("Now: " + (sp > 0 ? st.substring(sp + 1) : st)); }
+        if (lsfgNow != null) { String st = Native.frameGenStatus(); int sp = st.indexOf(' '); lsfgNow.setText(dev.peanuts.smooth.DevView.frameGen(act, st, "Now: " + (sp > 0 ? st.substring(sp + 1) : st))); }   // PEANUTS: Developer view off: the state in player words
         removeCallbacks(tick);   // a change calls refresh too: one loop, not one more per change
         postDelayed(tick, 500);
     }

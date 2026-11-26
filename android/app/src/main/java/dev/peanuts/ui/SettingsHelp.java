@@ -74,6 +74,10 @@ public final class SettingsHelp {
         put(m, "Motion", "The app's animations. System follows Android's setting, Reduced keeps fades and progress only.", "System");
         put(m, "Mods tab", "The in-game panel's Mods tab: the game's cheats and mods while it runs. A game's own Mods & Cheats page can hide it for that game.", "On");
         put(m, "Check for updates", "Looks for a newer version of the app on GitHub.", null);
+        put(m, "Smooth Experience", "A game starts and plays without technical details: a peanut and the game's cover instead of log lines, and no notices about graphics work over the game. The parts show under it while it is on. The logs keep every detail.", "Off");
+        put(m, "Start screen", "Part of Smooth Experience: the game's cover and a peanut instead of log lines, until the game shows.", "On");
+        put(m, "Preparing graphics notice", "Part of Smooth Experience: no notice while a game makes graphics in the background. On a first run parts of the picture may be missing for a moment.", "On");
+        put(m, "Graphics driver notice", "Part of Smooth Experience: no notice when the graphics driver left out parts of the picture.", "On");
         // Help
         put(m, "Readiness check", "Checks whether this device can run your games: Android, memory, file access, the GPU and its driver, and each game's needs.", null);
         put(m, "Graphics self-test", "Draws a test picture for a few seconds, with no game, and says whether the GPU and its driver passed.", null);
@@ -83,6 +87,7 @@ public final class SettingsHelp {
         put(m, "Advanced", "Every switch the app's host offers, by area, with a search. Each starts at Auto, which writes nothing.", "Auto");
         put(m, "Tester settings", "Shows the rows made for testing in a game's settings: advanced resolution, Upscaler and Dynamic resolution.", "Off");
         put(m, "ADB control (debug)", "Lets adb commands add games, start Prepare and install GPU drivers. Turn it on only while you use adb.", "Off");
+        put(m, "Developer view", "Shows build numbers, counts and tool details, as for testing. Off, the app uses player words and the logs keep the details. On for an app installed before this version, off for a new one.", null);
         ALL = Collections.unmodifiableMap(m);
     }
 

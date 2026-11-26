@@ -3160,3 +3160,21 @@ so every title's profile.bin is regenerated with the APK, as for any new key), `
 the generic profile field, `join_cap` cut from vka_mem.c with the profile at 0 and 512 and the player's line set and unset). No rewrite key or shader input
 changes: `place_join_mb` is not a build row (`pack_android.py build_rows`), and `vka_mem.c` does not feed `DMSH_VK_CHAIN`. Upstream candidate: the key, if
 upstream wants a per-game join cap.
+
+### Smooth Experience and Developer view (2026-11-26, issue #322)
+
+Smooth Experience (Settings › App › Extras, off by default; its parts right under it while it is on) gives a start and play without logs and notices: the
+game's cover and a breathing peanut in place of the log's lines until the first frame (`dev.peanuts.ui.StartCover`, GONE then), no "Preparing graphics"
+notice (#322, its duplicate #389) and no skipped-draws notice; each hidden notice still goes to the log. The overlay keeps its own switches. Developer
+view (Settings › Developer) shows build numbers, counts and tool words as before; off, player words (`dev.peanuts.smooth.PlayerWords`), the percent and the
+time left staying. It is on for an app installed before this version and off for a new install (`DevView.installedBefore`, decided once).
+`peanuts/tests/test_smooth_experience.py` lists every line.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `android/app/src/main/java/dev/nxnative/android/GameActivity.java` | 9 | `start`: `StartCover.add`; `tail`: `StartCover.tail` and its next look; `dispatchKeyEvent`: the failure card's pad; the "Preparing graphics" block and `skipShow`: the log line instead of the notice; the two start toasts with Developer view only | `// PEANUTS:` (the "Preparing graphics" lines inside its `PEANUTS begin` / `end`) |
+| `android/app/src/main/java/dev/nxnative/android/MainActivity.java` | 3 | Home's build line (`DevView.homeLine`), the ignored adb command's and the legacy shader toast with Developer view only | `// PEANUTS:` |
+| `android/app/src/main/java/dev/nxnative/android/SidePanel.java` | 4 | the two "DM_CTL is off" notes, the cap line and the frame generation state (`DevView.panel`, `DevView.frameGen`) | `// PEANUTS:` |
+| `android/app/src/main/java/dev/nxnative/android/Lsfg.java` | 2 | "Not in this build" and the mode line through `DevView.panel` | `// PEANUTS:` / `/* PEANUTS */` |
+| `android/app/src/ondevice/java/dev/nxnative/android/Ondevice.java` | 3 | the Prepare card's status and detail, the ready toast through `DevView.build` | `// PEANUTS:` |
+| `android/app/src/ondevice/java/dev/nxnative/android/PackService.java` | 2 | `note(Job)` wraps the former body (`note0`) with `DevView.calm`; the "made again" notice with Developer view only | `// PEANUTS:` / `/* PEANUTS */` |

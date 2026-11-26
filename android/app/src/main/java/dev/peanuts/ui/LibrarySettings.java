@@ -37,7 +37,7 @@ public final class LibrarySettings {
     public static final int REQ_MOD_FOLDER = 69, REQ_MOD_ZIP = 70;
     private static final Handler UI = new Handler(Looper.getMainLooper());
     private static String fontsState;   // "Reading the firmware…" and what came of it, while the rows show
-    private static PUi.Setting keysRow, fontsRow, companionsRow, hapticsRow, motionRow, swapRow, tvRow, bottomRow, gamesRow;
+    private static PUi.Setting keysRow, fontsRow, companionsRow, hapticsRow, motionRow, swapRow, tvRow, bottomRow, gamesRow, smoothRow, devRow;
     private static Activity rowsOf;
 
     private LibrarySettings() {}
@@ -135,7 +135,33 @@ public final class LibrarySettings {
                 .toggle(a, PeanutsPrefs.modsTabAll(a), (b, on) -> { Feel.toggled(b, on); PeanutsPrefs.modsTabAll(a, on); });
         modsTab.view.setOnClickListener(v -> modsTab.toggle.toggle());
         card.addView(modsTab.view);
+        // Smooth Experience (dev.peanuts.smooth; SettingsSections puts the rows under App › Extras): its switch, and right under it, while it is on, one switch
+        // per thing it takes away (SmoothItems, all on by default)
+        smoothRow = new PUi.Setting(a, "", "Smooth Experience", null)
+                .toggle(a, dev.peanuts.smooth.Smooth.on(a), (b, on) -> { Feel.toggled(b, on); PeanutsPrefs.smooth(a, on); refreshRows(); });
+        smoothRow.view.setOnClickListener(v -> smoothRow.toggle.toggle());
+        card.addView(smoothRow.view);
+        smoothParts.clear();
+        smoothPart(a, card, new PUi.Setting(a, "", "Start screen", null), dev.peanuts.smooth.SmoothItems.START_LOG);
+        smoothPart(a, card, new PUi.Setting(a, "", "Preparing graphics notice", null), dev.peanuts.smooth.SmoothItems.WARM);
+        smoothPart(a, card, new PUi.Setting(a, "", "Graphics driver notice", null), dev.peanuts.smooth.SmoothItems.SKIP);
+        // Developer view (dev.peanuts.smooth.DevView; under Developer › Testing): build numbers, counts and tool words, or player words
+        devRow = new PUi.Setting(a, "", "Developer view", null)
+                .toggle(a, dev.peanuts.smooth.DevView.on(a), (b, on) -> { Feel.toggled(b, on); dev.peanuts.smooth.DevView.on(a, on); refreshRows(); });
+        devRow.view.setOnClickListener(v -> devRow.toggle.toggle());
+        card.addView(devRow.view);
         refreshRows();
+    }
+
+    /** Smooth Experience's parts, shown under its row while it is on (refreshRows) */
+    private static final java.util.List<PUi.Setting> smoothParts = new java.util.ArrayList<>();
+
+    /** One of Smooth Experience's parts: its switch (the row turns it, one focus stop) and its line (SmoothItems) */
+    private static void smoothPart(Activity a, LinearLayout card, PUi.Setting r, String key) {
+        r.value(dev.peanuts.smooth.SmoothItems.of(key).line).toggle(a, PeanutsPrefs.smoothItem(a, key), (b, on) -> { Feel.toggled(b, on); PeanutsPrefs.smoothItem(a, key, on); refreshRows(); });
+        r.view.setOnClickListener(v -> r.toggle.toggle());
+        card.addView(r.view);
+        smoothParts.add(r);
     }
 
     private static CharSequence companionsValue(Activity a) {
@@ -153,6 +179,13 @@ public final class LibrarySettings {
                 : "System: follows Android's touch feedback setting. Tap to turn the app's own haptics off.");
         if (motionRow != null) motionRow.value(PeanutsPrefs.motionReduced(a) ? "Reduced: fades and progress only. Tap to follow the system's animation setting again."
                 : "System: follows Android's animation setting. Tap for reduced motion (fades and progress only).");
+        if (smoothRow != null) {
+            boolean on = dev.peanuts.smooth.Smooth.on(a);
+            smoothRow.value(dev.peanuts.smooth.SmoothItems.rowLine(on, dev.peanuts.smooth.Smooth.picked(a)));
+            for (PUi.Setting r : smoothParts) r.view.setVisibility(on ? android.view.View.VISIBLE : android.view.View.GONE);   // the page grows under the switch while it is on
+        }
+        if (devRow != null) devRow.value(dev.peanuts.smooth.DevView.on(a) ? "On: build numbers, counts and tool details show, as for testing. Tap for player words."
+                : "Off: player words, without build numbers, counts or tool details. The logs keep them. Tap to show them.");
         if (swapRow != null) swapRow.value(PeanutsPrefs.swapScreens(a)
                 ? "On: games start on the other screen, the companion is on this one. Tap to swap back. Takes effect at the next game start."
                 : "Off: games start on this screen, the companion is on the other one. Tap to swap, for a clip-on top screen. Takes effect at the next game start.");

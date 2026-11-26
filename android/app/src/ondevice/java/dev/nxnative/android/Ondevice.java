@@ -389,11 +389,11 @@ final class Ondevice {
             String unsupported = a.getString(R.string.not_supported_yet);   // PEANUTS: match the Home filter
             title.setText((metaLine != null ? metaLine + ", " : "") + (notIncluded != null ? unsupported : "done".equals(st) ? "Built" : "pending".equals(st) ? "Not built yet" : failed ? "Build stopped"
                     : "paused".equals(st) ? "Paused" : "Building") + (job.tryAnyway() ? ", built with Try anyway" : "") + sim);
-            status.setText(notIncluded != null ? notIncluded : failed ? job.failureSummary() : job.statusText(alive));   // PEANUTS: show the tool error beside Share build log
+            status.setText(notIncluded != null ? notIncluded : failed ? job.failureSummary() : dev.peanuts.smooth.DevView.build(a, job.statusText(alive)));   // PEANUTS: show the tool error beside Share build log; Developer view off: no counts or step numbers
             int pct = (int) Math.round(job.overall() * 1000);
             bar.setProgress(pct);
             bar.setStateDescription((pct / 10) + " percent");
-            detail.setText(job.detailText());
+            detail.setText(dev.peanuts.smooth.DevView.build(a, job.detailText()));   // PEANUTS: Developer view off: the percent and the time left
             bar.setVisibility(notIncluded != null ? View.GONE : View.VISIBLE);
             detail.setVisibility(notIncluded != null ? View.GONE : View.VISIBLE);
             why.set(failed || notIncluded != null ? job.errorDetail() : "");
@@ -465,7 +465,7 @@ final class Ondevice {
             a.refresh();
             long[] miss = j.shadersMissing();   // Try anyway on a game version the profile was not made from: say briefly what it lacks and which version has it all
             Profile prof = Profile.of(j.titleId());
-            android.widget.Toast.makeText(a, g.name + " is ready to play." + (miss[0] > 0 && prof != null ? " " + PrepareText.missingShadersText(miss[0], miss[1], prof.supportedShort()) : ""),
+            android.widget.Toast.makeText(a, dev.peanuts.smooth.DevView.build(a, g.name + " is ready to play." + (miss[0] > 0 && prof != null ? " " + PrepareText.missingShadersText(miss[0], miss[1], prof.supportedShort()) : "")),   // PEANUTS: Developer view off: no counts
                     android.widget.Toast.LENGTH_LONG).show();
         }
 

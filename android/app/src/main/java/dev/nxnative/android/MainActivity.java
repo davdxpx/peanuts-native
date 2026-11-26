@@ -295,7 +295,7 @@ public final class MainActivity extends Activity {
         trailing.addView(dev.peanuts.ui.Library.screensOffButton(this), sop);
         trailing.addView(headerButtons());
         // PEANUTS end
-        content.addView(dev.peanuts.ui.Library.homeHeader(Ui.header(this, Ui.badge(this, 44), "Peanuts Native", Prefs.buildId(), trailing)));   // the build identifier under the title (Prefs.buildId, the part of the overlay's build tag after the app's name), so a screenshot of Home names its build; Settings › About has the full tag   // PEANUTS: rebrand; homeHeader: the build line is no focus stop
+        content.addView(dev.peanuts.ui.Library.homeHeader(Ui.header(this, Ui.badge(this, 44), "Peanuts Native", dev.peanuts.smooth.DevView.homeLine(this, Prefs.buildId()), trailing)));   // the build identifier under the title (Prefs.buildId, the part of the overlay's build tag after the app's name), so a screenshot of Home names its build; Settings › About has the full tag   // PEANUTS: rebrand; homeHeader: the build line is no focus stop; DevView.homeLine: none with Developer view off
         dev.peanuts.ui.BottomScreen.home(this, () -> page(true));   // PEANUTS: bottom screen (dev.peanuts.ui.BottomScreen)
         accessCard = accessCard();
         Ui.add(content, accessCard, 16);
@@ -538,7 +538,7 @@ public final class MainActivity extends Activity {
         List<String> asked = AdbControl.asked(i::hasExtra);
         if (asked.isEmpty()) return i;
         android.util.Log.w("nxnative", "launcher intent from " + getReferrer() + " with " + asked + " ignored: ADB control is off (Settings › Help › ADB control)");
-        Toast.makeText(this, "A command from another app was ignored (Settings › ADB control is off)", Toast.LENGTH_LONG).show();
+        if (!dev.peanuts.smooth.DevView.plain(this)) Toast.makeText(this, "A command from another app was ignored (Settings › ADB control is off)", Toast.LENGTH_LONG).show();   // PEANUTS: Developer view off: the log only (the line above)
         Intent out = new Intent(i);
         for (String k : asked) out.removeExtra(k);
         return out;
@@ -1515,7 +1515,7 @@ public final class MainActivity extends Activity {
         }
         if (lp != null && Pack.legacyLibrary(new File(g.packDir), g.titleId) != null) {   // made before versioned updates: never blocks Play, says so (the host warns in its log too)
             if (dump) Ondevice.autoUpdate(this, gd, new File(g.packDir), g.titleId);
-            Toast.makeText(this, ShaderLibs.LEGACY_WARNING, Toast.LENGTH_LONG).show();
+            if (!dev.peanuts.smooth.DevView.plain(this)) Toast.makeText(this, ShaderLibs.LEGACY_WARNING, Toast.LENGTH_LONG).show();   // PEANUTS: Developer view off: the host's log says it
             start(g);
             return;
         }
