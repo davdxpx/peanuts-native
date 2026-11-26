@@ -230,7 +230,7 @@ public final class GameLive {
         String before = live.amiiboStatus();
         if (before == null || before.isEmpty()) throw new Request.Bad("not_for_this_game", "This game's host has no amiibo stand.");
         if (!("\n" + before).contains("\nenabled=1\n"))
-            throw new Request.Bad("not_for_this_game", "amiibo is off for this game: turn it on under the game's Controls or in Settings › Controls, then start the game again.");
+            throw new Request.Bad("not_for_this_game", "amiibo is off for this game: turn it on in the game's Game options or in Settings › Users › amiibo, then start the game again.");
         if (v.equals("off")) { live.amiiboOff(); res.put("placed", "off"); }
         else if (!v.equals("status")) {
             int got = live.amiiboPlace(v);

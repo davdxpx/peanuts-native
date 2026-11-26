@@ -5,7 +5,7 @@ it reads a figure on a console's NFC reader. GitHub issue #582.
 
 ## On only where the player turns it on
 
-amiibo is off by default. **Settings › Controls › amiibo** turns it on for every game, and a game's own **amiibo** switch under its Controls
+amiibo is off by default. **Settings › Users › amiibo** turns it on for every game, and a game's own **amiibo** switch in its Game options
 (shown for a game AmiiboAPI lists, or one seen opening nfp while amiibo was on for it) turns it on or off for that game alone; the game's own switch
 comes first. A change counts from the game's next start (`dev.peanuts.amiibo.AmiiboSwitch`, its own prefs file `peanuts_amiibo`).
 
@@ -51,7 +51,7 @@ game's data leaves the others'.
   list them.
 
 - `cacheDir/amiibo/<ID>.png`: pictures, fetched from AmiiboAPI's images (raw.githubusercontent.com) only when a page shows the amiibo, and kept;
-  only once the player has turned them on (Settings › Controls › amiibo pictures, `AmiiboSwitch.pictures`, off by default). Off, or offline, each amiibo
+  only once the player has turned them on (Settings › Users › amiibo pictures, `AmiiboSwitch.pictures`, off by default). Off, or offline, each amiibo
   shows as Peanuts' own card and nothing is fetched.
 
 An imported `.bin` gives its ID (plain at 0x54) and its UID (the first pages). Everything else in a dump is encrypted and is not read: the game data a
@@ -59,9 +59,9 @@ figure carries from a console stays on the figure, and Peanuts keeps its own. No
 
 ## The game page
 
-A game that uses amiibo has an amiibo tile (after Controls). Its area starts with the game's amiibo switch (the same as under its Controls; the tile says
+A game that uses amiibo has an amiibo tile (after Controls). Its area starts with the game's amiibo switch (the same as in its Game options; the tile says
 "Off for this game" while it is off), then shows the player's own amiibo that fit the game, then every amiibo that fits it, each with its picture once the
-player has turned the pictures on (Settings › Controls › amiibo pictures, off by default) and as Peanuts' own card until then,
+player has turned the pictures on (Settings › Users › amiibo pictures, off by default) and as Peanuts' own card until then,
 searches all of them, and imports .bin files, folders and ZIP packs. An amiibo's page says what it does in this game and whether the game keeps data on
 it, and resets that game's data (Reset game data) or removes the amiibo from the player's own.
 

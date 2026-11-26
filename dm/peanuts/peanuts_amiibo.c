@@ -1,7 +1,7 @@
 // PEANUTS: amiibo for games (igawa6/peanuts-native#582), only for a game the player turned it on for. The nfc and nfp SDK families as hle_sdk16.c takes them
 // over, with a virtual tag the player places from the app. hle_sdk16.c's own nfc and nfp block stays in the host unchanged: these take-overs sit in a table of
 // their own (the section pnamiibo, not hle.h's swforce), and the loader asks peanuts_amiibo_force before its own table (dm/host/loader.c force_lookup, under
-// PN_AMIIBO). Only when the app started the game with PN_AMIIBO=1 (dev.peanuts.amiibo.AmiiboSwitch: Settings › Controls › amiibo, off by default, and the
+// PN_AMIIBO). Only when the app started the game with PN_AMIIBO=1 (dev.peanuts.amiibo.AmiiboSwitch: Settings › Users › amiibo, off by default, and the
 // game's own amiibo switch) does the table answer; any other game gets upstream's block, as a host without this file.
 //
 // The take-over sits above the SDK's NFC service and above the amiibo encryption: the game asks nn::nfp for plain TagInfo, ModelInfo, CommonInfo, RegisterInfo

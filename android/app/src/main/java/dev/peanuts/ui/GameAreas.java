@@ -76,8 +76,8 @@ public final class GameAreas {
                 "Temporal sharpness", "contrast", "FSR sharpness", "contrast", "Display", "display", "Aspect ratio", "aspect");
         group(GRAPHICS, "Speed", "Frame rate cap", "gauge", "Hold 60 fps", "lock", "Full game speed", "fast-forward", "Dynamic resolution", "dynamic");
         group(OPTIONS, "Game options", "Switch 2 Edition", "cartridge", "Full vegetation", "leaf", "Hidden layers off", "layers", "Cheats", "mods",
-                "Cheat files", "folder", "Link Play", "link", "Game language", "language", "Time of day", "sun");
-        group(CONTROLS, "Controls", "Rumble", "rumble", "Button mapping", "buttons", "Motion sensitivity", "aim", "Xbox button labels", "labels", "amiibo", "controller");
+                "Cheat files", "folder", "Link Play", "link", "Game language", "language", "Time of day", "sun", "amiibo", "amiibo");
+        group(CONTROLS, "Controls", "Rumble", "rumble", "Button mapping", "buttons", "Motion sensitivity", "aim", "Xbox button labels", "labels");
         group(COMPANION, "Companion", "Companion", "companion", "Second screen", "screens-cover");
         group(SAVES, "Saves", "Back up saves", "save-up", "Restore saves", "history", "Import save", "save-down", "Copy to another user", "users",
                 "Delete save data", "trash");

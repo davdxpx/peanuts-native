@@ -107,21 +107,21 @@ class Page(unittest.TestCase):
                     self.assertNotIn(bad, s, f'{f}: "{s}"')
 
     def test_switch_first(self):
-        """The area starts with the game's amiibo switch, the same setting as the one under its Controls; the tile says when it is off"""
+        """The area starts with the game's amiibo switch, the same setting as the one in its Game options; the tile says when it is off"""
         page = (PKG / 'AmiiboPage.java').read_text(encoding='utf-8')
         self.assertIn('PUi.add(body, switchRow(a), 14);', page)
         self.assertIn('AmiiboSwitch.game(a, titleId, now)', page)
         self.assertIn('if (!AmiiboSwitch.on(c, titleId)) return "Off for this game";', page)
 
     def test_pictures_row(self):
-        """Settings › Controls › amiibo pictures: off by default (AmiiboSwitch.pictures), the row names the host"""
+        """Settings › Users › amiibo pictures: off by default (AmiiboSwitch.pictures), the row names the host"""
         ui = APP / 'main/java/dev/peanuts/ui'
         lib = (ui / 'LibrarySettings.java').read_text(encoding='utf-8')
         row = lib[lib.index('new PUi.Setting(a, "", "amiibo pictures", null)'):]
         row = row[:row.index('card.addView(pics.view);')]
         self.assertIn('raw.githubusercontent.com', row, 'the host is named')
         self.assertIn('dev.peanuts.amiibo.AmiiboSwitch.pictures(a, on)', row)
-        self.assertIn('r("amiibo pictures", "controller")', (ui / 'SettingsSections.java').read_text(encoding='utf-8'))
+        self.assertIn('new Group("amiibo", r("amiibo", "amiibo"), r("amiibo pictures", "amiibo"))', (ui / 'SettingsSections.java').read_text(encoding='utf-8'))
         self.assertIn('put(m, "amiibo pictures",', (ui / 'SettingsHelp.java').read_text(encoding='utf-8'))
 
     def test_pictures_only_on_demand(self):
