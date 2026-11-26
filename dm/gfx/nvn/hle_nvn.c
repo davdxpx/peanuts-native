@@ -1527,6 +1527,7 @@ static p_bind_handles *bind_handles(NVNcommandBuffer *c, int op, int st, int fir
     // The driver writes each handle into the c2 table as a 32-bit word (texture ID in bits 0-19, sampler ID in bits 20-31), so the GPU never sees the upper half of the 64-bit handle.
     // EA SPORTS FC 27 binds separate textures with bit 32 set (0x1000001d1): read whole, its sampler ID was 4096, beyond any pool, where the GPU reads sampler 0
     for (int i = 0; i < n; i++) r->h[i] = (uint32_t)h[i];
+#ifndef __ANDROID__   // PEANUTS(upstream-candidate)
     {   // this command buffer may have bound a pool other than the first: move its IDs to that pool's part of the table (handle: texture ID in bits 0-19, sampler ID from bit 20)
         int tb = CB(c)->tex_base, sb = CB(c)->samp_base;
         for (int i = 0; i < n && (tb || sb); i++) {
@@ -1535,6 +1536,7 @@ static p_bind_handles *bind_handles(NVNcommandBuffer *c, int op, int st, int fir
             else { if (tid) tid += (uint64_t)tb; if (sid && op == OP_BIND_TEX) sid += (uint64_t)sb; r->h[i] = tid | sid << 20; }
         }
     }
+#endif   // PEANUTS(upstream-candidate): Vulkan resolves the original handles against the queue's pools at replay.
     return r;
 }
 // Image (writable texture): handle = texture pool index (GetImageHandle returns it as-is; RegisterImage writes the same table as RegisterTexture)
@@ -2217,6 +2219,7 @@ __attribute__((weak)) int dm_movie_playing(void) { return 0; }   // hle_movie.c:
 // Thermal cap (iOS): while the device is thermally serious or worse (NSProcessInfo thermalState >= 2) the frame step holds 30 fps, and it goes back to the cap after the device
 // has been fair or better for THERMAL_CALM_NS, so it does not flap. At "serious" iOS caps the GPU clock to about a third: Breath of the Wild's vistas (about 3,000 G-buffer draws)
 // then took 17-26 ms a frame and dropped a frame in most windows; a steady 30 instead also lets the device cool. DM_THERMAL_CAP=0 turns it off; the Mac reports no thermal state
+// PEANUTS: on Android it is opt-in (DM_THERMAL_CAP=1, which the launcher sets for a profile with thermal_cap 1) and holds a frame limit above 30 as well (hle_fpslock.c limit_raw)
 #define THERMAL_CALM_NS 30000000000ull
 static int thermal_capped(void) {
     // Acquire, present and the display-link configuration can ask on different
@@ -2225,13 +2228,17 @@ static int thermal_capped(void) {
     static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
     static int on = -1, capped; static uint64_t last, calm_since;
     pthread_mutex_lock(&mu);
+#ifdef __ANDROID__
+    if (on < 0) { const char *e = getenv("DM_THERMAL_CAP"); on = e && *e && strcmp(e, "0") != 0; }   // PEANUTS: opt-in on Android (a profile's thermal_cap 1 sets DM_THERMAL_CAP=1; vka_perf.c dm_thermal_now)
+#else
     if (on < 0) { const char *e = getenv("DM_THERMAL_CAP"); on = !(e && !strcmp(e, "0")); }
+#endif
     if (on) {
         uint64_t now = now_ns();
         if (now - last >= 1000000000ull) {   // the thermal state is read once a second
             last = now;
             int th = dm_thermal_now();
-            if (th >= 2) { calm_since = 0; if (!capped) { capped = 1; LOG("[nvn] thermal state %d: the frame step holds 30 fps until the device is fair again for %llu s (DM_THERMAL_CAP=0 turns this off)", th, THERMAL_CALM_NS / 1000000000ull); } }
+            if (th >= 2) { calm_since = 0; if (!capped) { capped = 1; LOG("[nvn] thermal state %d: frame rates above 30 (the frame step, a frame limit) hold 30 fps until the device is fair again for %llu s (DM_THERMAL_CAP=0 turns this off)", th, THERMAL_CALM_NS / 1000000000ull); } }   // PEANUTS: not only the frame step (hle_fpslock.c limit_raw)
             else if (capped) { if (!calm_since) calm_since = now; else if (now - calm_since >= THERMAL_CALM_NS) { capped = 0; LOG("[nvn] thermal state %d for %llu s: back to the frame rate cap", th, THERMAL_CALM_NS / 1000000000ull); } }
         }
     }
@@ -2239,6 +2246,7 @@ static int thermal_capped(void) {
     pthread_mutex_unlock(&mu);
     return result;
 }
+int dm_thermal_capped(void) { return thermal_capped(); }   // PEANUTS: hle_fpslock.c limit_raw (a frame limit above 30 holds 30 while capped), the cap status (input_android.c nxhost_fps_cap_status: held for heat)
 __attribute__((weak)) int dm_fps_limit_step(void) { return 0; }   // hle_fpslock.c; graphics unit tests have no host
 static int fps_step_cap(void) {
     // PEANUTS: Elapsed-time hooks pace independently of whole steps.
@@ -3199,8 +3207,10 @@ NVN(nvnCommandBufferCallCommands, void, NVNcommandBuffer *c, int n, const NVNcom
 // Combined texture handle (texture id | sampler id << 20) is recorded into the texture slot as is: the replay layer takes the texture from the low 20 bits and the sampler from the high bits (nvn_mtl.m NVN_RB_SAMPT)
 // One combined handle: recorded as the hardware lays the command out, the handle 16 bytes in, where Luigi's Mansion 3 patches it after recording (nvn_obj.h p_bind_tex1)
 NVN(nvnCommandBufferBindTexture, void, NVNcommandBuffer *c, NVNshaderStage st, int i, NVNtextureHandle h) {
+#ifndef __ANDROID__   // PEANUTS(upstream-candidate)
     int32_t tb = CB(c)->tex_base, sb = CB(c)->samp_base;
     if (tb || sb) { *REC(c, OP_BIND_TEX1, p_bind_tex1) = (p_bind_tex1){st, i, (uint64_t)h, tb, sb}; return; }
+#endif
     p_bind_tex1 *r = rec(c, OP_BIND_TEX1, offsetof(p_bind_tex1, tbase)); r->stage = st | BIND_TEX1_NOBASE; r->slot = i; r->h = (uint64_t)h;   // no bases: the record ends after h
 }
 _Static_assert(offsetof(p_bind_tex1, h) == 8, "a single texture bind keeps its handle 16 bytes into the record (8 of header)");
@@ -3211,7 +3221,9 @@ NVN(nvnCommandBufferBindTextures, void, NVNcommandBuffer *c, NVNshaderStage st, 
 NVN_NOPROTO(nvnCommandBufferBindTexturesDeferred, void, NVNcommandBuffer *c, NVNshaderStage st, int first, int n, const NVNtextureHandle *h) {
     p_bind_handles *r = bind_handles(c, OP_BIND_TEX, st, first, n, (const uint64_t *)h);
     if (r && h) { r->defer = 1; r->src = (uint64_t)(uintptr_t)h; }
+#ifndef __ANDROID__   // PEANUTS(upstream-candidate)
     if (CB(c)->tex_base || CB(c)->samp_base) ONCE_LOG("[RED] deferred-bound handles are read only at replay: the numbering base of this command buffer's bound descriptor pools is not added (pools %d / %d)", CB(c)->tex_base, CB(c)->samp_base);
+#endif
 }
 NVN(nvnCommandBufferBindImage, void, NVNcommandBuffer *c, NVNshaderStage st, int i, NVNimageHandle h) { uint64_t v = (uint64_t)h; bind_handles(c, OP_BIND_IMG, st, i, 1, &v); }
 NVN(nvnCommandBufferBindVertexBuffer, void, NVNcommandBuffer *c, int i, NVNbufferAddress a, size_t n) { NVNbufferRange r = {a, n}; h_nvnCommandBufferBindVertexBuffers(c, i, 1, &r); }

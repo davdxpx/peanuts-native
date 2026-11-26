@@ -6,6 +6,8 @@ body:
   - type: markdown
     attributes:
       value: |
+        **Requests for new games are not accepted.** Issues are for problems with the games and versions the app already supports (the [Supported games](https://github.com/igawa6/peanuts-native#supported-games) list). An issue asking for a game, another version or DLC is closed.
+
         Thanks for the report. A build is traced with its **build log**, so that field matters most. Most other fields are a pick from a list.
         **The game was built and then misbehaves** when you play? Use **Game problem**. **The game is not listed, has no Build button, or says Wrong version, File gone or Not Supported Yet**? Use **Setup or app problem**.
         Never attach game files, keys, firmware or anything extracted from a game. Logs, saves and screenshots are fine. The build log holds none of them. Write in English if you can; another language is fine too.
@@ -97,6 +99,7 @@ body:
         - "DRAGON QUEST III HD-2D Remake 1.1.2 (01003E601E324000)"
         - "EA Sports FC 27 1.8d.f570 (0100C49025D3E000)"
         - "EA Sports FC 27 1.8d.6523 (0100C49025D3E000)"
+        - "FANTASY LIFE i: The Girl Who Steals Time 2.2.0 (0100755017EE0000)"
         - "FANTASY LIFE i: The Girl Who Steals Time 1.5.0 (0100755017EE0000)"
         - "FINAL FANTASY RESONANCE 1.0.1 (0100606026F12000)"
         - "Fire Emblem Engage 2.0.0 (0100A6301214E000)"
@@ -159,7 +162,7 @@ body:
         - "Yoru, Tomosu base game (0100C2901153C000)"
         - "Yoshi's Crafted World 1.0.1 (01006000040C2000)"
         - "One of these games, but another update or the base game (say which below)"
-        - "Another game (say which below)"
+        - "Another game the app supports (say which below; not for requests)"
     validations:
       required: true
   - type: input
