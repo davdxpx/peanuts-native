@@ -30,6 +30,7 @@ import java.util.Locale;
 import java.util.function.IntConsumer;
 
 import dev.peanuts.ingame.GameMenu;
+import dev.peanuts.ingame.GameRows;
 import dev.peanuts.ingame.Look;
 import dev.peanuts.ingame.Rail;
 
@@ -58,7 +59,10 @@ public final class InGamePanel {
     private static GameMenu.Item backupRow;
     private static boolean fromGame;     // the quick menu was opened from the game menu: B goes back there
     private static boolean padOpened;    // ... with a controller
-    private static Rail railOf;
+    private static final java.util.Map<SidePanel, Rail> rails = new java.util.WeakHashMap<>();
+    private static GameRows makingBottom;   // the one menu's Game, while its panel is made (frame)
+    private static SidePanel bottomPanel;   // the menu on the bottom screen: a second quick menu, Game first on its rail
+    private static dev.peanuts.ingame.BottomScreen bottomScreen;
     private static int shownTab = -1;    // the tab the quick menu's rows show (a new one fades in)
 
     // ---- GameActivity ----
@@ -93,16 +97,28 @@ public final class InGamePanel {
             menu.note("The backup finishes first, then the game stops.", false);
         });
         menu.items(rows, stop);
+        menuRows = rows;
+        menuStop = stop;
+        a.registerActivityLifecycleCallbacks(new android.app.Application.ActivityLifecycleCallbacks() {   // the game leaves the screen: the bottom one is given back
+            @Override public void onActivityPaused(Activity x) { if (x == a) closeBottom(true); }
+            @Override public void onActivityCreated(Activity x, android.os.Bundle b) {}
+            @Override public void onActivityStarted(Activity x) {}
+            @Override public void onActivityResumed(Activity x) {}
+            @Override public void onActivityStopped(Activity x) {}
+            @Override public void onActivitySaveInstanceState(Activity x, android.os.Bundle b) {}
+            @Override public void onActivityDestroyed(Activity x) { if (x == a) closeBottom(true); }
+        });
+        dev.peanuts.ingame.BottomMenu.opener = () -> { if (bottomMode(a)) openBottom(a, true, false); };
         root.addView(menu, root.indexOfChild(panel) + 1, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         // The cover (the launcher's copy of the game's icon) and the version, read off the main thread
         new Thread(() -> {
             File f = new File(dev.peanuts.PeanutsPrefs.iconsDir(a), id + ".png");
             Bitmap b = f.isFile() ? BitmapFactory.decodeFile(f.getPath()) : null;
-            if (b != null) UI.post(() -> menu.cover(b));
+            if (b != null) UI.post(() -> { menu.cover(b); cover(b); });
         }, "peanuts-menu-cover").start();
         String game = a.getIntent().getStringExtra("game");
-        if (game != null) GameMeta.load(new File(game), m -> { if (m != null && m.icon != null) UI.post(() -> menu.cover(m.icon)); if (m != null) UI.post(() -> menu.version(m.version)); });
+        if (game != null) GameMeta.load(new File(game), m -> { if (m != null && m.icon != null) UI.post(() -> { menu.cover(m.icon); cover(m.icon); }); if (m != null) UI.post(() -> { menu.version(m.version); version(m.version); }); });
 
         // A swipe in from the left edge opens the game menu: a strip as upstream's at the right, shown while that one shows (the on-screen controls)
         float dp = a.getResources().getDisplayMetrics().density;
@@ -124,6 +140,7 @@ public final class InGamePanel {
         root.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
             View right = rightHandle(root);
             int vis = right != null ? right.getVisibility() : View.VISIBLE;
+            if (rightMode(a)) vis = View.GONE;   // one menu at the right: the left edge is the game's
             if (left.getVisibility() != vis) left.setVisibility(vis);
             // Under gesture navigation the system takes a swipe in from either edge as Back (which opens the game menu): the two strips are kept out of
             // that, so the left one opens the game menu and the right one the quick menu (140 dp each, under Android's 200 dp a side)
@@ -182,7 +199,8 @@ public final class InGamePanel {
     /** Home or the controller's Back held: the quick menu (from the game menu when that is open), unless it is open already */
     private static void held(Activity a) {
         SidePanel p = panel(a);
-        if (p != null && p.isOpen()) return;
+        if (p != null && p.isOpen() || one() != null) return;
+        if (oneMode(a)) { if (menu != null && menu.isOpen()) menu.close(null); openOne(a, false, true); return; }
         quick(a, menu != null && menu.isOpen(), true);
     }
 
@@ -198,7 +216,7 @@ public final class InGamePanel {
         if (e.getAction() == KeyEvent.ACTION_DOWN) {
             if (e.getRepeatCount() > 0) return backDown;
             SidePanel p = panel(a);
-            backDown = (p == null || !p.isOpen()) && (open(a) || free(a));
+            backDown = (p == null || !p.isOpen()) && one() == null && (open(a) || free(a));
             if (!backDown) return false;
             backHeld = false;
             if (backRun != null) UI.removeCallbacks(backRun);
@@ -220,10 +238,10 @@ public final class InGamePanel {
      */
     private static boolean free(Activity a) { return !(a instanceof GameActivity) || ((GameActivity) a).backFree(); }
 
-    /** A menu is open: the game menu or the quick menu (GameActivity.onBackPressed: it closes before Back goes to the controller applet) */
+    /** A menu is open: the game menu, the quick menu or the one menu (GameActivity.onBackPressed: it closes before Back goes to the controller applet) */
     static boolean open(Activity a) {
         SidePanel p = panel(a);
-        return p != null && p.isOpen() || menu != null && menu.isOpen();
+        return p != null && p.isOpen() || menu != null && menu.isOpen() || one() != null;
     }
 
     /**
@@ -238,9 +256,12 @@ public final class InGamePanel {
 
     /** Home pressed, − and + held, the controller's Back pressed: the game menu, or either menu closes */
     static void toggle(Activity a, boolean pad) {
+        SidePanel o = one();
+        if (o != null) { o.close(); return; }
         SidePanel p = panel(a);
         if (p != null && p.isOpen()) { fromGame = false; p.close(); return; }
         if (menu != null && menu.isOpen()) { menu.close(null); return; }
+        if (oneMode(a)) { openOne(a, true, pad); return; }
         openGame(a, pad);
     }
 
@@ -250,10 +271,14 @@ public final class InGamePanel {
      * screen swap on Back held) hands the Back key on as Android's own, which no longer tells the controller's
      */
     static void back(Activity a) {
+        SidePanel o = one();
+        if (o != null) { o.close(); return; }
         SidePanel p = panel(a);
         if (p != null && p.isOpen()) { panelBack(p); return; }
         if (menu != null && menu.isOpen()) { menu.close(null); return; }
-        openGame(a, padAttached());
+        boolean pad = padAttached();
+        if (oneMode(a)) { openOne(a, true, pad); return; }
+        openGame(a, pad);
     }
 
     /** A controller is attached (a real device that is a gamepad: the AYN Thor's own always is) */
@@ -280,6 +305,7 @@ public final class InGamePanel {
         if (menu == null) return;
         menu.width(menuWidth(a));
         menu.look(menuRow(a), PanelLook.textScale(Prefs.panelText(a)));   // Size and Text size changed in the quick menu meanwhile
+        if (one() != null) one().close();   // one menu at a time
         if (p != null && p.onOpen != null) p.onOpen.run();   // the game's held buttons released (GameActivity.releaseGameInput)
         padOpened = pad;
         menu.open(pad);
@@ -292,6 +318,7 @@ public final class InGamePanel {
         if (p == null) return;
         fromGame = fromGameMenu;
         if (menu != null && menu.isOpen()) menu.close(null);
+        if (one() != null) one().close();
         if (pad) p.padToggle(); else p.open();
     }
 
@@ -307,6 +334,17 @@ public final class InGamePanel {
         SidePanel shown = shownPanel(a);
         if (shown != null && gamepad && down && e.getRepeatCount() == 0 && k == keys(a)[0]) dev.peanuts.ui.MenuFeel.select(shown.findFocus());   // A in the quick menu
         long dk = (long) e.getDeviceId() << 32 | k;
+        SidePanel o = one();
+        if (gamepad && o != null && k != KeyEvent.KEYCODE_BACK) {   // the one menu (at the right or on the bottom screen): L and R over Game and the tabs
+            if (down) taken.add(dk); else if (up) taken.remove(dk);
+            // The bottom screen's window never has the keys' focus, so it does not hear that a key left touch mode: it leaves it here, or the focus would
+            // move without its frame (SidePanel.focusMoved draws none in touch mode)
+            if (down && o.isInTouchMode()) { View f = o.findFocus(); if (f != null) f.requestFocusFromTouch(); }
+            Rail r = rails.get(o);
+            if ((k == KeyEvent.KEYCODE_BUTTON_L1 || k == KeyEvent.KEYCODE_BUTTON_R1) && r != null) { if (down && e.getRepeatCount() == 0) r.step(k == KeyEvent.KEYCODE_BUTTON_L1 ? -1 : 1); return true; }
+            o.padKey(e);
+            return true;
+        }
         if (gamepad && up && taken.remove(dk)) { if (PadPanel.ofKey(k) == heldDir) release(); return true; }
         if (menu == null || !menu.isOpen() || !gamepad || k == KeyEvent.KEYCODE_BACK) return false;
         if (down) taken.add(dk);
@@ -321,6 +359,8 @@ public final class InGamePanel {
 
     /** GameActivity.onGenericMotionEvent: the stick and the hat move the game menu's selection; the game gets none of it */
     static boolean menuMotion(Activity a, MotionEvent e) {
+        SidePanel o = one();
+        if (o != null && (e.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) return o.padMotion(e);
         if (menu == null || !menu.isOpen() || (e.getSource() & InputDevice.SOURCE_JOYSTICK) != InputDevice.SOURCE_JOYSTICK) return false;
         if (e.getAction() != MotionEvent.ACTION_MOVE) return true;
         int d = PadPanel.stick(e.getAxisValue(MotionEvent.AXIS_HAT_X), e.getAxisValue(MotionEvent.AXIS_HAT_Y), stickDir);
@@ -367,7 +407,11 @@ public final class InGamePanel {
     private static void step(int dir) { menu.move(dir == PadPanel.UP, dir == PadPanel.DOWN, dir == PadPanel.LEFT, dir == PadPanel.RIGHT); }
 
     /** The quick menu while it is open (the panel's own key handling presses its rows), else null */
-    private static SidePanel shownPanel(Activity a) { SidePanel p = panel(a); return p != null && p.isOpen() ? p : null; }
+    private static SidePanel shownPanel(Activity a) {
+        if (one() != null) return one();
+        SidePanel p = panel(a);
+        return p != null && p.isOpen() ? p : null;
+    }
 
     /** The controller's confirm and back keys: the Switch's A and B in this game, as the panel takes them (PadPanel.confirmBack) */
     private static int[] keys(Activity a) {
@@ -530,7 +574,7 @@ public final class InGamePanel {
 
     /** SidePanel's constructor: its sheet as rail | (header over rows) */
     static void frame(SidePanel p, LinearLayout sheet, LinearLayout tabs, ScrollView rows) {
-        railOf = new Rail(p.getContext(), sheet, tabs, rows, () -> panelBack(p));
+        rails.put(p, new Rail(p.getContext(), sheet, tabs, rows, () -> panelBack(p), makingBottom));
         sheet.setClickable(true);   // a touch on the sheet's empty part (between the rail's tabs, the header) does not reach the scrim, which closes the menu
         // Each step of the controller's focus in the quick menu: the fine tick (and the menu sound when on); a touch moves no focus
         p.getViewTreeObserver().addOnGlobalFocusChangeListener((old, now) -> {
@@ -549,17 +593,18 @@ public final class InGamePanel {
 
     /** SidePanel.tabBar: the rail instead of the bar (true: done); show switches the tab */
     static boolean rail(SidePanel p, int tab, IntConsumer show) {
-        if (railOf == null) return false;
-        railOf.action(null, null, null);   // a tab's build sets its own again (ModsTab: All off)
-        railOf.tabs(SidePanel.TAB_NAMES, tab, show);
+        Rail r = rails.get(p);
+        if (r == null) return false;
+        r.action(null, null, null);   // a tab's build sets its own again (ModsTab: All off)
+        r.tabs(SidePanel.TAB_NAMES, tab, show);
         return true;
     }
 
     /** ModsPanel's tabs: their own action in the header (the Cheats tab's All off) */
-    static void action(SidePanel p, String key, String label, Runnable run) { if (railOf != null) railOf.action(key, label, run); }
+    static void action(SidePanel p, String key, String label, Runnable run) { Rail r = rails.get(p); if (r != null) r.action(key, label, run); }
 
     /** SidePanel.showTab: a tab switched from the rail keeps the controller's focus on the rail */
-    static boolean railFocused() { return railOf != null && railOf.focused(); }
+    static boolean railFocused() { for (Rail r : rails.values()) if (r.focused()) return true; return false; }
 
     /** SidePanel.open: the sheet slides in (OPEN_MS, decelerating), the scrim fades in */
     static void slideIn(SidePanel p, View sheet) {
@@ -570,6 +615,15 @@ public final class InGamePanel {
         if (sheet.getPaddingRight() != right) sheet.setPadding(sheet.getPaddingLeft(), sheet.getPaddingTop(), right, sheet.getPaddingBottom());
         View scrim = p.getChildAt(0);
         sheet.animate().cancel();
+        if (p == bottomPanel) {   // up from the bottom edge, decelerating; the live stats behind it dim, and the game on the top screen a little
+            bottomSheet(p, sheet);
+            if (p.getContext() instanceof Activity) dimTop((Activity) p.getContext(), true);
+            sheet.setTranslationX(0);
+            sheet.setTranslationY(p.getResources().getDisplayMetrics().heightPixels);
+            sheet.animate().translationY(0).setDuration(Look.UP_MS).setInterpolator(Look.OUT).withLayer().start();
+            if (scrim != null && scrim != sheet) { scrim.animate().cancel(); scrim.setAlpha(0f); scrim.animate().alpha(1f).setDuration(Look.UP_MS).setInterpolator(Look.OUT).start(); }
+            return;
+        }
         sheet.setTranslationX(sheet.getLayoutParams().width);
         sheet.animate().translationX(0).setDuration(Look.OPEN_MS).setInterpolator(Look.OUT).withLayer().start();
         if (scrim != null && scrim != sheet) { scrim.animate().cancel(); scrim.setAlpha(0f); scrim.animate().alpha(1f).setDuration(Look.OPEN_MS).setInterpolator(Look.OUT).start(); }
@@ -582,12 +636,19 @@ public final class InGamePanel {
         fromGame = false;   // closed any way (B, a tap beside it, Home): opened again by the edge swipe, its B goes to the game
         View scrim = p.getChildAt(0);
         sheet.animate().cancel();
+        if (p == bottomPanel) {   // back down, accelerating; then the window goes and the screen is given back
+            if (p.getContext() instanceof Activity) dimTop((Activity) p.getContext(), false);
+            sheet.animate().translationY(Math.max(sheet.getHeight(), 1)).setDuration(Look.DOWN_MS).setInterpolator(Look.IN).withLayer().withEndAction(() -> { end.run(); closeBottom(false); }).start();
+            if (scrim != null && scrim != sheet) scrim.animate().alpha(0f).setDuration(Look.DOWN_MS).setInterpolator(Look.IN).start();
+            return;
+        }
         sheet.animate().translationX(sheet.getLayoutParams().width).setDuration(Look.CLOSE_MS).setInterpolator(Look.IN).withLayer().withEndAction(end).start();
         if (scrim != null && scrim != sheet) scrim.animate().alpha(0f).setDuration(Look.CLOSE_MS).setInterpolator(Look.IN).start();
     }
 
     /** SidePanel.padKey's back key, the header's back button: back to the game menu when that opened the quick menu, else to the game */
     static void panelBack(SidePanel p) {
+        if (p == bottomPanel || p == rightPanel) { p.close(); return; }
         boolean back = fromGame;
         fromGame = false;
         p.close();
@@ -603,6 +664,7 @@ public final class InGamePanel {
      */
     static void laid(SidePanel p, LinearLayout box, int tab) {
         String name = tab >= 0 && tab < SidePanel.TAB_NAMES.length ? SidePanel.TAB_NAMES[tab] : "";
+        if (p == bottomPanel) bottomSheet(p, p.getChildAt(1));
         if ("General".equals(name)) {
             for (int i = box.getChildCount() - 1; i >= 0; i--) {
                 View v = box.getChildAt(i);
@@ -613,6 +675,7 @@ public final class InGamePanel {
                 else if (s.startsWith("Pause when the game comes back") && i > 0) { TextView h = head(p, "This game"); box.addView(h, i); ModsPanel.style(p.getContext(), h); }   // the panel's text size, as its own headings
             }
             feelSwitches(p, box);
+            layoutSetting(p, box);
         } else if ("Controls".equals(name)) {
             View map = box.findViewById(5300);   // SidePanel.ID_MAP: Button mapping, now the game menu's
             if (map != null && map.getParent() == box) {
@@ -660,5 +723,220 @@ public final class InGamePanel {
         h.setTextSize(15);
         h.setPadding(0, Math.round(18 * p.getResources().getDisplayMetrics().density), 0, 0);
         return h;
+    }
+
+    // ---- One menu instead of two (Menu settings › Layout; two menus by default): at the right over the game, or on the bottom screen of a dual-screen
+    // device such as the AYN Thor. Each is a second quick menu (upstream's SidePanel, the same rows) whose rail starts with Game, the game menu's rows ----
+
+    private static SidePanel rightPanel;   // one menu at the right, in the game's window
+    private static GameRows gameRows, rightRows;   // Game on the bottom screen's menu, on the right one
+    private static List<GameMenu.Item> menuRows;   // the game menu's rows and Stop, for Game
+    private static GameMenu.Item menuStop;
+    private static Bitmap cover;
+    private static String version;
+
+    /** The one menu that is open (at the right or on the bottom screen), else null */
+    private static SidePanel one() {
+        if (bottomPanel != null && bottomPanel.isOpen()) return bottomPanel;
+        if (rightPanel != null && rightPanel.isOpen()) return rightPanel;
+        return null;
+    }
+
+    /** Whether Home, Back and − + open one menu instead of the game menu and the quick menu */
+    static boolean oneMode(Activity a) { return dev.peanuts.PeanutsPrefs.menuLayout(a) != dev.peanuts.PeanutsPrefs.LAYOUT_TWO; }
+
+    /** Whether the one menu is the bottom screen's: that layout and a second display now */
+    static boolean bottomMode(Activity a) {
+        if (dev.peanuts.PeanutsPrefs.menuLayout(a) != dev.peanuts.PeanutsPrefs.LAYOUT_BOTTOM) return false;
+        android.hardware.display.DisplayManager dm = (android.hardware.display.DisplayManager) a.getSystemService(android.content.Context.DISPLAY_SERVICE);
+        return dm != null && dev.peanuts.Companion.second(a, dm) != null;
+    }
+
+    /** Whether the one menu is at the right (that layout, or the bottom screen's without a second display now) */
+    static boolean rightMode(Activity a) { return oneMode(a) && !bottomMode(a); }
+
+    /** Opens the one menu on Game (onGame) or on the tab shown last; pad: a controller opened it, the focus shows at once */
+    private static void openOne(Activity a, boolean onGame, boolean pad) { if (bottomMode(a)) openBottom(a, onGame, pad); else openRight(a, onGame, pad); }
+
+    /**
+     * SidePanel.open: with one menu at the right, what opens the quick menu (the swipe in from the right edge, the on-screen controls' button) opens that
+     * menu on the tab shown last instead. True when it did
+     */
+    static boolean instead(SidePanel p) {
+        if (p != panelOf || !(p.getContext() instanceof Activity) || !rightMode((Activity) p.getContext())) return false;
+        openRight((Activity) p.getContext(), false, !p.isInTouchMode());
+        return true;
+    }
+
+    /** Game's rows for one menu (host): the game menu's without Quick menu (the rail is there), Back to the game and Pause closing that menu */
+    private static GameRows gameRows(Activity a, java.util.function.Supplier<SidePanel> host) {
+        GameRows g = new GameRows(a, PanelLook.rowPx(Prefs.panelSize(a), a.getResources().getDisplayMetrics().density));
+        g.game(a.getIntent().getStringExtra("name"), version, dev.peanuts.Companion.startedAt());
+        if (cover != null) g.cover(cover);
+        List<GameMenu.Item> some = new ArrayList<>();
+        for (GameMenu.Item it : menuRows) {
+            if ("Quick menu".equals(it.title())) continue;
+            if ("Back to the game".equals(it.title())) some.add(new GameMenu.Item(it.icon(), it.title(), false, () -> { if (host.get() != null) host.get().close(); }));
+            else if ("Pause the game".equals(it.title())) some.add(new GameMenu.Item(it.icon(), it.title(), false, () -> { if (host.get() != null) host.get().close(); if (a instanceof GameActivity) ((GameActivity) a).pause(); }));
+            else some.add(it);
+        }
+        g.items(some, menuStop);
+        return g;
+    }
+
+    /** The cover and the version, once read: the game menu has its own, Game's rows take them too */
+    private static void cover(Bitmap b) { cover = b; if (gameRows != null) gameRows.cover(b); if (rightRows != null) rightRows.cover(b); }
+    private static void version(String v) { version = v; if (gameRows != null) gameRows.version(v); if (rightRows != null) rightRows.version(v); }
+
+    /** A one menu made: its rail with Game (frame takes makingBottom), the controller's buttons, the game's input released when it opens */
+    private static SidePanel oneMenu(Activity a, GameRows g) {
+        SidePanel p;
+        makingBottom = g;
+        try { p = new SidePanel(a, panelOf.rows()); } finally { makingBottom = null; }
+        p.padButtons(keys(a));
+        p.onOpen = panelOf.onOpen;
+        return p;
+    }
+
+    /** A one menu slides in, on Game (onGame) or on the tab shown last; with the controller (pad) the focus on Game's first row or the panel's */
+    private static void show(SidePanel p, GameRows g, boolean onGame, boolean pad) {
+        g.refresh();
+        if (pad) p.padToggle(); else p.open();
+        Rail r = rails.get(p);
+        if (onGame && r != null) {
+            r.game();
+            if (pad) p.post(() -> { View f = r.firstGameRow(); if (f != null) f.requestFocusFromTouch(); });
+        }
+    }
+
+    /** Opens one menu at the right, over the game as the quick menu is (in the game's window, above the quick menu) */
+    static void openRight(Activity a, boolean onGame, boolean pad) {
+        if (panelOf == null || !(panelOf.getParent() instanceof ViewGroup) || menuRows == null) return;
+        if (rightPanel == null) {
+            rightRows = gameRows(a, () -> rightPanel);
+            rightPanel = oneMenu(a, rightRows);
+            ViewGroup root = (ViewGroup) panelOf.getParent();
+            root.addView(rightPanel, root.indexOfChild(panelOf) + 1, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+        if (rightPanel.isOpen()) return;
+        if (panelOf.isOpen()) panelOf.close();
+        if (menu != null && menu.isOpen()) menu.close(null);
+        if (bottomPanel != null && bottomPanel.isOpen()) bottomPanel.close();
+        show(rightPanel, rightRows, onGame, pad);
+    }
+
+    /**
+     * Opens the bottom screen's menu: its window on the second display (BottomScreen), the panel sliding up in it, on Game (onGame) or on the tab shown last.
+     * pad: a controller opened it, the focus shows at once. Without a second display now, the one menu at the right opens instead
+     */
+    static void openBottom(Activity a, boolean onGame, boolean pad) {
+        android.hardware.display.DisplayManager dm = (android.hardware.display.DisplayManager) a.getSystemService(android.content.Context.DISPLAY_SERVICE);
+        android.view.Display d = dm == null ? null : dev.peanuts.Companion.second(a, dm);
+        if (d == null || panelOf == null || menuRows == null) { openRight(a, onGame, pad); return; }
+        if (bottomPanel == null) {
+            gameRows = gameRows(a, () -> bottomPanel);
+            bottomPanel = oneMenu(a, gameRows);
+        }
+        if (bottomPanel.isOpen()) return;
+        if (panelOf.isOpen()) panelOf.close();
+        if (menu != null && menu.isOpen()) menu.close(null);
+        if (rightPanel != null && rightPanel.isOpen()) rightPanel.close();
+        if (bottomScreen == null) {
+            try { bottomScreen = new dev.peanuts.ingame.BottomScreen(a, d, bottomPanel); bottomScreen.show(); }
+            catch (RuntimeException e) { Native.note("[RED] [peanuts] the bottom screen's menu could not open: " + e); bottomScreen = null; openRight(a, onGame, pad); return; }
+        }
+        show(bottomPanel, gameRows, onGame, pad);
+    }
+
+    private static View topDim;   // the game on the top screen, dimmed a little while the bottom screen's menu is open: it runs on, but is not being played
+
+    /** The top screen's dim in (with the bottom menu's slide up) or out (with its slide down); a touch on it closes the menu, as a scrim's does */
+    private static void dimTop(Activity a, boolean on) {
+        if (panelOf == null || !(panelOf.getParent() instanceof ViewGroup)) return;
+        if (topDim == null) {
+            topDim = new View(a);
+            topDim.setBackgroundColor(0x66000000);   // SidePanel's scrim
+            topDim.setAlpha(0f);
+            topDim.setVisibility(View.GONE);
+            topDim.setFocusable(false);
+            topDim.setOnClickListener(v -> { if (bottomPanel != null && bottomPanel.isOpen()) bottomPanel.close(); });
+            ViewGroup root = (ViewGroup) panelOf.getParent();
+            root.addView(topDim, root.indexOfChild(panelOf), new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+        View d = topDim;
+        d.animate().cancel();
+        if (on) {
+            d.setVisibility(View.VISIBLE);
+            d.animate().alpha(1f).setDuration(Look.UP_MS).setInterpolator(Look.OUT).start();
+        } else {
+            d.animate().alpha(0f).setDuration(Look.DOWN_MS).setInterpolator(Look.IN).withEndAction(() -> { if (d.getAlpha() == 0f) d.setVisibility(View.GONE); }).start();
+        }
+    }
+
+    /** The bottom screen's window goes (after the panel slid down, or at once: the game left the screen) */
+    static void closeBottom(boolean now) {
+        if (now && bottomPanel != null && bottomPanel.isOpen()) { bottomPanel.close(); }
+        if (now && topDim != null) { topDim.animate().cancel(); topDim.setAlpha(0f); topDim.setVisibility(View.GONE); }
+        if (bottomScreen == null) return;
+        if (!now && bottomPanel != null && bottomPanel.isOpen()) return;
+        dev.peanuts.ingame.BottomScreen s = bottomScreen;
+        bottomScreen = null;
+        s.release();
+        try { s.dismiss(); } catch (RuntimeException ignored) { }
+    }
+
+    /** The bottom sheet: the whole width of the bottom screen under a strip of what is behind it, its top corners round */
+    private static void bottomSheet(SidePanel p, View sheet) {
+        if (sheet == null) return;
+        android.widget.FrameLayout.LayoutParams lp = (android.widget.FrameLayout.LayoutParams) sheet.getLayoutParams();
+        int top = Look.dp(p.getContext(), 18);
+        if (lp.width != ViewGroup.LayoutParams.MATCH_PARENT || lp.topMargin != top) {
+            lp.width = ViewGroup.LayoutParams.MATCH_PARENT;
+            lp.topMargin = top;
+            lp.gravity = android.view.Gravity.BOTTOM;
+            sheet.setLayoutParams(lp);
+        }
+        if (!(sheet.getBackground() instanceof android.graphics.drawable.GradientDrawable)) {
+            float r = Look.dp(p.getContext(), 18);
+            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+            bg.setColor(0xFF202124);
+            bg.setCornerRadii(new float[] {r, r, r, r, 0, 0, 0, 0});
+            sheet.setBackground(bg);
+            sheet.setClipToOutline(true);
+        }
+    }
+
+    /** General (the menu's own settings): Layout, two menus, one menu at the right, or (a device with a second screen) one menu on the bottom screen */
+    private static void layoutSetting(SidePanel p, LinearLayout box) {
+        Activity a = (Activity) p.getContext();
+        box.addView(head(p, "Layout"));
+        boolean second = dev.peanuts.Companion.hasSecondDisplay(a);
+        String[] names = {"Two menus", "One menu at the right", "Bottom screen"};   // the launcher's question's names (LayoutChoice); the line under them says more
+        String[] notes = {
+                "Home or Back opens the game menu at the left, held the quick menu at the right.",
+                "Home or Back opens one menu at the right with Game first; held, on the tab shown last.",
+                "Home or Back opens one menu on the bottom screen, and the game stays in full view on top."};
+        android.widget.RadioGroup g = new android.widget.RadioGroup(a);
+        int[] ids = new int[names.length];
+        for (int i = 0; i < names.length; i++) {
+            if (i == dev.peanuts.PeanutsPrefs.LAYOUT_BOTTOM && !second) continue;
+            android.widget.RadioButton b = new android.widget.RadioButton(a);
+            ids[i] = View.generateViewId();
+            b.setId(ids[i]);
+            b.setText(names[i]);
+            g.addView(b);
+        }
+        int now = dev.peanuts.PeanutsPrefs.menuLayout(a);
+        if (now == dev.peanuts.PeanutsPrefs.LAYOUT_BOTTOM && !second) now = dev.peanuts.PeanutsPrefs.LAYOUT_RIGHT;
+        g.check(ids[now]);
+        box.addView(g);
+        TextView n = new TextView(a);
+        n.setText(notes[now]);
+        n.setTextSize(12);
+        n.setTextColor(android.graphics.Color.LTGRAY);
+        box.addView(n);
+        g.setOnCheckedChangeListener((group, id) -> {
+            for (int i = 0; i < ids.length; i++) if (ids[i] == id && id != 0) { dev.peanuts.PeanutsPrefs.menuLayout(a, i); n.setText(notes[i]); }
+        });
     }
 }

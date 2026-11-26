@@ -75,5 +75,7 @@ public final class Look {
 
     // ---- Motion: calm, no overshoot. In with a long deceleration, out a little quicker, accelerating ----
     public static final int OPEN_MS = 240, CLOSE_MS = 180, TAB_OUT_MS = 60, TAB_IN_MS = 100, BLOCK_MS = 160;
+    /** The bottom screen's menu: up from the bottom edge, back down */
+    public static final int UP_MS = 280, DOWN_MS = 220;
     public static final Interpolator OUT = new PathInterpolator(0.2f, 0f, 0f, 1f), IN = new PathInterpolator(0.3f, 0f, 1f, 1f);
 }

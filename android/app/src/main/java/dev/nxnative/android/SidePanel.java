@@ -100,12 +100,14 @@ final class SidePanel extends FrameLayout {
     void padButtons(int[] cb) { confirm = cb[0]; back = cb[1]; }
 
     boolean isOpen() { return open; }
+    Rows rows() { return rows; }   // PEANUTS: the bottom screen's menu builds the same rows (InGamePanel)
     void toggle() { if (open) close(); else open(); }
     /** Opened or closed by a controller (GameActivity: Home, or − and + held): opened, the focus on its first row, out of touch mode */
     void padToggle() { if (open) close(); else { open(); post(this::ensureFocus); } }
 
     void open() {
         if (open) return;
+        if (InGamePanel.instead(this)) return;   // PEANUTS: with one menu at the right, the swipe and the controls' button open that menu instead
         open = true;
         if (onOpen != null) onOpen.run();
         box.removeAllViews();

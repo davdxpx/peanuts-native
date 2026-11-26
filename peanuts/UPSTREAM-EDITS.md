@@ -3234,3 +3234,33 @@ icons from peanuts/scripts/icons.py), `peanuts/tests/test_cheat_loader.py` (Part
 | `android/app/src/main/res/values/strings.xml` | 1 | `cheats_on`: the quick menu's Cheats tab | `<!-- PEANUTS -->` |
 | `dm/tools/tests/test_android_padpanel.py` | 1 | the combination through `InGamePanel.key` | `# PEANUTS` |
 | `wiki/*.md`, `README.md`, `android/README.md`, `android/TESTING.md`, `docs/guides/saves.md` | | the two menus | `<!-- PEANUTS -->` or a `begin`/`end` pair |
+
+### In-game menus as one menu: at the right over the game, or on the bottom screen with the game in full view on top (2026-11-24, on the in-game menus; two menus stay the default)
+
+The player picks the layout once: Home's list asks at the app's start until one is picked (`dev.peanuts.ui.LayoutChoice`; Later asks once more at the
+next start, then no more; a new player is asked at the start after the one with the first start's setup), with a picture of each (`drawable/pil_layout_*.xml` from `design/peanuts-native/layouts/layouts.py`): Two menus (the game menu at the left,
+the quick menu at the right; kept until one is picked), One menu at the right, and on a device with a second screen (the AYN Thor) Bottom screen (one
+menu there), where the focus starts there. The menu's own settings change it later (Layout). `PeanutsPrefs.menuLayout` keeps both with when, the newer counts. One menu is a second
+quick menu whose rail starts with Game (the game menu's rows, `dev.peanuts.ingame.GameRows`) above the quick menu's tabs; Home pressed, − and + held and
+Back open it on Game, Home held (or the controller's Back held) on the tab shown last, L and R step over Game and the tabs, B closes it. On Game
+its own header (the cover, the name, the version, this session's time) is the top, as in the game menu, without the tabs' header over it.
+
+**At the right** (`InGamePanel.openRight`): over the game as the quick menu is, sliding in from the right edge. The swipe in from the right edge and the
+on-screen controls' button open it (one hook at the top of `SidePanel.open`, `InGamePanel.instead`); the left edge is the game's.
+
+**On the bottom screen** (`InGamePanel.openBottom`; without a second display now, the one at the right opens instead): the game stays in full view on
+top, dimmed a little as behind the other menus (it runs on, but is not being played; a touch there closes the menu): a grey sheet slides up from the bottom edge (280 ms, decelerating) over what the screen shows (the game's live stats, a companion, Android's
+launcher), its rail starting with Game (the game menu's rows, `dev.peanuts.ingame.GameRows`) above the quick menu's tabs. Home held opens it on the tab
+shown last; on the stats page a faint grip (it moves with the pixel shifter) and a swipe up from the bottom edge open it on Game. L and R step over Game
+and the tabs, B closes it (220 ms back down) and the screen is given back: its window (`dev.peanuts.ingame.BottomScreen`, a presentation that never takes
+the input focus, so the controller stays with the game, whose keys go to the menu) goes when it has slid down, and at once when the game leaves the
+screen. A touch sets a value directly, and the top screen shows its effect while the finger moves. Swipes on the top screen still open the menus there.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `android/app/src/main/java/dev/nxnative/android/SidePanel.java` | 2 | `rows()`: one menu builds the same rows; `open()`: `InGamePanel.instead` (with one menu at the right, what opens the quick menu opens that one) | `// PEANUTS` |
+| `android/app/src/main/java/dev/nxnative/android/InGamePanel.java` | (Peanuts' own) | the one menu at the right and on the bottom screen, their keys and stick, their slide, Layout in General | Peanuts' own file |
+
+Peanuts-owned: `dev.peanuts.ingame.BottomScreen`, `GameRows`, `BottomMenu` (the grip and the edge), `Rail`'s Game, `PeanutsPrefs.menuLayout`,
+`dev.peanuts.ui.LayoutChoice` and its line in `Library.fill`, `drawable/pil_layout_*.xml`, the grip on `GameScreen`'s Now playing page,
+`Companion.second`, one line each in `dev.peanuts.ui.StatsView` (the grip) and `GameScreen` (the edge). Tests: `peanuts/tests/test_ingame_menus.py`.

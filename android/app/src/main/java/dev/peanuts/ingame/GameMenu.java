@@ -38,21 +38,29 @@ public final class GameMenu extends FrameLayout {
         final boolean chevron;
         final Runnable run;
         View row;
-        TextView value;
+        final List<TextView> values = new ArrayList<>();   // the value at the row's end, in each menu that shows the row (the game menu, the bottom screen's Game)
         String valueText;
         boolean valueBad;
 
         public Item(String icon, String title, boolean chevron, Runnable run) { this.icon = icon; this.title = title; this.chevron = chevron; this.run = run; }
+
+        public String icon() { return icon; }
+        public String title() { return title; }
+        public boolean chevron() { return chevron; }
+        public void run() { if (run != null) run.run(); }
+        /** A value view of another menu that shows this row (GameRows) */
+        public void bind(TextView v) { values.add(v); value(valueText, valueBad); }
 
         public String valueText() { return valueText; }
 
         /** The value at the row's end (null: none); bad shows it in the colour of something that did not finish */
         public void value(String v, boolean bad) {
             valueText = v; valueBad = bad;
-            if (value == null) return;
-            value.setText(v == null ? "" : v);
-            value.setTextColor(bad ? Look.BAD : Look.QUIET);
-            value.setVisibility(v == null || v.isEmpty() ? GONE : VISIBLE);
+            for (TextView value : values) {
+                value.setText(v == null ? "" : v);
+                value.setTextColor(bad ? Look.BAD : Look.QUIET);
+                value.setVisibility(v == null || v.isEmpty() ? GONE : VISIBLE);
+            }
         }
     }
 
@@ -177,7 +185,7 @@ public final class GameMenu extends FrameLayout {
         setVisibility(GONE);
     }
 
-    private TextView label(Context c, float sp, int color, int style) {
+    TextView label(Context c, float sp, int color, int style) {
         TextView t = new TextView(c);
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp * text);
         t.setTextColor(color);
@@ -237,12 +245,12 @@ public final class GameMenu extends FrameLayout {
         t.setEllipsize(TextUtils.TruncateAt.END);
         t.setPadding(Look.dp(c, 10), 0, Look.dp(c, 8), 0);
         r.addView(t, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        it.value = label(c, 13, Look.QUIET, Typeface.NORMAL);
-        it.value.setSingleLine(true);
-        it.value.setEllipsize(TextUtils.TruncateAt.END);
-        it.value.setMaxWidth(Math.round(widthPx * 0.42f));   // a large font: the row's name keeps the rest
-        r.addView(it.value);
-        it.value(it.valueText, it.valueBad);
+        TextView value = label(c, 13, Look.QUIET, Typeface.NORMAL);
+        value.setSingleLine(true);
+        value.setEllipsize(TextUtils.TruncateAt.END);
+        value.setMaxWidth(Math.round(widthPx * 0.42f));   // a large font: the row's name keeps the rest
+        r.addView(value);
+        it.bind(value);
         if (it.chevron) {
             ImageView ch = new ImageView(c);
             Drawable cd = c.getDrawable(dev.nxnative.android.R.drawable.ic_chevron);   // the launcher's own (PUi.Setting.chevron)

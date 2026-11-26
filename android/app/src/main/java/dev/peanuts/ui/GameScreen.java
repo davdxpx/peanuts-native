@@ -35,6 +35,7 @@ public final class GameScreen extends Presentation {
     private BananaBackgroundView bg;
     private StartView start;
     private StatsView stats;
+    private android.view.View grip;   // the in-game menu's grip on the Now playing page (the stats page has its own)
 
     private GameScreen(Activity game, Display d) { super(game, d, R.style.Theme_Banana); }
 
@@ -112,6 +113,11 @@ public final class GameScreen extends Presentation {
         stats = new StatsView(getContext());
         stats.setVisibility(android.view.View.GONE);
         root.addView(stats, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        if (dev.peanuts.ingame.BottomMenu.on(getContext())) {   // a swipe up from the bottom edge opens the in-game menu here; the grip shows where (the stats page has its own)
+            grip = dev.peanuts.ingame.BottomMenu.grip(getContext());
+            root.addView(grip);
+            root.addView(dev.peanuts.ingame.BottomMenu.edge(getContext()));
+        }
         setContentView(root);
     }
 
@@ -130,6 +136,7 @@ public final class GameScreen extends Presentation {
         stats.setRunning(live);
         start.bind(name, icon);
         start.status(loading ? "Starting the companion" : "Now playing");
+        if (grip != null) grip.setVisibility(!loading && !live ? android.view.View.VISIBLE : android.view.View.GONE);
         start.quiet(!loading);
         start.setAnimating(loading);
         bg.setRunning(loading);

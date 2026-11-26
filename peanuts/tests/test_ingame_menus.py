@@ -14,7 +14,8 @@ APP = REPO / 'android/app/src'
 LAUNCHER = APP / 'main/java/dev/nxnative/android'
 INGAME = APP / 'main/java/dev/peanuts/ingame'
 RES = APP / 'peanuts/res'
-UI_FILES = [LAUNCHER / 'InGamePanel.java', INGAME / 'GameMenu.java', INGAME / 'Rail.java', INGAME / 'Look.java', APP / 'main/java/dev/peanuts/ui/MenuFeel.java']
+UI_FILES = [LAUNCHER / 'InGamePanel.java', INGAME / 'GameMenu.java', INGAME / 'Rail.java', INGAME / 'Look.java', INGAME / 'GameRows.java', INGAME / 'BottomMenu.java', INGAME / 'BottomScreen.java', APP / 'main/java/dev/peanuts/ui/MenuFeel.java',
+            APP / 'main/java/dev/peanuts/ui/LayoutChoice.java']
 
 
 def marked(src, call):
@@ -173,6 +174,81 @@ class Feel(unittest.TestCase):
         panel = (LAUNCHER / 'InGamePanel.java').read_text(encoding='utf-8')
         self.assertIn('PanelPolish.chosen(old, now)', panel, 'the quick menu asks it at each step of the focus')
         self.assertIn('chosen.post(() -> { if (p.isOpen() && now.isFocused()) chosen.requestFocus(); });', panel, "after the change: the panel's frame follows the focus")
+
+class Bottom(unittest.TestCase):
+    def test_the_bottom_screens_menu(self):
+        p = (LAUNCHER / 'SidePanel.java').read_text(encoding='utf-8')
+        self.assertTrue(marked(p, 'Rows rows() { return rows; }'), 'SidePanel gives its rows to the bottom panel, marked')
+        b = (LAUNCHER / 'InGamePanel.java').read_text(encoding='utf-8')
+        self.assertIn('dev.peanuts.PeanutsPrefs.menuLayout(a) != dev.peanuts.PeanutsPrefs.LAYOUT_BOTTOM) return false', b, 'only with that layout')
+        self.assertIn('if (oneMode(a)) { openOne(a, true, pad); return; }', b, 'Home pressed opens one menu on Game')
+        self.assertIn('openOne(a, false, true)', b, 'Home held opens it on the last tab')
+        self.assertIn('if (bottomMode(a)) openBottom(a, onGame, pad); else openRight(a, onGame, pad);', b, 'on the bottom screen, else at the right')
+        self.assertIn('onActivityPaused(Activity x) { if (x == a) closeBottom(true); }', b, 'the screen is given back when the game leaves it')
+        prefs = (APP / 'main/java/dev/peanuts/PeanutsPrefs.java').read_text(encoding='utf-8')
+        self.assertIn('launcher.getInt("menu_layout_pick", LAYOUT_TWO)', prefs, 'two menus until one is picked')
+        self.assertIn('game.getLong("menu_layout_at", 0) >= launcher.getLong("menu_layout_pick_at", 0)', prefs, 'the newer choice counts')
+        screen = (INGAME / 'BottomScreen.java').read_text(encoding='utf-8')
+        self.assertIn('FLAG_NOT_FOCUSABLE', screen, 'the controller stays with the game')
+        look = (INGAME / 'Look.java').read_text(encoding='utf-8')
+        self.assertIn('UP_MS = 280, DOWN_MS = 220', look)
+        for f, line in ((APP / 'main/java/dev/peanuts/ui/StatsView.java', 'BottomMenu.grip('), (APP / 'main/java/dev/peanuts/ui/GameScreen.java', 'BottomMenu.edge(')):
+            self.assertIn(line, f.read_text(encoding='utf-8'), f'{f.name}: the grip and the swipe up')
+
+    def test_one_menu_keys(self):
+        panel = (LAUNCHER / 'InGamePanel.java').read_text(encoding='utf-8')
+        self.assertIn('if (down && o.isInTouchMode()) { View f = o.findFocus(); if (f != null) f.requestFocusFromTouch(); }', panel, "the bottom screen's window leaves touch mode with a key: the frame shows")
+        rail = (INGAME / 'Rail.java').read_text(encoding='utf-8')
+        self.assertIn('head.setVisibility(View.GONE);', rail[rail.index('public void game()'):], "Game: its own header is the top, no Back and Game over it")
+        self.assertIn('head.setVisibility(View.VISIBLE);', rail[rail.index('private void leaveGame()'):], 'a tab: its header again')
+        self.assertIn('if (inRows) tabs.post(() -> { View r = firstRow(); if (r != null) r.requestFocus(); });', rail, 'L and R keep the controller in the rows')
+        self.assertIn('return onGame && gameRows != null ? firstGameRow() : firstIn(content);', rail, "right from the rail on Game: Game's first row")
+
+    def test_the_layout_is_picked_once(self):
+        q = (APP / 'main/java/dev/peanuts/ui/LayoutChoice.java').read_text(encoding='utf-8')
+        offer = q[q.index('public static void offer(Activity a) {'):]
+        offer = offer[:offer.index('asked = true;')]
+        self.assertIn('PeanutsPrefs.menuLayoutPicked(a)', offer, 'asked until one is picked')
+        self.assertIn('later.setOnClickListener(v -> d.dismiss());', q, 'Later picks nothing: asked once more at the next start')
+        self.assertIn('static final int TIMES = 2;', q, 'twice at most')
+        self.assertIn('PeanutsPrefs.menuLayoutAsked(a) >= TIMES', offer, 'then no more')
+        self.assertIn('PeanutsPrefs.menuLayoutAsked(a, PeanutsPrefs.menuLayoutAsked(a) + 1);', q, 'each time it shows')
+        self.assertIn('if (!PeanutsPrefs.setupDone(a)) { setupRun = true; return; }', offer, "not in the run of the first start's setup: one question a start")
+        self.assertIn('setupRun ||', offer)
+        self.assertIn('View first = made[second ? count - 1 : 0];', q, 'two screens: the focus starts on the bottom screen\'s')
+        self.assertIn('cards.setBaselineAligned(false);', q)
+        self.assertIn('new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)', q, 'side by side, the cards are one size')
+        self.assertIn('Math.round(PICTURE_DP * dp)', q, 'every picture in a box of one height, so the names line up')
+        self.assertNotIn('setAdjustViewBounds', q, "no picture sets its card's height")
+        self.assertIn('private static final String[] NAMES = {"Two menus", "One menu at the right", "Bottom screen"};', q, "the question's names fit a line of their card each")
+        self.assertIn('box.post(() -> LayoutChoice.offer(a));', (APP / 'main/java/dev/peanuts/ui/Library.java').read_text(encoding='utf-8'), "Home's list asks")
+        for name in ('two', 'right', 'bottom'):
+            x = (RES / f'drawable/pil_layout_{name}.xml').read_text(encoding='utf-8')
+            self.assertIn('generated from design/peanuts-native/layouts/layouts.py', x, f'pil_layout_{name}: made by layouts.py')
+            self.assertIn(f'"pil_layout_{name}"', q, f'the choice shows pil_layout_{name}')
+
+    def test_the_top_screen_dims_a_little(self):
+        b = (LAUNCHER / 'InGamePanel.java').read_text(encoding='utf-8')
+        self.assertIn('dimTop((Activity) p.getContext(), true);', b, 'in with the bottom menu')
+        self.assertIn('dimTop((Activity) p.getContext(), false);', b, 'out with it')
+        self.assertIn('topDim.setBackgroundColor(0x66000000);', b, "SidePanel's scrim")
+        screen = (APP / 'main/java/dev/peanuts/ui/GameScreen.java').read_text(encoding='utf-8')
+        self.assertIn('grip.setVisibility(!loading && !live ?', screen, 'the grip on the Now playing page too')
+
+    def test_one_menu_at_the_right(self):
+        p = (LAUNCHER / 'SidePanel.java').read_text(encoding='utf-8')
+        self.assertTrue(marked(p, 'if (InGamePanel.instead(this)) return;'), 'what opens the quick menu opens the one menu instead, marked')
+        self.assertLess(p.index('if (open) return;'), p.index('InGamePanel.instead(this)'), 'before the panel builds anything')
+        b = (LAUNCHER / 'InGamePanel.java').read_text(encoding='utf-8')
+        self.assertIn('if (p != panelOf ||', b, 'only the quick menu is sent on, never the one menu itself')
+        self.assertIn('root.addView(rightPanel, root.indexOfChild(panelOf) + 1,', b, "in the game's window, over the game as the quick menu")
+        self.assertIn('if (rightMode(a)) vis = View.GONE;', b, "the left edge is the game's")
+        self.assertIn('rightRows = gameRows(a, () -> rightPanel);', b, 'Game first on its rail, its rows closing it')
+        self.assertIn('{ openRight(a, onGame, pad); return; }', b, 'the bottom screen gone: the one at the right')
+        self.assertIn('String[] names = {"Two menus", "One menu at the right", "Bottom screen"};', b, "Layout's choices have the question's names")
+        rows = (INGAME / 'GameRows.java').read_text(encoding='utf-8')
+        self.assertIn('c.getDrawable(dev.nxnative.android.R.drawable.ic_chevron)', rows, "Game's rows that open a page show the launcher's chevron")
+        self.assertIn('if (i == dev.peanuts.PeanutsPrefs.LAYOUT_BOTTOM && !second) continue;', b, 'the bottom screen only with a second display')
 
 
 if __name__ == '__main__':

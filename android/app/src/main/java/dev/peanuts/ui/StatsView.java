@@ -450,6 +450,7 @@ public final class StatsView extends FrameLayout {
         tagLp.bottomMargin = -pad + PUi.dp(c, 2);   // the tag (about 12 dp) fits in the padding (16 or 24 dp) under the card
         content.addView(buildTag, tagLp);
         addView(content, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        if (dev.peanuts.ingame.BottomMenu.on(getContext())) content.addView(dev.peanuts.ingame.BottomMenu.grip(getContext()));   // the menu's grip: a swipe up opens it; it moves with the pixel shifter
         sheet = sheet(c);
         sheet.setVisibility(sheetOpen ? View.VISIBLE : View.GONE);
         addView(sheet, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));

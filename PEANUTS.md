@@ -131,6 +131,8 @@ Banana Native ships several releases a day, so this fork is kept as a **thin ove
      Thor's Home is Android's), `menuKey` and `menuMotion` (the game menu has the controller), Back through `InGamePanel.back`, and `runSave()`
      (the save the game runs on). SaveStore: `backupRunning` (the game menu's Back up the save, under the running game's own lock: the copy without the
      recovery, refused while the host's swap at a Commit has its marker beside the save).
+     (2026-11-24, one menu: Layout) SidePanel: `rows()` gives the panel's rows to a second panel, the one menu at the right or on the bottom screen
+     (`InGamePanel.openRight`, `openBottom`); `open()` starts with `InGamePanel.instead` (one menu at the right: the swipe and the controls' button open it).
      `peanuts/UPSTREAM-EDITS.md` "In-game menus".
 3. **Settings go through upstream's own mechanisms**: `env.txt` keys named `PN_*`, `settings.tsv` rows, `DM_CTL` lines. No new settings UI inside upstream classes.
 4. **Never reformat or "fix" upstream files.** A general fix belongs upstream as a PR to Banana Native (its AGENTS.md prefers general changes), then it arrives by rebase.
