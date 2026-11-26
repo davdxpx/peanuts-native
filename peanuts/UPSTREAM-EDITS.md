@@ -2949,16 +2949,23 @@ Peanuts-owned: `AmiiboPage`, `GameAreas.AMIIBO`, its lines in `GamePage` and `Li
 
 ### amiibo Part C: the game asks, the player places (2026-11-24, GitHub issue #582, on Part B and the in-game menus)
 
-In a game that uses amiibo the quick menu has an amiibo tab (between Mods and Controls, the new solid icon `pis_amiibo`: the stand, its waves, the figure
+In a game amiibo is on for (Part A's switch) and that uses amiibo the quick menu has an amiibo tab (between Mods and Controls, the new solid icon `pis_amiibo`: the stand, its waves, the figure
 as the kernel). It shows what the stand has, a search, the player's own amiibo that fit and every one that fits, and "When a game looks for an amiibo":
 Suggest one of mine (the default), Only light up this tab, Place my last one at once (`PeanutsPrefs.amiiboWhen`). While the game looks, the tab's rail item
 lights up with a slowly breathing banana ring (`Rail.lit`). After 0.4 s of looking, once per search, a small card slides in at the bottom of the game's
 screen (`AmiiboCard`): one of the player's own (or the last placed in this game) with A Place and B Not now, a short row when several fit (the last placed
 first, left and right pick), or Choose an amiibo, which opens the quick menu on the amiibo tab. The quick menu never opens unasked. While the card shows it
-has the controller; B closes it and the game goes on looking. A placed amiibo comes with the show "Peanuts Native × amiibo" (`dev.peanuts.ui.AmiiboShow`,
-about 2.3 s, any button skips it): the stand's ring pulses, the About peanut (PeanutArt) drops onto it, one firm haptic tick, the peanut cracks and the
-amiibo's picture rises out of the kernel; the game gets the tag at the crack. One picked from the list becomes the player's own copy (with its data for each
+has the controller; B closes it and the game goes on looking. A placed amiibo comes with a short show (`dev.peanuts.ui.AmiiboShow`,
+about 2.3 s, any button skips it): the stand's ring pulses, the About peanut (PeanutArt) drops onto it, one firm haptic tick, the peanut cracks and
+the amiibo's picture (Peanuts' own card while the pictures are off, offline or for none) rises out of the kernel, then stands with the line "On the stand"
+and the amiibo's name; the game gets the tag at the crack. No title names the app beside amiibo (2026-11-26, igawa6's review of #713: it read like a joint
+product). One picked from the list becomes the player's own copy (with its data for each
 game). Placed from the tab while the game does not look, it is ready for the game's next search, and the show plays when the game takes it.
+
+The stand is watched only while the game has its amiibo library open (2026-11-26, igawa6's review of #713: a game without amiibo pays nothing).
+`AmiiboWatch.attach` starts nothing in a game amiibo is off for. In one it is on for, a thread sleeps in the host (`nxhost_peanuts_amiibo_wait_lib`,
+`Bridge.amiiboWaitLib`: woken by nfp's Initialize and Finalize, 30 s at most), and the 150 ms reads of the stand run only while the library is open and
+the game is in front.
 
 | File | Hunks | Change | Marker |
 |---|---|---|---|
@@ -2966,5 +2973,6 @@ game). Placed from the tab while the game does not look, it is ready for the gam
 | `android/app/src/main/java/dev/nxnative/android/InGamePanel.java` | (Peanuts' own) | `AmiiboWatch.attach` in `attach`; `AmiiboWatch.key` first in `backKey` and `menuKey` | Peanuts' own file |
 
 Peanuts-owned: `AmiiboTab`, `AmiiboCard`, `AmiiboWatch`, `dev.peanuts.ui.AmiiboShow`, `Rail.lit` and its `amiibo` icon, `PeanutsPrefs.amiiboWhen`,
-`pis_amiibo.xml` (design icons.py, SOLID). Tests: `peanuts/tests/test_amiibo.py` (InGame: the tab's and the watch's wiring with their markers, the menu never
-opens unasked, 0.4 s and once per search, Suggest by default, the show, the words).
+`pis_amiibo.xml` (design icons.py, SOLID). Tests: `peanuts/tests/test_amiibo.py` (InGame: the tab's and the watch's wiring with their markers, the watch only while
+the library is open, the menu never opens unasked, 0.4 s and once per search, Suggest by default, the show without a title beside amiibo, the words),
+`peanuts/tests/test_amiibo_host.py` (the wait).

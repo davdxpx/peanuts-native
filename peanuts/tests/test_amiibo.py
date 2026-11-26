@@ -154,6 +154,19 @@ class InGame(unittest.TestCase):
         self.assertIn('dev.peanuts.amiibo.AmiiboWatch.attach(a, root,', panel)
         self.assertEqual(panel.count('dev.peanuts.amiibo.AmiiboWatch.key(e)'), 2, 'the card and the show have the controller (backKey, menuKey)')
 
+    def test_watch_only_while_the_game_has_amiibo_open(self):
+        """igawa6's review of #713: games without amiibo pay nothing. Off for the game: nothing starts. On: the stand is read only while nfp is open"""
+        watch = (PKG / 'AmiiboWatch.java').read_text(encoding='utf-8')
+        attach = watch[watch.index('public static void attach('):]
+        self.assertLess(attach.index('if (!AmiiboSwitch.on(a, id))'), attach.index('registerActivityLifecycleCallbacks'), 'off: returns before anything is started')
+        self.assertIn('if (!resumed || !open) return;', watch, 'the tick stops while the library is closed or the game is away')
+        self.assertIn('int lib = Bridge.amiiboWaitLibSafe(was, WAIT_MS);', watch, 'the waiting thread sleeps in the host')
+        self.assertEqual(watch.count('UI.post(tick)'), 1, 'the ticks start in one place only (follow, with the library open)')
+        tab = (PKG / 'AmiiboTab.java').read_text(encoding='utf-8')
+        self.assertIn('return AmiiboSwitch.on(a, titleId) && (', tab, 'no amiibo tab in a game amiibo is off for')
+        host = (REPO / 'dm/peanuts/peanuts_amiibo.c').read_text(encoding='utf-8')
+        self.assertEqual(host.count('pthread_cond_broadcast(&g_lib_cv)'), 2, 'Initialize and Finalize wake the wait')
+
     def test_never_opens_unasked(self):
         """The quick menu opens only from the card's Choose"""
         watch = (PKG / 'AmiiboWatch.java').read_text(encoding='utf-8')
@@ -172,8 +185,16 @@ class InGame(unittest.TestCase):
         self.assertIn('float left = cx - baseX * pw, top = bottom - baseY * ph;', show, 'its base on the ring\'s centre')
         self.assertIn('PeanutArt', show, 'the About peanut')
         self.assertIn('Haptics.Word.HEAVY', show, 'one firm tick')
-        self.assertIn('"PEANUTS NATIVE \\u00d7 AMIIBO"', show)
+        self.assertIn('c.drawText("ON THE STAND",', show, 'the line says what happened')
+        self.assertIn('c.drawText(name,', show, 'the amiibo\'s name')
         self.assertIn('public void skip()', show, 'any button skips it')
+
+    def test_no_title_beside_amiibo(self):
+        """igawa6's review of #713: no "Peanuts Native × amiibo", nothing that reads like a joint product"""
+        for p in [APP / 'main/java/dev/peanuts/ui/AmiiboShow.java', *PKG.glob('*.java'), REPO / 'peanuts/docs/AMIIBO.md', REPO / 'peanuts/UPSTREAM-EDITS.md']:
+            text = p.read_text(encoding='utf-8')
+            for bad in ('× amiibo', '× AMIIBO', '\\u00d7'):
+                self.assertNotIn(bad, text, p.name)
 
     def test_words(self):
         for f in (PKG / 'AmiiboCard.java', PKG / 'AmiiboTab.java', PKG / 'AmiiboWatch.java'):

@@ -75,6 +75,7 @@ static int off(void) {
     CHECK(peanuts_amiibo_force("_ZN2nn3nfc12IsNfcEnabledEv") == NULL, "off: nfc neither");
     describe("");
     CHECK(nxhost_peanuts_amiibo_place(desc) == 0, "off: placing is refused");
+    CHECK(nxhost_peanuts_amiibo_wait_lib(0, 10) == -1, "off: the app's waiting thread is told so and ends");
     nxhost_peanuts_amiibo_status(st, sizeof st);
     CHECK(!strncmp(st, "enabled=0\n", 10) && strstr(st, "lib=0\n"), "off: the status says so");
     printf("amiibo host (off): %d checks, %d failed\n", checks, fails);
@@ -94,6 +95,7 @@ int main(int argc, char **argv) {
     CHECK(nxhost_peanuts_amiibo_place(desc) == 0, "before the modules load: placing is refused");
     nxhost_peanuts_amiibo_status(st, sizeof st);
     CHECK(!strncmp(st, "enabled=0\n", 10), "before the modules load: not on yet");
+    CHECK(nxhost_peanuts_amiibo_wait_lib(0, 10) == -2, "before the modules load: the app's waiting thread asks again later");
     setenv("PN_AMIIBO", "1", 1);   // main.c sets the game's environment, then the loader resolves the modules
 
     // the loader's lookup: every take-over of the file, nothing else
@@ -112,6 +114,8 @@ int main(int argc, char **argv) {
     CHECK(h_nfp_LibState() == 0, "the library starts uninitialized");
     h_nfp_Init();
     CHECK(h_nfp_LibState() == 1, "initialized");
+    CHECK(nxhost_peanuts_amiibo_wait_lib(0, 10) == 1, "the app's wait: the library is open");
+    CHECK(nxhost_peanuts_amiibo_wait_lib(1, 30) == 1, "and stays open: the wait ends at its time");
     int n = 0; CHECK(h_nfp_List(&dev, &n, 1) == RES_OK && n == 1 && dev.id == NFP_DEVICE_ID, "one device");
     CHECK(h_nfp_AttachAct(ev_act, &dev) == RES_OK && h_nfp_AttachDeact(ev_deact, &dev) == RES_OK, "events attached");
     CHECK(h_nfp_State(&dev) == ST_INIT, "initialized device");
@@ -208,6 +212,7 @@ int main(int argc, char **argv) {
     CHECK(strstr(st, "search=2\n") != NULL, "two searches counted");
     h_nfp_Fini();
     CHECK(h_nfp_LibState() == 0, "finalized");
+    CHECK(nxhost_peanuts_amiibo_wait_lib(1, 10) == 0, "the app's wait: the library is closed");
     printf("amiibo host: %d checks, %d failed\n", checks, fails);
     return fails != 0;
 }
@@ -254,7 +259,7 @@ class Wiring(unittest.TestCase):
         self.assertIn('dm/peanuts/peanuts_amiibo.c', cm)
         self.assertEqual(cm.count('DM_NSP_DIRECT PN_AMIIBO'), 2, 'both host kinds (per game, generic) define PN_AMIIBO')
         bridge = (ROOT / 'android/app/src/main/java/dev/peanuts/Bridge.java').read_text(encoding='utf-8')
-        for name in ('amiiboStatus', 'amiiboPlace', 'amiiboRemove'):
+        for name in ('amiiboStatus', 'amiiboPlace', 'amiiboRemove', 'amiiboWaitLib'):
             self.assertIn(f'public static native', bridge)
             self.assertIn(f'Java_dev_peanuts_Bridge_{name}', SRC.read_text(encoding='utf-8'))
             self.assertRegex(bridge, rf'static native \w+ {name}\(')

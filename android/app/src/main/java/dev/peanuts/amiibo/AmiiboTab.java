@@ -49,7 +49,7 @@ public final class AmiiboTab {
     private static java.lang.ref.WeakReference<View> takeOffOn = new java.lang.ref.WeakReference<>(null);
 
     /** Whether the game gets the tab: AmiiboAPI lists it, it was seen looking for one, or its nfp is up now */
-    public static boolean wanted(Activity a, String titleId) { return AmiiboStand.usesAmiibo(a, titleId) || AmiiboWatch.status().lib; }
+    public static boolean wanted(Activity a, String titleId) { return AmiiboSwitch.on(a, titleId) && (AmiiboStand.usesAmiibo(a, titleId) || AmiiboWatch.status().lib); }
 
     /** The card's Choose: the quick menu's next opening is on this tab */
     public static void openOnNext() { forced = NAME; }

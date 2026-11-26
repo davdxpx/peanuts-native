@@ -16,16 +16,19 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import dev.peanuts.Bridge;
 import dev.peanuts.PeanutsPrefs;
 import dev.peanuts.ui.AmiiboShow;
 
 /**
- * The game's amiibo stand watched from the game's screen (dev.nxnative.android.InGamePanel attaches it): every 150 ms while the game is in front it reads
- * the host's stand (AmiiboStand.now). While the game searches, the quick menu's amiibo tab lights up. When it has searched for 0.4 s, once per search, it
- * acts as the player set it (PeanutsPrefs.amiiboWhen): Suggest shows the card over the game (AmiiboCard), Only light up the tab does nothing more, Place my
- * last one at once places the amiibo last placed in this game (the card when there is none). The quick menu never opens unasked: only the card's Choose
- * opens it. While the card or the show is up they take the keys (InGamePanel.menuKey and backKey ask {@link #key}); B closes the card and the game goes
- * on searching. A placed amiibo comes with the show (dev.peanuts.ui.AmiiboShow), and the game gets the tag at its crack.
+ * The game's amiibo stand watched from the game's screen (dev.nxnative.android.InGamePanel attaches it), only in a game the player turned amiibo on for
+ * (AmiiboSwitch): in any other nothing is started and nothing is read. A waiting thread sleeps in the host until the game opens or closes its amiibo library
+ * (Bridge.amiiboWaitLib: nfp's Initialize and Finalize), and only while it is open and the game is in front is the stand read, every 150 ms (AmiiboStand.now;
+ * igawa6's review of #713: games without amiibo pay nothing). While the game searches, the quick menu's amiibo tab lights up. When it has searched for 0.4 s,
+ * once per search, it acts as the player set it (PeanutsPrefs.amiiboWhen): Suggest shows the card over the game (AmiiboCard), Only light up the tab does
+ * nothing more, Place my last one at once places the amiibo last placed in this game (the card when there is none). The quick menu never opens unasked: only
+ * the card's Choose opens it. While the card or the show is up they take the keys (InGamePanel.menuKey and backKey ask {@link #key}); B closes the card and
+ * the game goes on searching. A placed amiibo comes with the show (dev.peanuts.ui.AmiiboShow), and the game gets the tag at its crack.
  */
 public final class AmiiboWatch {
     private AmiiboWatch() {}
@@ -42,6 +45,7 @@ public final class AmiiboWatch {
     static final String TAG = AmiiboStand.TAG;
     static final int K_A = 1, K_B = 2, K_LEFT = 3, K_RIGHT = 4;
     static final long TICK_MS = 150, CARD_AFTER_MS = 400;
+    static final int WAIT_MS = 30000;   // the waiting thread's longest sleep in the host: it looks again whether the game's screen is still there
     private static final Handler UI = new Handler(Looper.getMainLooper());
     private static Activity act;
     private static FrameLayout root;
@@ -50,7 +54,8 @@ public final class AmiiboWatch {
     private static AmiiboCard card;
     private static AmiiboShow show;
     private static int handled = -1;
-    private static boolean seen, lit, running;
+    private static boolean seen, lit, resumed, open;   // open: the game has its amiibo library open (the host's word); resumed: its screen is in front
+    private static volatile Thread waiter;   // the waiting thread of the screen attached now; an older one ends at its next wake
     private static String readyKey;   // placed in advance from the tab: the show plays when the game finds it
     private static AmiiboStand.Status last = AmiiboStand.parse("");
     private static final List<Runnable> listeners = new ArrayList<>();
@@ -58,26 +63,56 @@ public final class AmiiboWatch {
 
     private static final Runnable tick = new Runnable() {
         @Override public void run() {
-            if (!running) return;
+            if (!resumed || !open) return;
             try { step(); } catch (RuntimeException e) { Log.w(TAG, "amiibo watch", e); }
             UI.postDelayed(this, TICK_MS);
         }
     };
 
-    /** GameActivity.onCreate (through InGamePanel.attach): the game's screen and its root */
+    /** GameActivity.onCreate (through InGamePanel.attach): the game's screen and its root. Nothing at all in a game amiibo is off for */
     public static void attach(Activity a, FrameLayout r, Host h) {
-        act = a; root = r; host = h;
-        titleId = a.getIntent().getStringExtra("title_id");
-        handled = -1; seen = false; lit = false; card = null; show = null; readyKey = null;
+        String id = a.getIntent().getStringExtra("title_id");
+        if (!AmiiboSwitch.on(a, id)) { Log.i(TAG, "amiibo: off for this game; the stand is not watched"); return; }
+        act = a; root = r; host = h; titleId = id;
+        handled = -1; seen = false; lit = false; open = false; card = null; show = null; readyKey = null; last = AmiiboStand.parse("");
         a.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
-            @Override public void onActivityResumed(Activity x) { if (x == act) { running = true; UI.removeCallbacks(tick); UI.post(tick); } }
-            @Override public void onActivityPaused(Activity x) { if (x == act) { running = false; UI.removeCallbacks(tick); } }
-            @Override public void onActivityDestroyed(Activity x) { if (x == act) { running = false; UI.removeCallbacks(tick); act = null; root = null; host = null; listeners.clear(); } }
+            @Override public void onActivityResumed(Activity x) { if (x == act) { resumed = true; follow(); } }
+            @Override public void onActivityPaused(Activity x) { if (x == act) { resumed = false; UI.removeCallbacks(tick); } }
+            @Override public void onActivityDestroyed(Activity x) {
+                if (x != act) return;
+                resumed = false; open = false; UI.removeCallbacks(tick); act = null; root = null; host = null; listeners.clear();
+                waiter = null;   // the waiting thread ends at its next wake (WAIT_MS at most)
+            }
             @Override public void onActivityCreated(Activity x, Bundle b) {}
             @Override public void onActivityStarted(Activity x) {}
             @Override public void onActivityStopped(Activity x) {}
             @Override public void onActivitySaveInstanceState(Activity x, Bundle b) {}
         });
+        Thread t = new Thread(AmiiboWatch::waitForTheGame, "peanuts-amiibo-wait");
+        t.setDaemon(true);
+        waiter = t;
+        t.start();
+    }
+
+    /** The waiting thread: asleep in the host until the game opens or closes its amiibo library; the stand is read only in between */
+    private static void waitForTheGame() {
+        int was = 0;
+        while (Thread.currentThread() == waiter) {
+            int lib = Bridge.amiiboWaitLibSafe(was, WAIT_MS);
+            if (lib == Bridge.AMIIBO_OFF) { Log.i(TAG, "amiibo: the host has it off for this game"); return; }
+            if (lib == Bridge.AMIIBO_NO_HOST) { try { Thread.sleep(1000); } catch (InterruptedException e) { return; } continue; }   // the game's host, or its modules, not loaded yet
+            if (lib == was) continue;
+            was = lib;
+            boolean now = lib == 1;
+            UI.post(() -> { if (act == null) return; open = now; follow(); });
+        }
+    }
+
+    /** The ticks run while the library is open and the game is in front; when it closes, the stand once more (the lit tab and the card go out) */
+    private static void follow() {
+        UI.removeCallbacks(tick);
+        if (open && resumed) UI.post(tick);
+        else if (!open && act != null) { try { step(); } catch (RuntimeException e) { Log.w(TAG, "amiibo watch", e); } }
     }
 
     /** The stand as last read */

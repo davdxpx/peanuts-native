@@ -218,9 +218,10 @@ static void *ticker(void *arg) {
     return NULL;
 }
 static pthread_once_t g_once = PTHREAD_ONCE_INIT;
-static void start_once(void) {   // the condition variable on the monotonic clock, and the helper thread
+static pthread_cond_t g_lib_cv;   // the game's amiibo library opened or closed (nxhost_peanuts_amiibo_wait_lib)
+static void start_once(void) {   // the condition variables on the monotonic clock, and the helper thread
     pthread_condattr_t a; pthread_condattr_init(&a); pthread_condattr_setclock(&a, CLOCK_MONOTONIC);
-    pthread_cond_init(&g_cv, &a); pthread_condattr_destroy(&a);
+    pthread_cond_init(&g_cv, &a); pthread_cond_init(&g_lib_cv, &a); pthread_condattr_destroy(&a);
     pthread_t t; pthread_attr_t at; pthread_attr_init(&at); pthread_attr_setdetachstate(&at, PTHREAD_CREATE_DETACHED);
     if (pthread_create(&t, &at, ticker, NULL) == 0) g_thread = 1; else LOG("[RED] amiibo: no helper thread; placed amiibo are not written back");
     pthread_attr_destroy(&at);
@@ -259,6 +260,22 @@ void nxhost_peanuts_amiibo_remove(void) {
     pthread_mutex_unlock(&g_mu);
     if (deact) hle_signal_system_event_binding(db);
 }
+// Sleeps until the game's amiibo library is not in state was any more (nfp's Initialize sets 1, Finalize 0), at most ms; the state then. -1 when amiibo is
+// off for this game, -2 while the game's modules are not loaded yet (whether it is on is not known before: the caller asks again a moment later). The
+// app's waiting thread (dev.peanuts.amiibo.AmiiboWatch) reads the stand only while the library is open: a game that never opens it costs a sleeping thread
+int nxhost_peanuts_amiibo_wait_lib(int was, int ms) {
+    if (atomic_load(&g_enabled) < 0) return -2;
+    if (!enabled()) return -1;
+    ensure();
+    struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
+    uint64_t end = (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec + (uint64_t)(ms > 0 ? ms : 0) * 1000000ull;
+    ts.tv_sec = (time_t)(end / 1000000000ull); ts.tv_nsec = (long)(end % 1000000000ull);
+    pthread_mutex_lock(&g_mu);
+    while (g_lib == was) if (pthread_cond_timedwait(&g_lib_cv, &g_mu, &ts) == ETIMEDOUT) break;
+    int lib = g_lib;
+    pthread_mutex_unlock(&g_mu);
+    return lib;
+}
 // "key=value" lines: enabled (1 when amiibo is on for this game; 0 when it is off, and the game has hle_sdk16.c's block, or while the game's modules are not
 // loaded yet; with 0 nothing else here counts), lib (1 initialized),
 // state (the device state above), search (how many searches so far), searching_ms (0 when not searching), on (the key on the stand), ready (the key placed
@@ -288,7 +305,7 @@ static void signal_after(int act, int deact) {   // outside g_mu
 }
 PN_FORCE("_ZN2nn3nfp10InitializeEv", "amiibo library init; one NFC device, amiibo placed from the app", void, h_nfp_Init, void) {
     ensure();
-    pthread_mutex_lock(&g_mu); g_lib = 1; pthread_mutex_unlock(&g_mu);
+    pthread_mutex_lock(&g_mu); g_lib = 1; pthread_cond_broadcast(&g_lib_cv); pthread_mutex_unlock(&g_mu);
     LOG("nfp::Initialize: one NFC device; amiibo are placed from the app");
 }
 PN_FORCE("_ZN2nn3nfp29AttachAvailabilityChangeEventEPNS_2os15SystemEventTypeE", "NFC availability change event; the device never goes away", void, h_nfp_AttachAvail, void *ev) {
@@ -409,9 +426,10 @@ PN_FORCE("_ZN2nn3nfp15GetRegisterInfoEPNS0_12RegisterInfoERKNS0_12DeviceHandleE"
 }
 PN_FORCE("_ZN2nn3nfp8GetStateEv", "amiibo library state: initialized (1) after Initialize", int, h_nfp_LibState, void) { pthread_mutex_lock(&g_mu); int l = g_lib; pthread_mutex_unlock(&g_mu); return l; }
 PN_FORCE("_ZN2nn3nfp8FinalizeEv", "amiibo library finalize: the stand is cleared", void, h_nfp_Fini, void) {
-    int deact = 0;
+    int deact = 0; ensure();
     pthread_mutex_lock(&g_mu);
     lift_locked(&deact); g_state = ST_INIT; g_lib = 0; g_search_at = 0; g_find_at = 0;
+    pthread_cond_broadcast(&g_lib_cv);
     pthread_mutex_unlock(&g_mu);
     (void)deact;   // the game's events go with the library
 }
@@ -519,4 +537,5 @@ JNIEXPORT jint JNICALL Java_dev_peanuts_Bridge_amiiboPlace(JNIEnv *env, jclass c
     return r;
 }
 JNIEXPORT void JNICALL Java_dev_peanuts_Bridge_amiiboRemove(JNIEnv *env, jclass cls) { (void)env; (void)cls; nxhost_peanuts_amiibo_remove(); }
+JNIEXPORT jint JNICALL Java_dev_peanuts_Bridge_amiiboWaitLib(JNIEnv *env, jclass cls, jint was, jint ms) { (void)env; (void)cls; return nxhost_peanuts_amiibo_wait_lib(was, ms); }
 #endif

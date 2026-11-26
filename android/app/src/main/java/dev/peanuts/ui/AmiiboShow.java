@@ -18,13 +18,15 @@ import android.view.animation.LinearInterpolator;
 import android.widget.FrameLayout;
 
 /**
- * "Peanuts Native × amiibo" (about 2.3 s): an amiibo placed from the card or the quick menu's tab. The game dims softly (eased in over
- * DIM_IN, never at once) and a stand fades in and its banana ring pulses once; the app's own peanut (PeanutArt, the one of About and the shader screen) drops straight onto it; it lands with one firm
- * tick through the in-game haptics (MenuFeel's setting), its seam runs down and the halves open; the amiibo's picture rises out of the kernel's light (the
- * game gets the tag here: {@code atCrack}); then the amiibo stands on the ring with the line and its name for a good second (RISE_END to END), its base on
- * the ring's centre (the picture's own base found in it: AmiiboAPI's pictures are not centred on the figure's base), and all fades. Calm motion:
- * decelerating, no bounce, no wobble. At the end the figure and the words fade first and the dim lifts a little after them (eased, OUT_MS). Any button or a tap skips to the
- * end (the tag is still placed). Without the system's animations, or under reduced motion, nothing is drawn and the tag is placed at once.
+ * The show of an amiibo placed from the card or the quick menu's tab (about 2.3 s). The game dims softly (eased in over DIM_IN, never at once) and a stand
+ * fades in and its banana ring pulses once; the app's own peanut (PeanutArt, the one of About and the shader screen) drops straight onto it; it lands with one
+ * firm tick through the in-game haptics (MenuFeel's setting), its seam runs down and the halves open; the amiibo's picture (Peanuts' own card while the
+ * pictures are off or there is none) rises out of the kernel's light (the game gets the tag here: {@code atCrack}); then it stands on the ring with the line
+ * ("On the stand") and the amiibo's name for a good second (RISE_END to END), its base on the ring's centre (the picture's own base found in it: AmiiboAPI's
+ * pictures are not centred on the figure's base), and all fades. No title names the app beside amiibo, so nothing suggests an endorsement (igawa6's review of
+ * #713). Calm motion: decelerating, no bounce, no wobble. At the end the figure and the words fade first and the dim lifts a little after them (eased,
+ * OUT_MS). Any button or a tap skips to the end (the tag is still placed). Without the system's animations, or under reduced motion, nothing is drawn and the
+ * tag is placed at once.
  */
 public final class AmiiboShow extends View {
     static final long DROP_AT = 250, LAND_AT = 500, CRACK_AT = 650, OPEN_END = 900, RISE_END = 1150, END = 2300, DIM_IN = 380, OUT_MS = 560, SKIP_OUT_MS = 280;
@@ -248,7 +250,7 @@ public final class AmiiboShow extends View {
                 paint.setAlpha(fa);
                 c.drawBitmap(picture, null, new RectF(left, top, left + pw, top + ph), paint);
                 paint.setAlpha(255);
-            } else if (stand != null) {   // no picture (offline): Peanuts' own card, the stand icon
+            } else if (stand != null) {   // no picture (off, offline, or none): Peanuts' own card, the stand icon
                 int side = Math.round(dp(96) * s);
                 stand.setBounds(Math.round(cx - side / 2f), Math.round(bottom - side - dp(8)), Math.round(cx + side / 2f), Math.round(bottom - dp(8)));
                 stand.setAlpha(fa);
@@ -263,7 +265,7 @@ public final class AmiiboShow extends View {
             text.setTextSize(dp(11));
             text.setLetterSpacing(0.14f);
             text.setColor(Color.argb(Math.round(255 * a * words), 0xCD, 0xB4, 0x8C));
-            c.drawText("PEANUTS NATIVE \u00d7 AMIIBO", cx, cy + ry + dp(34), text);
+            c.drawText("ON THE STAND", cx, cy + ry + dp(34), text);   // what happened, in the show's small capitals; no title beside amiibo
             text.setLetterSpacing(0f);
             text.setTextSize(dp(18));
             text.setColor(Color.argb(Math.round(255 * a * words), 0xE8, 0xEA, 0xED));

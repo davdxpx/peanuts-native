@@ -67,11 +67,15 @@ it, and resets that game's data (Reset game data) or removes the amiibo from the
 
 ## In game
 
-The quick menu has an amiibo tab in a game that uses amiibo; its rail item lights up while the game looks for one. After the game has looked for 0.4 s,
+In a game amiibo is on for, the quick menu has an amiibo tab when the game uses amiibo; its rail item lights up while the game looks for one. The app
+reads the stand only while the game has its amiibo library open: a thread sleeps in the host until nfp's Initialize or Finalize
+(`Bridge.amiiboWaitLib`), and only in between is the stand read, every 150 ms while the game is in front. In a game amiibo is off for, nothing of this
+starts. After the game has looked for 0.4 s,
 once per search, a card slides in over the game (Suggest, the default): one of the player's own that fits, or the last placed in this game, with A Place
 and B Not now; a short row of several; or Choose an amiibo, which opens the tab. B closes the card and the game goes on looking. "When a game looks for an
-amiibo" in the tab also offers Only light up this tab and Place my last one at once. A placed amiibo comes with the show "Peanuts Native × amiibo" (about
-2.3 s, the amiibo standing with its name for a good second; any button skips it), and the game gets the tag when the peanut cracks. Placed from the tab
+amiibo" in the tab also offers Only light up this tab and Place my last one at once. A placed amiibo comes with a short show (about
+2.3 s: the peanut cracks on the stand and the amiibo's picture, or Peanuts' own card while the pictures are off, rises out of it, then stands with the line "On the stand" and its name for a good
+second; no title beside amiibo; any button skips it), and the game gets the tag when the peanut cracks. Placed from the tab
 while the game does not look, it is ready for the next search.
 
 ## Control
