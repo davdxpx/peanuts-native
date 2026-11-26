@@ -3238,7 +3238,7 @@ icons from peanuts/scripts/icons.py), `peanuts/tests/test_cheat_loader.py` (Part
 ### In-game menus as one menu: at the right over the game, or on the bottom screen with the game in full view on top (2026-11-24, on the in-game menus; two menus stay the default)
 
 The player picks the layout once: Home's list asks at the app's start until one is picked (`dev.peanuts.ui.LayoutChoice`; Later asks once more at the
-next start, then no more; a new player is asked at the start after the one with the first start's setup), with a picture of each (`drawable/pil_layout_*.xml` from `design/peanuts-native/layouts/layouts.py`): Two menus (the game menu at the left,
+next start, then no more; a new player is asked at the start after the one with the first start's setup), with a picture of each (`drawable/pil_layout_*.xml` written by `peanuts/scripts/layouts.py`): Two menus (the game menu at the left,
 the quick menu at the right; kept until one is picked), One menu at the right, and on a device with a second screen (the AYN Thor) Bottom screen (one
 menu there), where the focus starts there. The menu's own settings change it later (Layout). `PeanutsPrefs.menuLayout` keeps both with when, the newer counts. One menu is a second
 quick menu whose rail starts with Game (the game menu's rows, `dev.peanuts.ingame.GameRows`) above the quick menu's tabs; Home pressed, − and + held and
@@ -3263,4 +3263,23 @@ screen. A touch sets a value directly, and the top screen shows its effect while
 
 Peanuts-owned: `dev.peanuts.ingame.BottomScreen`, `GameRows`, `BottomMenu` (the grip and the edge), `Rail`'s Game, `PeanutsPrefs.menuLayout`,
 `dev.peanuts.ui.LayoutChoice` and its line in `Library.fill`, `drawable/pil_layout_*.xml`, the grip on `GameScreen`'s Now playing page,
-`Companion.second`, one line each in `dev.peanuts.ui.StatsView` (the grip) and `GameScreen` (the edge). Tests: `peanuts/tests/test_ingame_menus.py`.
+`Companion.second`, one line each in `dev.peanuts.ui.StatsView` (the grip) and `GameScreen` (the swipe up, watched by its root). Tests:
+`peanuts/tests/test_ingame_menus.py`, `peanuts/tests/test_layout_pictures.py` (`peanuts/scripts/layouts.py --check`).
+
+**Review fixes (2026-11-26, on dev-0.1.9).** igawa6's review and a second pass:
+
+- **A recreated game screen** (Don't keep activities, a font or theme change) forgets the old one's one menus, rows, dim, bottom window and held keys
+  (`InGamePanel.forget`), so Home and Back open the new screen's menus.
+- **The bottom screen's menu** is made anew for each of its windows: listeners a view adds before it is attached reach its first window only, so a reused
+  panel lost its focus frame and its rail's steps after the first close. Its display going closes it, with its dim and the keys it held (`bottomGone`). It
+  opens only for a game in front (the stats page's swipe while the game is away opens nothing), and its opener goes with its screen.
+- **The swipe up** is watched by the page's root (`BottomMenu.intercept`, `touch`): a tap in the bottom edge reaches the page again. The grips follow
+  Layout's choice while the game runs (`BottomMenu.changed`), and the stats page's grip sits in its bottom padding at the screen's edge.
+- **The left strip** keeps the layout it last worked out (one menu hides it, the bottom screen's too) instead of reading it at every layout pass.
+- **The layout question** counts once the player closed it (a pick, Later, Back), so one its screen took with it is asked again; an A pressed before it
+  settled (300 ms) picks nothing; its window goes with its screen. Its pictures are written by `peanuts/scripts/layouts.py` (they named a generator
+  outside the repository).
+- **One menu's Game** shows Back up the save's newest backup and its notes, its Keep playing clears a Stop waiting for the backup, its header and values
+  end in an ellipsis. Layout's heading, choices and note have the panel's text size. Each panel's first opening is on the tab shown last (`ModsPanel`).
+  The rail's items fit a short screen with Game first too. A value of the game menu's rows shown in another menu is held weakly, so a menu made anew
+  lets the old one go.

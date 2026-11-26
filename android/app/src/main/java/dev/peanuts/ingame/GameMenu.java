@@ -38,7 +38,9 @@ public final class GameMenu extends FrameLayout {
         final boolean chevron;
         final Runnable run;
         View row;
-        final List<TextView> values = new ArrayList<>();   // the value at the row's end, in each menu that shows the row (the game menu, the bottom screen's Game)
+        // The value at the row's end, in each menu that shows the row (the game menu, the one menus' Game): weak, so a menu made anew (the bottom
+        // screen's, for each of its windows) lets the old one's go
+        final List<java.lang.ref.WeakReference<TextView>> values = new ArrayList<>();
         String valueText;
         boolean valueBad;
 
@@ -49,14 +51,16 @@ public final class GameMenu extends FrameLayout {
         public boolean chevron() { return chevron; }
         public void run() { if (run != null) run.run(); }
         /** A value view of another menu that shows this row (GameRows) */
-        public void bind(TextView v) { values.add(v); value(valueText, valueBad); }
+        public void bind(TextView v) { values.add(new java.lang.ref.WeakReference<>(v)); value(valueText, valueBad); }
 
         public String valueText() { return valueText; }
 
         /** The value at the row's end (null: none); bad shows it in the colour of something that did not finish */
         public void value(String v, boolean bad) {
             valueText = v; valueBad = bad;
-            for (TextView value : values) {
+            for (java.util.Iterator<java.lang.ref.WeakReference<TextView>> i = values.iterator(); i.hasNext(); ) {
+                TextView value = i.next().get();
+                if (value == null) { i.remove(); continue; }
                 value.setText(v == null ? "" : v);
                 value.setTextColor(bad ? Look.BAD : Look.QUIET);
                 value.setVisibility(v == null || v.isEmpty() ? GONE : VISIBLE);

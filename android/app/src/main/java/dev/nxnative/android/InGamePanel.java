@@ -69,6 +69,7 @@ public final class InGamePanel {
 
     /** onCreate, once the panel and its handle are in place: the game menu over the panel, a handle at the left edge, the rows' work */
     static void attach(Activity a, FrameLayout root, SidePanel panel) {
+        forget(panel);
         panelOf = panel;
         float scale = PanelLook.textScale(Prefs.panelText(a));
         menu = new GameMenu(a, menuWidth(a), menuRow(a), scale);
@@ -94,21 +95,23 @@ public final class InGamePanel {
         GameMenu.Item stop = new GameMenu.Item("stop", "Stop the game", false, () -> {
             if (!backingUp.get()) { stopNow.run(); return; }
             stopAfter = stopNow;   // a copy cut off would leave a save-sized folder for a day (SaveStore.cleanStale)
-            menu.note("The backup finishes first, then the game stops.", false);
+            note("The backup finishes first, then the game stops.", false);
         });
         menu.items(rows, stop);
         menuRows = rows;
         menuStop = stop;
+        Runnable[] opener = {null};
         a.registerActivityLifecycleCallbacks(new android.app.Application.ActivityLifecycleCallbacks() {   // the game leaves the screen: the bottom one is given back
-            @Override public void onActivityPaused(Activity x) { if (x == a) closeBottom(true); }
+            @Override public void onActivityPaused(Activity x) { if (x == a) { resumed = false; closeBottom(true); } }
             @Override public void onActivityCreated(Activity x, android.os.Bundle b) {}
             @Override public void onActivityStarted(Activity x) {}
-            @Override public void onActivityResumed(Activity x) {}
+            @Override public void onActivityResumed(Activity x) { if (x == a) resumed = true; }
             @Override public void onActivityStopped(Activity x) {}
             @Override public void onActivitySaveInstanceState(Activity x, android.os.Bundle b) {}
-            @Override public void onActivityDestroyed(Activity x) { if (x == a) closeBottom(true); }
+            @Override public void onActivityDestroyed(Activity x) { if (x == a) { closeBottom(true); if (dev.peanuts.ingame.BottomMenu.opener == opener[0]) dev.peanuts.ingame.BottomMenu.opener = null; } }
         });
-        dev.peanuts.ingame.BottomMenu.opener = () -> { if (bottomMode(a)) openBottom(a, true, false); };
+        opener[0] = () -> { if (bottomMode(a)) openBottom(a, true, false); };   // the bottom screen's swipe up (the game's stats page)
+        dev.peanuts.ingame.BottomMenu.opener = opener[0];
         root.addView(menu, root.indexOfChild(panel) + 1, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         // The cover (the launcher's copy of the game's icon) and the version, read off the main thread
@@ -140,7 +143,8 @@ public final class InGamePanel {
         root.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
             View right = rightHandle(root);
             int vis = right != null ? right.getVisibility() : View.VISIBLE;
-            if (rightMode(a)) vis = View.GONE;   // one menu at the right: the left edge is the game's
+            if (leftHidden == null) leftHidden = oneMode(a);   // the layout as last seen: Layout's choice works it out again (layoutSetting)
+            if (leftHidden) vis = View.GONE;   // one menu (at the right, or on the bottom screen, opened from its own edge): the left edge is the game's
             if (left.getVisibility() != vis) left.setVisibility(vis);
             // Under gesture navigation the system takes a swipe in from either edge as Back (which opens the game menu): the two strips are kept out of
             // that, so the left one opens the game menu and the right one the quick menu (140 dp each, under Android's 200 dp a side)
@@ -458,7 +462,7 @@ public final class InGamePanel {
         backingUp.set(true);
         lookup++;
         backupRow.value("Backing up", false);
-        menu.note(null, false);
+        note(null, false);
         new Thread(() -> {
             String err = null;
             SaveStore.Backup b = null;
@@ -486,11 +490,11 @@ public final class InGamePanel {
                     if (backupRow == null || menu == null) return;
                     if (done != null) {
                         backupRow.value("Just now", false);
-                        if (inApp) menu.note("Kept in the app's own storage. Back up saves on Home can copy it out as a .zip.", false);
+                        if (inApp) note("Kept in the app's own storage. Back up saves on Home can copy it out as a .zip.", false);
                         return;
                     }
                     backupRow.value("Not backed up", true);
-                    menu.note(why.contains("no save folder") ? "This game has no save yet."
+                    note(why.contains("no save folder") ? "This game has no save yet."
                             : full(why) ? "There is no room left for the backup. Free some space, then try again."
                             : why.contains("changed while") ? "The game kept saving while it was copied. Try again in a moment."
                             : "The backup did not finish. The save was only read, never changed.", true);
@@ -503,6 +507,13 @@ public final class InGamePanel {
                 }
             }
         }, "peanuts-menu-backup").start();
+    }
+
+    /** A note under the game's rows: in the game menu, and in the one menus' Game (GameRows) */
+    private static void note(String text, boolean bad) {
+        if (menu != null) menu.note(text, bad);
+        if (gameRows != null) gameRows.note(text, bad);
+        if (rightRows != null) rightRows.note(text, bad);
     }
 
     /** The storage is full (ENOSPC): trying again does not help */
@@ -633,6 +644,7 @@ public final class InGamePanel {
     /** SidePanel.close: the sheet slides out (CLOSE_MS, accelerating), the scrim fades; then gone (end) */
     static void slideOut(SidePanel p, View sheet, Runnable end) {
         dev.peanuts.ui.MenuFeel.back(sheet);
+        if (p == bottomPanel || p == rightPanel) stopAfter = null;   // a Stop waiting for the backup goes with its menu
         fromGame = false;   // closed any way (B, a tap beside it, Home): opened again by the edge swipe, its B goes to the game
         View scrim = p.getChildAt(0);
         sheet.animate().cancel();
@@ -771,6 +783,7 @@ public final class InGamePanel {
     /** Game's rows for one menu (host): the game menu's without Quick menu (the rail is there), Back to the game and Pause closing that menu */
     private static GameRows gameRows(Activity a, java.util.function.Supplier<SidePanel> host) {
         GameRows g = new GameRows(a, PanelLook.rowPx(Prefs.panelSize(a), a.getResources().getDisplayMetrics().density));
+        g.onKeep = () -> stopAfter = null;   // Stop asked during a backup, then Keep playing
         g.game(a.getIntent().getStringExtra("name"), version, dev.peanuts.Companion.startedAt());
         if (cover != null) g.cover(cover);
         List<GameMenu.Item> some = new ArrayList<>();
@@ -801,6 +814,7 @@ public final class InGamePanel {
     /** A one menu slides in, on Game (onGame) or on the tab shown last; with the controller (pad) the focus on Game's first row or the panel's */
     private static void show(SidePanel p, GameRows g, boolean onGame, boolean pad) {
         g.refresh();
+        if (p.getContext() instanceof Activity) showBackup((Activity) p.getContext());   // Back up the save's newest backup, as the game menu shows it
         if (pad) p.padToggle(); else p.open();
         Rail r = rails.get(p);
         if (onGame && r != null) {
@@ -811,6 +825,7 @@ public final class InGamePanel {
 
     /** Opens one menu at the right, over the game as the quick menu is (in the game's window, above the quick menu) */
     static void openRight(Activity a, boolean onGame, boolean pad) {
+        if (a.isFinishing() || a.isDestroyed()) return;
         if (panelOf == null || !(panelOf.getParent() instanceof ViewGroup) || menuRows == null) return;
         if (rightPanel == null) {
             rightRows = gameRows(a, () -> rightPanel);
@@ -830,6 +845,7 @@ public final class InGamePanel {
      * pad: a controller opened it, the focus shows at once. Without a second display now, the one menu at the right opens instead
      */
     static void openBottom(Activity a, boolean onGame, boolean pad) {
+        if (!resumed || a.isFinishing() || a.isDestroyed()) return;   // the game is not in front (the bottom screen's swipe while it is away)
         android.hardware.display.DisplayManager dm = (android.hardware.display.DisplayManager) a.getSystemService(android.content.Context.DISPLAY_SERVICE);
         android.view.Display d = dm == null ? null : dev.peanuts.Companion.second(a, dm);
         if (d == null || panelOf == null || menuRows == null) { openRight(a, onGame, pad); return; }
@@ -842,7 +858,12 @@ public final class InGamePanel {
         if (menu != null && menu.isOpen()) menu.close(null);
         if (rightPanel != null && rightPanel.isOpen()) rightPanel.close();
         if (bottomScreen == null) {
-            try { bottomScreen = new dev.peanuts.ingame.BottomScreen(a, d, bottomPanel); bottomScreen.show(); }
+            try {
+                dev.peanuts.ingame.BottomScreen s = new dev.peanuts.ingame.BottomScreen(a, d, bottomPanel);
+                s.setOnDismissListener(x -> { if (s == bottomScreen) bottomGone(); });   // the system took it (the display went): the menu goes with it
+                bottomScreen = s;
+                s.show();
+            }
             catch (RuntimeException e) { Native.note("[RED] [peanuts] the bottom screen's menu could not open: " + e); bottomScreen = null; openRight(a, onGame, pad); return; }
         }
         show(bottomPanel, gameRows, onGame, pad);
@@ -883,7 +904,58 @@ public final class InGamePanel {
         bottomScreen = null;
         s.release();
         try { s.dismiss(); } catch (RuntimeException ignored) { }
+        dropBottom();
     }
+
+    /**
+     * The bottom panel goes with its window and is made anew for the next: SidePanel, its rail and the focus ticks listen to their view tree from their
+     * constructors, before they are attached, and such listeners reach the first window only, so a panel moved into a second window would lose its focus
+     * frame and its rail's steps
+     */
+    private static void dropBottom() {
+        if (bottomPanel != null) rails.remove(bottomPanel);
+        bottomPanel = null;
+        gameRows = null;
+    }
+
+    /** The bottom screen's window was taken by the system (its display went) while the menu was up: the menu, its dim and the keys it held go */
+    private static void bottomGone() {
+        bottomScreen = null;
+        if (topDim != null) { topDim.animate().cancel(); topDim.setAlpha(0f); topDim.setVisibility(View.GONE); }
+        if (bottomPanel != null && bottomPanel.isOpen()) bottomPanel.close();
+        dropBottom();
+        inputLost();
+    }
+
+    /**
+     * attach, on a game screen made again while the game runs (Don't keep activities, a font or theme change): the old screen's one menus, their rows, its
+     * dim and the bottom screen's window go, and the keys the menus held; the new screen makes its own as they open. The rail of the new screen's quick
+     * menu (made before attach, in SidePanel's constructor) stays
+     */
+    private static void forget(SidePanel keep) {
+        closeBottom(true);
+        bottomScreen = null;
+        bottomPanel = null;
+        rightPanel = null;
+        gameRows = null;
+        rightRows = null;
+        topDim = null;
+        cover = null;
+        version = null;
+        makingBottom = null;
+        rails.keySet().removeIf(p -> p != keep);
+        shownTab = -1;
+        fromGame = false;
+        stopAfter = null;
+        leftHidden = null;
+        resumed = false;
+        inputLost();
+    }
+
+    /** The game's screen is in front (resumed): the bottom screen's swipe opens the menu only then */
+    private static boolean resumed;
+    /** The left strip hidden for one menu (oneMode), as last worked out (null: again, the layout changed) */
+    private static Boolean leftHidden;
 
     /** The bottom sheet: the whole width of the bottom screen under a strip of what is behind it, its top corners round */
     private static void bottomSheet(SidePanel p, View sheet) {
@@ -909,7 +981,9 @@ public final class InGamePanel {
     /** General (the menu's own settings): Layout, two menus, one menu at the right, or (a device with a second screen) one menu on the bottom screen */
     private static void layoutSetting(SidePanel p, LinearLayout box) {
         Activity a = (Activity) p.getContext();
-        box.addView(head(p, "Layout"));
+        TextView lh = head(p, "Layout");
+        box.addView(lh);
+        ModsPanel.style(a, lh);   // the panel's text size, as its own rows (laid adds these after SidePanel.look)
         boolean second = dev.peanuts.Companion.hasSecondDisplay(a);
         String[] names = {"Two menus", "One menu at the right", "Bottom screen"};   // the launcher's question's names (LayoutChoice); the line under them says more
         String[] notes = {
@@ -930,13 +1004,18 @@ public final class InGamePanel {
         if (now == dev.peanuts.PeanutsPrefs.LAYOUT_BOTTOM && !second) now = dev.peanuts.PeanutsPrefs.LAYOUT_RIGHT;
         g.check(ids[now]);
         box.addView(g);
+        ModsPanel.style(a, g);
         TextView n = new TextView(a);
         n.setText(notes[now]);
         n.setTextSize(12);
         n.setTextColor(android.graphics.Color.LTGRAY);
         box.addView(n);
+        ModsPanel.style(a, n);
         g.setOnCheckedChangeListener((group, id) -> {
             for (int i = 0; i < ids.length; i++) if (ids[i] == id && id != 0) { dev.peanuts.PeanutsPrefs.menuLayout(a, i); n.setText(notes[i]); }
+            leftHidden = null;   // the left strip at the next layout pass
+            if (panelOf != null && panelOf.getParent() instanceof View) ((View) panelOf.getParent()).requestLayout();
+            dev.peanuts.ingame.BottomMenu.changed();   // the stats page's grip shows for Bottom screen only
         });
     }
 }

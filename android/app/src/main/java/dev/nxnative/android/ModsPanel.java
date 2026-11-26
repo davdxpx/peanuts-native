@@ -35,7 +35,9 @@ final class ModsPanel {
 
     static final String MODS = "Mods", CHEATS = "Cheats";
     private static final String[] BASE = {"Performance", "Display", "Controls", "General"};
-    private static boolean shows, opened;   // shows: the Cheats tab shows (General's cheat switches go there)
+    private static boolean shows;   // the Cheats tab shows (General's cheat switches go there)
+    /** The panels opened once in this run (weak: a recreated screen's go): a panel's first opening is on the tab shown last (the quick menu, a one menu) */
+    private static final java.util.Set<SidePanel> OPENED = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
 
     /** SidePanel.open: the tabs (SidePanel.TAB_NAMES, TAB_GENERAL) and the tab to open on; tab: the one the panel has now */
     static int opening(SidePanel p, Activity a, String titleId, int tab) {
@@ -53,8 +55,7 @@ final class ModsPanel {
         SidePanel.TAB_NAMES = names.toArray(new String[0]);
         SidePanel.TAB_CONTROLS = names.indexOf("Controls");
         SidePanel.TAB_GENERAL = SidePanel.TAB_NAMES.length - 1;
-        String want = opened ? was : ModsTab.lastTab(a);   // the first opening of this run: the tab shown last, in this run or an earlier one
-        opened = true;
+        String want = OPENED.add(p) ? ModsTab.lastTab(a) : was;   // a panel's first opening: the tab shown last, in this run or an earlier one
         for (int i = 0; i < SidePanel.TAB_NAMES.length; i++) if (SidePanel.TAB_NAMES[i].equals(want)) return i;
         return Math.min(tab, SidePanel.TAB_NAMES.length - 1);
     }

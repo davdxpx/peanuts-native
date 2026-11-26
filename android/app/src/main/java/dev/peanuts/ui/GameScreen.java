@@ -104,7 +104,10 @@ public final class GameScreen extends Presentation {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);   // the game keeps the controller
         getWindow().setDecorFitsSystemWindows(false);
         getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(PUi.col(getContext(), R.color.bn_bg)));
-        FrameLayout root = new FrameLayout(getContext());
+        FrameLayout root = new FrameLayout(getContext()) {   // it watches for the in-game menu's swipe up from the bottom edge; taps go on to the page
+            @Override public boolean onInterceptTouchEvent(android.view.MotionEvent e) { return dev.peanuts.ingame.BottomMenu.intercept(this, e) || super.onInterceptTouchEvent(e); }
+            @Override public boolean onTouchEvent(android.view.MotionEvent e) { return dev.peanuts.ingame.BottomMenu.touch(this, e) || super.onTouchEvent(e); }
+        };
         root.setBackgroundColor(PUi.col(getContext(), R.color.bn_bg));
         bg = new BananaBackgroundView(getContext());
         root.addView(bg, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -113,11 +116,8 @@ public final class GameScreen extends Presentation {
         stats = new StatsView(getContext());
         stats.setVisibility(android.view.View.GONE);
         root.addView(stats, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        if (dev.peanuts.ingame.BottomMenu.on(getContext())) {   // a swipe up from the bottom edge opens the in-game menu here; the grip shows where (the stats page has its own)
-            grip = dev.peanuts.ingame.BottomMenu.grip(getContext());
-            root.addView(grip);
-            root.addView(dev.peanuts.ingame.BottomMenu.edge(getContext()));
-        }
+        grip = dev.peanuts.ingame.BottomMenu.grip(getContext());   // where the in-game menu's swipe up starts (Bottom screen only; the stats page has its own)
+        root.addView(grip);
         setContentView(root);
     }
 
@@ -136,7 +136,7 @@ public final class GameScreen extends Presentation {
         stats.setRunning(live);
         start.bind(name, icon);
         start.status(loading ? "Starting the companion" : "Now playing");
-        if (grip != null) grip.setVisibility(!loading && !live ? android.view.View.VISIBLE : android.view.View.GONE);
+        if (grip != null) dev.peanuts.ingame.BottomMenu.want(grip, !loading && !live);
         start.quiet(!loading);
         start.setAnimating(loading);
         bg.setRunning(loading);

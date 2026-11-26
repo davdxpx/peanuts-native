@@ -70,6 +70,7 @@ Only for a game that has some, and while Settings > App > Mods tab is on: **Chea
 ### General (the menu's own settings, at the bottom of the rail)
 - **Menu**: **Size** and **Text size**, each Small / Normal / Large, for every game, applied at once; **Vibrate on each step** (on) and **Menu sounds** (off).
 - **This game**: **Pause when the game comes back from the background** (on by default): coming back from another app shows the game paused until a tap.
+- **Layout** <!-- PEANUTS: InGamePanel.layoutSetting -->: **Two menus** (the default), **One menu at the right** (Game first on its rail, then the quick menu's tabs), or, on a device with a second screen such as the AYN Thor, **Bottom screen** (the one menu on the bottom screen, the game in full view on top). With one menu, Home and Back open it on Game (the left edge is the game's); Home held, or a swipe in from the right edge, on the tab shown last; L and R step over Game and the tabs. On the bottom screen a swipe up from its bottom edge (a faint grip shows where) opens it too. The first start after the update asks once on Home, with a picture of each layout.
 
 Pause, Stop and Back to the game are the game menu's.
 <!-- PEANUTS end -->

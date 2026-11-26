@@ -15,8 +15,8 @@ import dev.peanuts.PeanutsPrefs;
 
 /**
  * How the in-game menus look, picked once by the player: at the first start after the update, and for a new player at the start after the one that ran the
- * first start's setup (one question a start), Home's list shows the layouts as pictures (drawable/pil_layout_*.xml, made by
- * design/peanuts-native/layouts/layouts.py). Two menus (the game menu at the left, the quick menu at the right), One menu at the right, and on a device with
+ * first start's setup (one question a start), Home's list shows the layouts as pictures (drawable/pil_layout_*.xml, written by
+ * peanuts/scripts/layouts.py). Two menus (the game menu at the left, the quick menu at the right), One menu at the right, and on a device with
  * a second screen Bottom screen (one menu there), which the focus starts on there. Later (or closing it) keeps the two menus and asks once more at the next
  * start, then no more. The menu's own settings change it later (Layout, dev.nxnative.android.InGamePanel).
  */
@@ -38,12 +38,17 @@ public final class LayoutChoice {
             "Everything in one place over the game.",
             "The game in full view on top, the menu below."};
 
-    /** Home's list, each time it fills: the question while no layout is picked, once a run, at most TIMES in all, never in the run of the setup */
+    /** A press of A (or the D-pad's centre) this soon after the question shows picks nothing: one pressed for something before it, at the app's start */
+    private static final long SETTLE_MS = 300;
+
+    /**
+     * Home's list, each time it fills: the question while no layout is picked, once a run, at most TIMES in all, never in the run of the setup. It counts
+     * once the player closed it (a pick, Later, Back): one the screen took with it (a turn, a recreated screen) is asked again
+     */
     public static void offer(Activity a) {
         if (!PeanutsPrefs.setupDone(a)) { setupRun = true; return; }
         if (asked || setupRun || a.isFinishing() || PeanutsPrefs.menuLayoutPicked(a) || PeanutsPrefs.menuLayoutAsked(a) >= TIMES) return;
         asked = true;
-        PeanutsPrefs.menuLayoutAsked(a, PeanutsPrefs.menuLayoutAsked(a) + 1);
         boolean second = dev.peanuts.Companion.hasSecondDisplay(a);
         int count = second ? 3 : 2;
         float dp = a.getResources().getDisplayMetrics().density;
@@ -102,6 +107,26 @@ public final class LayoutChoice {
             int w = wide ? Math.min(Math.round(sw * 0.92f), Math.round((count == 3 ? 900 : 640) * dp)) : Math.round(sw * 0.92f);
             d.getWindow().setLayout(w, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
+        boolean[] screenGone = {false};
+        long[] shownAt = {Long.MAX_VALUE};
+        d.setOnShowListener(x -> shownAt[0] = android.os.SystemClock.uptimeMillis());
+        d.setOnKeyListener((x, k, e) -> {   // a confirm key that went down before the question settled is not the player's answer to it
+            boolean confirm = k == android.view.KeyEvent.KEYCODE_BUTTON_A || k == android.view.KeyEvent.KEYCODE_DPAD_CENTER || k == android.view.KeyEvent.KEYCODE_ENTER;
+            return confirm && e.getDownTime() < shownAt[0] + SETTLE_MS;
+        });
+        d.setOnDismissListener(x -> {
+            if (screenGone[0]) { asked = false; return; }   // not the player's: the new screen asks
+            PeanutsPrefs.menuLayoutAsked(a, PeanutsPrefs.menuLayoutAsked(a) + 1);
+        });
+        a.registerActivityLifecycleCallbacks(new android.app.Application.ActivityLifecycleCallbacks() {   // no window left behind by its screen
+            @Override public void onActivityDestroyed(Activity x) { if (x == a && d.isShowing()) { screenGone[0] = true; d.dismiss(); } }
+            @Override public void onActivityCreated(Activity x, android.os.Bundle b) {}
+            @Override public void onActivityStarted(Activity x) {}
+            @Override public void onActivityResumed(Activity x) {}
+            @Override public void onActivityPaused(Activity x) {}
+            @Override public void onActivityStopped(Activity x) {}
+            @Override public void onActivitySaveInstanceState(Activity x, android.os.Bundle b) {}
+        });
         d.show();
         View first = made[second ? count - 1 : 0];   // two screens: the bottom screen's; else the first
         boolean controller = padAttached();   // with a controller the frame shows at once where it starts

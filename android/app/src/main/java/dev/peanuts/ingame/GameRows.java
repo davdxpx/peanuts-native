@@ -66,9 +66,14 @@ public final class GameRows extends LinearLayout {
         version.setBackground(Look.round(Look.CHIP, Look.dp(c, 999)));
         version.setPadding(Look.dp(c, 9), Look.dp(c, 3), Look.dp(c, 9), Look.dp(c, 3));
         version.setVisibility(GONE);
+        version.setSingleLine(true);
+        version.setEllipsize(TextUtils.TruncateAt.END);
+        version.setMaxWidth(Look.dp(c, 120));   // a long version leaves the time its room
         line.addView(version);
         time = text(c, 13, Look.QUIET, false);
-        LayoutParams tl = new LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        time.setSingleLine(true);
+        time.setEllipsize(TextUtils.TruncateAt.END);
+        LayoutParams tl = new LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
         tl.leftMargin = Look.dp(c, 8);
         line.addView(time, tl);
         col.addView(line);
@@ -78,6 +83,21 @@ public final class GameRows extends LinearLayout {
         footer = new LinearLayout(c);
         footer.setOrientation(VERTICAL);
         footer.setPadding(Look.dp(c, 14), 0, Look.dp(c, 14), Look.dp(c, 8));   // under the rows' own sides (their scroll's 10 dp and these rows' 4 dp)
+        note = text(c, 12, Look.TAN, false);
+        note.setPadding(Look.dp(c, 4), Look.dp(c, 4), Look.dp(c, 4), 0);
+        note.setVisibility(GONE);
+        footer.addView(note);
+    }
+
+    /** Keep playing after Stop was asked (InGamePanel: a Stop waiting for the backup no longer stops) */
+    public Runnable onKeep;
+    private final TextView note;
+
+    /** A note over Stop, as the game menu's (Back up the save's outcome); null hides it */
+    public void note(String s, boolean bad) {
+        note.setText(s == null ? "" : s);
+        note.setTextColor(bad ? Look.BAD : Look.TAN);
+        note.setVisibility(s == null ? GONE : VISIBLE);
     }
 
     /** The hairline and Stop: the rail puts them under the rows, so Stop stays in sight on a short screen while the rows scroll */
@@ -134,6 +154,8 @@ public final class GameRows extends LinearLayout {
         r.addView(t, new LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         TextView value = text(c, 13, Look.QUIET, false);
         value.setSingleLine(true);
+        value.setEllipsize(TextUtils.TruncateAt.END);
+        value.setMaxWidth(Look.dp(c, 130));   // a large font: the row's name keeps the rest
         r.addView(value);
         it.bind(value);
         if (it.chevron()) {
@@ -167,7 +189,7 @@ public final class GameRows extends LinearLayout {
         ask.addView(w);
         LinearLayout b = new LinearLayout(c);
         b.setOrientation(HORIZONTAL);
-        TextView keep = button(c, "Keep playing", v -> { bottom.removeAllViews(); bottom.addView(stopRow); stopRow.requestFocus(); });
+        TextView keep = button(c, "Keep playing", v -> { if (onKeep != null) onKeep.run(); bottom.removeAllViews(); bottom.addView(stopRow); stopRow.requestFocus(); });
         TextView now = button(c, "Stop", v -> stop.run());
         now.setTextColor(Look.BAD);
         LayoutParams sl = new LayoutParams(0, rowPx, 1);
