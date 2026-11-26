@@ -1,6 +1,7 @@
 """Home's filter row shows only what has games: dev.peanuts.ui.HomeFilters (on the JVM with android/app/src/jvmtest's HomeFiltersJvmTest; skipped without a
 JDK) says which chips show, and Library.render and its L/R shoulder keys follow it. A chip with no games ("Build needed 0", "Not Supported Yet 0") is not
-shown, and when one state has every game the chip row goes ("All 12" beside "Ready 12" said the same twice), while Build all, Sort and Find stay. The
+shown, and when one state has every game the chip row goes ("All 12" beside "Ready 12" said the same twice), while Find, Sort, View and Build all stay
+(in the header, or the dock on a phone held upright). The
 Building chip is as before, the hidden-games toggle shows while games are hidden, and a chosen filter whose last game left goes back to All."""
 import shutil
 import subprocess
@@ -52,8 +53,10 @@ class Library(unittest.TestCase):
             self.assertIn(line, r)
         self.assertIn('if (building > 0) {', r, 'the Building chip as before')
         self.assertIn('if (hidden > 0) {', r, 'the hidden games toggle as before')
-        for kept in ('"Build all…"', 'R.drawable.ic_sort', '"Find"'):
-            self.assertIn(kept, r, 'the buttons stay without a chip row')
+        tools = method(self.src, 'Tools(Activity a, boolean dock) {')
+        for kept in ('"Build all"', 'R.drawable.ic_sort', '"Find"', '"View"'):
+            self.assertIn(kept, tools, 'the buttons stay without a tab row (in the header, or the dock on a phone upright)')
+        self.assertIn('tools(any, any && offersBuildAll(rows));', r, 'render says what they show')
 
     def test_shoulders(self):
         step = method(self.src, 'private void stepFilter(View v, int d) {')
