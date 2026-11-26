@@ -1145,7 +1145,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             if (readinessEnv > 0) Native.note("[nxlaunch] readiness check: ran with the game's " + readinessEnv + " environment lines (all but the paths), set before the GPU driver's first device");
             for (String n : unknownNotes) Native.note(n);
             for (String n : quietNotes) Native.note(n);   // PEANUTS
-            if (!unknownNotes.isEmpty() && !dev.peanuts.smooth.DevView.plain(this)) android.widget.Toast.makeText(this, unknownNotes.get(0).replace("[RED] ", ""), android.widget.Toast.LENGTH_LONG).show();   // PEANUTS: Developer view off: the log only
+            { String t = dev.peanuts.smooth.DevView.startToast(this, unknownNotes); if (t != null) android.widget.Toast.makeText(this, t.replace("[RED] ", ""), android.widget.Toast.LENGTH_LONG).show(); }   // PEANUTS: Developer view off: a switch nothing reads goes to the log only
             if (!refused.isEmpty()) {
                 String msg = "not taken: " + String.join(", ", refused) + ": the launcher sets the game's paths (DM_SAVE, DM_ROMFS, DM_TEMP, DM_ROOT, DM_AOC_DIR, HOME)"
                         + (testApp() ? "; DM_SAVE is taken from env-<title ID>.txt only" : "");

@@ -295,7 +295,7 @@ public final class MainActivity extends Activity {
         trailing.addView(dev.peanuts.ui.Library.screensOffButton(this), sop);
         trailing.addView(headerButtons());
         // PEANUTS end
-        content.addView(dev.peanuts.ui.Library.homeHeader(Ui.header(this, Ui.badge(this, 44), "Peanuts Native", dev.peanuts.smooth.DevView.homeLine(this, Prefs.buildId()), trailing)));   // the build identifier under the title (Prefs.buildId, the part of the overlay's build tag after the app's name), so a screenshot of Home names its build; Settings › About has the full tag   // PEANUTS: rebrand; homeHeader: the build line is no focus stop; DevView.homeLine: none with Developer view off
+        content.addView(dev.peanuts.ui.Library.homeHeader(Ui.header(this, Ui.badge(this, 44), "Peanuts Native", Prefs.buildId(), trailing)));   // the build identifier under the title (Prefs.buildId, the part of the overlay's build tag after the app's name), so a screenshot of Home names its build; Settings › About has the full tag   // PEANUTS: rebrand; homeHeader: the build line is no focus stop
         dev.peanuts.ui.BottomScreen.home(this, () -> page(true));   // PEANUTS: bottom screen (dev.peanuts.ui.BottomScreen)
         accessCard = accessCard();
         Ui.add(content, accessCard, 16);
@@ -1515,7 +1515,7 @@ public final class MainActivity extends Activity {
         }
         if (lp != null && Pack.legacyLibrary(new File(g.packDir), g.titleId) != null) {   // made before versioned updates: never blocks Play, says so (the host warns in its log too)
             if (dump) Ondevice.autoUpdate(this, gd, new File(g.packDir), g.titleId);
-            if (!dev.peanuts.smooth.DevView.plain(this)) Toast.makeText(this, ShaderLibs.LEGACY_WARNING, Toast.LENGTH_LONG).show();   // PEANUTS: Developer view off: the host's log says it
+            Toast.makeText(this, ShaderLibs.LEGACY_WARNING, Toast.LENGTH_LONG).show();
             start(g);
             return;
         }

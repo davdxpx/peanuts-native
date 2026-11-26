@@ -151,7 +151,7 @@ public final class LibrarySettings {
         smoothPart(a, smoothBox, new PUi.Setting(a, "", "Start screen", null), dev.peanuts.smooth.SmoothItems.START_LOG);
         smoothPart(a, smoothBox, new PUi.Setting(a, "", "Preparing graphics notice", null), dev.peanuts.smooth.SmoothItems.WARM);
         smoothPart(a, smoothBox, new PUi.Setting(a, "", "Graphics driver notice", null), dev.peanuts.smooth.SmoothItems.SKIP);
-        // Developer view (dev.peanuts.smooth.DevView; under Developer › Testing): build numbers, counts and tool words, or player words
+        // Developer view (dev.peanuts.smooth.DevView; under Developer › Testing): the testers' toasts and the in-game menu's tool words, or neither
         devRow = new PUi.Setting(a, "", "Developer view", null)
                 .toggle(a, dev.peanuts.smooth.DevView.on(a), (b, on) -> { Feel.toggled(b, on); dev.peanuts.smooth.DevView.on(a, on); refreshRows(); });
         devRow.view.setOnClickListener(v -> devRow.toggle.toggle());
@@ -193,8 +193,8 @@ public final class LibrarySettings {
             smoothRow.value(dev.peanuts.smooth.SmoothItems.rowLine(on, dev.peanuts.smooth.Smooth.picked(a)));
             if (smoothBox != null) smoothBox.setVisibility(on ? android.view.View.VISIBLE : android.view.View.GONE);   // the page grows under the switch while it is on
         }
-        if (devRow != null) devRow.value(dev.peanuts.smooth.DevView.on(a) ? "On: build numbers, counts and tool details show, as for testing. Tap for player words."
-                : "Off: player words, without build numbers, counts or tool details. The logs keep them. Tap to show them.");
+        if (devRow != null) devRow.value(dev.peanuts.smooth.DevView.on(a) ? "On: messages for testers and the in-game menu's tool words show. Tap to turn them off."
+                : "Off: no messages for testers, and the in-game menu in plain words. The log keeps them. Tap to show them.");
         if (swapRow != null) swapRow.value(PeanutsPrefs.swapScreens(a)
                 ? "On: games start on the other screen, the companion is on this one. Tap to swap back. Takes effect at the next game start."
                 : "Off: games start on this screen, the companion is on the other one. Tap to swap, for a clip-on top screen. Takes effect at the next game start.");

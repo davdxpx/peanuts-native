@@ -35,7 +35,6 @@ public final class PrepareCover extends FrameLayout {
     private final BananaBackgroundView back;
 
     private boolean skipped, closed;
-    private final boolean plain;   // Developer view off (dev.peanuts.smooth.DevView)
 
     /** driver: the GPU driver's name as the settings show it, null for the system's; playAnyway: the step stops and the game starts; close: the game is left */
     public PrepareCover(Activity a, String titleId, String name, String driver, Runnable playAnyway, Runnable close) {
@@ -92,13 +91,12 @@ public final class PrepareCover extends FrameLayout {
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, -2);
         cp.topMargin = PUi.dp(a, 10);
         col.addView(count, cp);
-        plain = dev.peanuts.smooth.DevView.plain(a);   // Developer view off: the bar, the step's words and the percent; no count, no driver's name
         TextView drv = PUi.text(a, driver == null ? "For the system's graphics driver" : "For the graphics driver " + driver, 14, R.color.bn_text_2, 500);
         drv.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams dp = new LinearLayout.LayoutParams(-2, -2);
         dp.topMargin = PUi.dp(a, 6);
-        if (!plain) col.addView(drv, dp);
-        TextView once = PUi.small(a, plain ? dev.peanuts.smooth.PlayerWords.PREPARE_ONCE : "This happens once for each graphics driver. After that the game starts right away.");
+        col.addView(drv, dp);
+        TextView once = PUi.small(a, "This happens once for each graphics driver. After that the game starts right away.");
         once.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams op = new LinearLayout.LayoutParams(-2, -2);
         op.topMargin = PUi.dp(a, 14);
@@ -133,8 +131,7 @@ public final class PrepareCover extends FrameLayout {
         if (done > total) done = total;
         bar.setMax(total);
         bar.setProgress(done);
-        String pct = (int) (100L * done / total) + "%";
-        count.setText(plain ? PUi.joined(dev.peanuts.smooth.PlayerWords.PREPARE, pct) : PUi.joined("Preparing shaders", String.format(Locale.US, "%,d of %,d", done, total), pct));   // Developer view off: the percent, no count
+        count.setText(PUi.joined("Preparing shaders", String.format(Locale.US, "%,d of %,d", done, total), (int) (100L * done / total) + "%"));
         peanut.open(done / (float) total);
     }
 

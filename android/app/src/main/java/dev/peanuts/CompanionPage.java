@@ -90,17 +90,6 @@ final class CompanionPage {
         values = text("", 18, Color.LTGRAY, Typeface.MONOSPACE);
         values.setGravity(Gravity.START);
         textRoot.addView(values);
-        if (dev.peanuts.smooth.DevView.plain(getContext()) && !PeanutsPrefs.developerReadout(getContext())) {
-            // Developer view off: the game's start page while the companion loads, not the host's raw values (the developer readout, a long press in Settings, still shows them)
-            dev.peanuts.ui.StartView start = new dev.peanuts.ui.StartView(getContext());
-            start.bind(gameName, null);
-            start.status("Starting the companion");
-            start.setAnimating(true);
-            textRoot.removeAllViews();
-            textRoot.setPadding(0, 0, 0, 0);
-            textRoot.setBackgroundColor(getContext().getColor(dev.nxnative.android.R.color.bn_bg));
-            textRoot.addView(start, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT));
-        }
         root.addView(textRoot, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         return root;
     }

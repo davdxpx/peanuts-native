@@ -8,7 +8,7 @@ import java.util.List;
  * per thing it takes away right under it on the same page, all on: the start's log lines (a peanut and the game's cover instead) and the notices about
  * graphics work over the game. With the switch off nothing changes. A notice it hides still goes to the log (Native.note), so a bug report keeps its
  * facts. Crashes, failures with Share log, anything about the player's save and the answers to the player's own gestures always show. The overlay has
- * its own switches (Settings › Graphics › Overlay); build numbers, counts and tool words are Developer view's (DevView).
+ * its own switches (Settings › Graphics › Overlay); the testers' toasts and the in-game menu's tool words are Developer view's (DevView).
  * Plain Java, no Android: peanuts/tests/test_smooth_experience.py runs SmoothJvmTest on it.
  */
 public final class SmoothItems {

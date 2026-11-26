@@ -1003,13 +1003,13 @@ public final class BuildService extends Service {
     }
 
     private Notification note(int percent, String detail) {
-        return builder("Building " + name, dev.peanuts.smooth.DevView.build(this, detail), "").setProgress(100, Math.max(0, Math.min(100, percent)), false).addAction(action("Cancel", ACTION_CANCEL, 1)).build();
+        return builder("Building " + name, detail, "").setProgress(100, Math.max(0, Math.min(100, percent)), false).addAction(action("Cancel", ACTION_CANCEL, 1)).build();
     }
 
     /** The game that builds: its name, the step, its place in the queue ("2 of 5"); Cancel stops it, Cancel all the queue (while others wait) */
     private Notification note(BuildQueue.Item it, int percent, String detail) {
         BuildQueue q = BuildPipeline.queue(this);
-        Notification.Builder b = builder("Building " + it.name(), dev.peanuts.smooth.DevView.build(this, detail), q.placeText(it)).setProgress(100, Math.max(0, Math.min(100, percent)), false)
+        Notification.Builder b = builder("Building " + it.name(), detail, q.placeText(it)).setProgress(100, Math.max(0, Math.min(100, percent)), false)
                 .addAction(action("Cancel", ACTION_CANCEL, 1));
         if (!q.waiting().isEmpty()) b.addAction(action("Cancel all", ACTION_CANCEL_ALL, 2));
         return b.build();
@@ -1052,9 +1052,8 @@ public final class BuildService extends Service {
 
     /** One game's end (a queue of one, as before the queue) */
     private Notification done(boolean ok, String message, boolean stoppedByUser) {
-        String shown = ok ? dev.peanuts.smooth.DevView.build(this, message) : message;   // Developer view off: a ready game's message without its counts and timings
         Notification.Builder b = new Notification.Builder(this, BuildPipeline.endChannel(nm, CHANNEL, stoppedByUser)).setSmallIcon(ok ? android.R.drawable.stat_sys_download_done : android.R.drawable.stat_notify_error)
-                .setContentTitle(ok ? name + " is ready to play" : "Building " + name + " stopped").setContentText(firstLine(shown)).setStyle(new Notification.BigTextStyle().bigText(firstLine(shown))).setAutoCancel(true);
+                .setContentTitle(ok ? name + " is ready to play" : "Building " + name + " stopped").setContentText(firstLine(message)).setStyle(new Notification.BigTextStyle().bigText(firstLine(message))).setAutoCancel(true);
         Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
         if (open != null) b.setContentIntent(PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
         return b.build();

@@ -1,8 +1,8 @@
 """Smooth Experience (Settings › App › Extras; dev.peanuts.smooth.Smooth, SmoothItems, dev.peanuts.ui.StartCover) and Developer view
-(Settings › Developer; dev.peanuts.smooth.DevView, PlayerWords): the items and the player words on the JVM (android/app/src/jvmtest's SmoothJvmTest;
+(Settings › Developer; dev.peanuts.smooth.DevView, PlayerWords): the items and the in-game menu's words on the JVM (android/app/src/jvmtest's SmoothJvmTest;
 skipped without a JDK), and against the sources: both settings' names in their one place and wherever Settings spells them, the defaults (Smooth
 Experience off, each of its items on; Developer view on for an app installed before, off for a new install), every hook in an upstream file with its
-PEANUTS marker, the hidden notices still in the log, the start screen gone at the first frame, and the new text keeps UI-RULES.md."""
+PEANUTS marker, the hidden notices and toasts still in the log, the start screen gone at the first frame, and the new text keeps UI-RULES.md."""
 import re
 import shutil
 import subprocess
@@ -15,7 +15,6 @@ APP = REPO / 'android/app/src'
 SMOOTH = APP / 'main/java/dev/peanuts/smooth'
 UI = APP / 'main/java/dev/peanuts/ui'
 UP = APP / 'main/java/dev/nxnative/android'
-ONDEVICE = APP / 'ondevice/java/dev/nxnative/android'
 
 
 def read(p):
@@ -95,18 +94,13 @@ class Hooks(unittest.TestCase):
                                    'ui.postDelayed(this::tail, dev.peanuts.ui.StartCover.next(1000));',
                                    'dev.peanuts.ui.StartCover.takesPad() && gamepad(e.getSource())',
                                    'dev.peanuts.smooth.Smooth.hides(this, dev.peanuts.smooth.SmoothItems.SKIP)',
-                                   '!unknownNotes.isEmpty() && !dev.peanuts.smooth.DevView.plain(this)',
+                                   '{ String t = dev.peanuts.smooth.DevView.startToast(this, unknownNotes); if (t != null) android.widget.Toast.makeText(',
                                    'if (!dev.peanuts.smooth.DevView.plain(this)) android.widget.Toast.makeText(this, "Environment lines "'],
-        UP / 'MainActivity.java': ['dev.peanuts.smooth.DevView.homeLine(this, Prefs.buildId())', 'if (!dev.peanuts.smooth.DevView.plain(this)) Toast.makeText(this, "A command from another app',
-                                   'if (!dev.peanuts.smooth.DevView.plain(this)) Toast.makeText(this, ShaderLibs.LEGACY_WARNING'],
+        UP / 'MainActivity.java': ['if (!dev.peanuts.smooth.DevView.plain(this)) Toast.makeText(this, "A command from another app'],
         UP / 'SidePanel.java': ['fpsNow.setText(dev.peanuts.smooth.DevView.panel(act, s));',
                                 'lsfgNow.setText(dev.peanuts.smooth.DevView.frameGen(act, st, '],
         UP / 'Lsfg.java': ['t.setText(dev.peanuts.smooth.DevView.panel(c, "Not in this build (built with -PnxLsfg=false)."));',
                            'mode.setText(dev.peanuts.smooth.DevView.panel(c, "Mode: performance (the only shader set Eden\'s LSFG uses)"));'],
-        ONDEVICE / 'Ondevice.java': ['dev.peanuts.smooth.DevView.build(a, job.statusText(alive))', 'detail.setText(dev.peanuts.smooth.DevView.build(a, job.detailText()));',
-                                     'android.widget.Toast.makeText(a, dev.peanuts.smooth.DevView.build(a, g.name + " is ready to play."'],
-        ONDEVICE / 'PackService.java': ['private Notification note(Job j) { return dev.peanuts.smooth.DevView.calm(this, note0(j)); }',
-                                        'if (note != null && !dev.peanuts.smooth.DevView.plain(this)) nm.notify(NOTE + 7,'],
     }
 
     def test_every_hook_is_marked(self):
@@ -139,6 +133,14 @@ class Hooks(unittest.TestCase):
         # the toasts Developer view off leaves out are written to the log first
         self.assertRegex(ga, r'for \(String n : unknownNotes\) Native\.note\(n\);')
         self.assertRegex(ga, r'Native\.note\("\[RED\] env: " \+ msg\);\s*\n\s*if \(!dev\.peanuts\.smooth\.DevView\.plain\(this\)\)')
+
+    def test_only_testers_lines_leave_the_toast(self):
+        """Developer view off keeps every toast a player needs: only a switch nothing reads (and DM_TEST_CRASH) goes to the log alone, matched by
+        the texts upstream writes; the shader library's update hint always shows"""
+        self.assertIn('" is not a switch of this build: nothing reads it"', read(SMOOTH / 'PlayerWords.java'))
+        self.assertIn(') is not a switch of this build: nothing reads it"', read(UP / 'Readiness.java'))
+        self.assertIn('"[nxlaunch] DM_TEST_CRASH not taken: the test app only"', read(UP / 'GameActivity.java'))
+        self.assertIn('            Toast.makeText(this, ShaderLibs.LEGACY_WARNING, Toast.LENGTH_LONG).show();\n', read(UP / 'MainActivity.java'))
 
     def test_listed_as_hook_sites(self):
         peanuts = read(REPO / 'PEANUTS.md')

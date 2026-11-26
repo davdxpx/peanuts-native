@@ -87,7 +87,7 @@ public final class SettingsHelp {
         put(m, "Advanced", "Every switch the app's host offers, by area, with a search. Each starts at Auto, which writes nothing.", "Auto");
         put(m, "Tester settings", "Shows the rows made for testing in a game's settings: advanced resolution, Upscaler and Dynamic resolution.", "Off");
         put(m, "ADB control (debug)", "Lets adb commands add games, start Prepare and install GPU drivers. Turn it on only while you use adb.", "Off");
-        put(m, "Developer view", "Shows build numbers, counts and tool details, as for testing. Off, the app uses player words and the logs keep the details. On for an app installed before this version, off for a new one.", null);
+        put(m, "Developer view", "Shows the messages only testers need, such as an unknown switch or an ignored adb command, and the in-game menu's tool words. Off, those messages go to the log only and the in-game menu says it in plain words. On for an app installed before this version, off for a new one.", null);
         ALL = Collections.unmodifiableMap(m);
     }
 

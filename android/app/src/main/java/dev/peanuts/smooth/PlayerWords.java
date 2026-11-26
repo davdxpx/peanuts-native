@@ -6,58 +6,18 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Developer view's player words (DevView, Settings › Developer › Developer view off): the player's sentence for a text that carries build and tool details.
- * Each function hands back the text as it came when it does not know its shape, so an upstream change of a text shows the old words, never a broken
- * sentence. Plain Java, no Android (SmoothJvmTest).
+ * Developer view off (DevView, Settings › Developer): the in-game menu's plain words, and which of the start's notes only testers need. Each function hands
+ * back the menu's own line when it does not know it, so an upstream change of a line shows the old words, never a broken sentence. Plain Java, no Android
+ * (SmoothJvmTest).
  */
 public final class PlayerWords {
     private PlayerWords() {}
 
-    // ---- Building a game (Developer view off): the step in words, the percent and the time left; no counts, file names, step numbers or timings ----
+    // ---- The start's notes ----
 
-    private static final String N = "\\d(?:[\\d,]*\\d)?";                     // 7, 1,234, 22,782
-    private static final String C = "(?:[^.,:]|,(?=\\d)|\\.(?=\\d))";       // a character of one clause (a number's comma or point stays in it)
-    private static final Object[][] BUILD_RULES = {
-            {", step \\d+ of \\d+", ""},                                     // Job.statusText's ", step 4 of 5"
-            {"^Step \\d+ of \\d+, ", ""},                                    // the notification's sub text "Step 4 of 5, 37 %"
-            {", still working \\(no news for [^)]*\\)", ""},                 // PrepareText.quietText
-            {" It took [^.]*? were kept from before\\.", ""},                // BuildReuse's sentence of the ready message
-            {" Its build log lists them\\.", ""},
-            {"\\b" + N + " of its " + N + " shaders", "Some of its shaders"},   // BuildService.shadersLeftOut, PrepareText.missingShadersText, CheckDue.text
-            {"^(Unpacking|Checking) [^:]+\\.(?i:nsz|xcz|nsp|xci|nup|zip)\\b", "$1 the game files"},   // Compressed.stepText
-            {"Making " + N + " new shaders \\(" + N + " kept from before\\)", "Making new shaders"},  // Job.shadersStepText of an update
-            {", version [0-9][\\w.\\-]*", ""},                               // the companion's version
-            {": " + N + " of " + N + "( files?)?(, " + N + " left)?", ""},   // "Making shaders for this phone: 1,234 of 22,782, 21,548 left"
-            {"(?<!Paused): [a-z]" + C + "*\\d" + C + "*", ""},               // a tool's note with a count: ": reading 1,442 files", ": rewriting main (1 of 3)"
-            {", " + N + " of " + N + "( files?| shaders)?", ""},             // a count of its own: ", 203 of 1,442 files"
-            {", " + N + " (?:shaders left|shaders to make|kept from before|left)", ""},   // PrepareText.progressLine's parts
-            {"[,:] \\d+ % of a large file", ""}};
-    private static final Pattern[] BUILD_PATTERNS = new Pattern[BUILD_RULES.length];
-    static {
-        for (int i = 0; i < BUILD_RULES.length; i++) BUILD_PATTERNS[i] = Pattern.compile((String) BUILD_RULES[i][0]);
-    }
-
-    /** Whole texts said again in a sentence of their own */
-    private static final Map<String, String> WHOLE = new HashMap<>();
-    static {
-        WHOLE.put("Making every shader again, to compare with the ones kept from before. Starting a game stops this, and it goes on another time.",   // ReuseCheck.NOTE
-                "Checking the game's shaders in the background. Starting a game stops this.");
-    }
-
-    /** A build's text for the card, the bottom screen's build page and the notifications, line by line */
-    public static String build(String s) {
-        if (s == null || s.isEmpty()) return s;
-        String whole = WHOLE.get(s);
-        if (whole != null) return whole;
-        String[] lines = s.split("\n", -1);
-        StringBuilder out = new StringBuilder();
-        for (int k = 0; k < lines.length; k++) {
-            String l = lines[k];
-            for (int i = 0; i < BUILD_PATTERNS.length; i++) l = BUILD_PATTERNS[i].matcher(l).replaceAll((String) BUILD_RULES[i][1]);
-            if (k > 0) out.append('\n');
-            out.append(l);
-        }
-        return out.toString();
+    /** A note of the game's start only a tester needs: a switch nothing reads (Readiness.unknownLine), DM_TEST_CRASH outside the test app */
+    public static boolean forTesters(String note) {
+        return note != null && (note.contains(" is not a switch of this build: nothing reads it") || note.contains("DM_TEST_CRASH not taken"));
     }
 
     // ---- The in-game menu's words (Developer view off) ----
@@ -99,10 +59,4 @@ public final class PlayerWords {
         if (code.equals("0") && why.isEmpty()) return "Now: not running yet.";
         return null;
     }
-
-    // ---- Shader preparation (Developer view off) ----
-
-    /** PrepareCover's line under the driver's (which goes): once, without the driver */
-    public static final String PREPARE_ONCE = "This happens once. After that the game starts right away.";
-    public static final String PREPARE = "Preparing shaders";
 }

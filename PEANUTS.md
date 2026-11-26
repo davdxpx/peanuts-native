@@ -121,16 +121,15 @@ Banana Native ships several releases a day, so this fork is kept as a **thin ove
      `build`'s first line hands the page to `GamePagePort.build` on a window 600 dp wide or more; its `wide` and sections lines build the narrow column with every section while the port
      takes upstream's rows off its tabs (`GamePagePort.harvesting`); `stepTab` asks `GamePagePort.step` after Mods & Cheats' own line; `openOn` (Round 61's
      line) tells the port the tab, so Settings › Users opens the area Saves. `GamePagePort.java` is Peanuts' own file in upstream's package.
-   - `GameActivity.java`, `MainActivity.java`, `SidePanel.java`, `Lsfg.java`, `ondevice/…/Ondevice.java`, `ondevice/…/PackService.java` — (2026-11-26, Smooth Experience
+   - `GameActivity.java`, `MainActivity.java`, `SidePanel.java`, `Lsfg.java` — (2026-11-26, Smooth Experience
      and Developer view, `dev.peanuts.smooth`; `peanuts/tests/test_smooth_experience.py` lists every line) Smooth Experience (Settings › App › Extras, off by
      default, its parts right under it while it is on): `start()`'s first line puts up `dev.peanuts.ui.StartCover` (the game's cover and a breathing peanut in
      place of the log's lines), `tail()` hands it what the log says (one line after the log view's visibility; its next look in 250 ms while the cover waits for
      the first frame) and `dispatchKeyEvent` gives the pad to its failure card; the "Preparing graphics" block (#322) and `skipShow` write their log line
      instead of the notice. The overlay keeps its own switches. Developer view (Settings › Developer, on for an app installed before, off for a new install):
-     Home's build line (`DevView.homeLine`), the start's two tester toasts, the ignored adb command's and the legacy shader toast, the in-game menu's tool words
-     (`DevView.panel`, `DevView.frameGen`: SidePanel's two "DM_CTL is off" notes, the cap line, the frame generation state, Lsfg's two lines), upstream's
-     Prepare card, its ready toast and the packer's notification (`note(Job)` wraps the former body, now `note0`, with `DevView.calm`; the "made again" notice
-     goes to the log only).
+     the start's tester toasts (a switch nothing reads, `DevView.startToast`; environment lines not taken), the ignored adb command's toast, and the
+     in-game menu's tool words (`DevView.panel`, `DevView.frameGen`: SidePanel's two "DM_CTL is off" notes, the cap line, the frame generation state, Lsfg's
+     two lines). Every toast a player needs shows either way.
 3. **Settings go through upstream's own mechanisms**: `env.txt` keys named `PN_*`, `settings.tsv` rows, `DM_CTL` lines. No new settings UI inside upstream classes.
 4. **Never reformat or "fix" upstream files.** A general fix belongs upstream as a PR to Banana Native (its AGENTS.md prefers general changes), then it arrives by rebase.
 5. **Branches:** `upstream/android` is Banana Native; `peanuts` is this overlay, always a linear set of commits on top of a Banana Native tag. History is rewritten on every update (rebase, never merge).

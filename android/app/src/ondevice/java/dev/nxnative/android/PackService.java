@@ -718,7 +718,7 @@ public final class PackService extends Service {
                 if (next != null) {   // the job that started during the check: started again now, while this service is still in the foreground
                     try { startForegroundService(next); } catch (RuntimeException e) { Log.w(TAG, "check: the job that waited could not start: " + e); }
                 } else stopForeground(STOP_FOREGROUND_REMOVE);
-                if (note != null && !dev.peanuts.smooth.DevView.plain(this)) nm.notify(NOTE + 7,   /* PEANUTS: Developer view off: the check's log only */ new Notification.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_banana_mono).setContentTitle(j.name() + ": shaders made again from the start")
+                if (note != null) nm.notify(NOTE + 7, new Notification.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_banana_mono).setContentTitle(j.name() + ": shaders made again from the start")
                         .setContentText(note).setStyle(new Notification.BigTextStyle().bigText(note)).setAutoCancel(true).build());
                 if (next == null) stopSelf();
             });
@@ -1529,8 +1529,7 @@ public final class PackService extends Service {
         }
     }
 
-    private Notification note(Job j) { return dev.peanuts.smooth.DevView.calm(this, note0(j)); }   // PEANUTS: Developer view off: the build's words without counts and step numbers (DevView.calm)
-    private Notification note0(Job j) {   // PEANUTS: was note(Job), which wraps it now
+    private Notification note(Job j) {
         Intent open = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         Notification.Builder b = new Notification.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_banana_mono).setOnlyAlertOnce(true)
                 .setCategory(Notification.CATEGORY_PROGRESS).setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
