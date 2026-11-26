@@ -61,7 +61,7 @@ public final class UsersPage {
      * Settings' Users section (dev.peanuts.ui.SettingsPage): the focused user's card on the launcher's bottom screen (BottomScreen.explain, a view of its own), and
      * the part read again when the window has the focus back (after the picture page, a rename or the editor), since Settings builds its column only once
      */
-    public static UsersPage fill(Activity a, LinearLayout col, boolean wide) { return fill(a, col, wide, null); }
+    public static UsersPage fill(Activity a, LinearLayout col, boolean wide) { return fill(a, col, wide, (View) null); }
 
     /** The same, with tail (Settings › Users' other groups, amiibo; null for none) after the users' part */
     public static UsersPage fill(Activity a, LinearLayout col, boolean wide, View tail) {
