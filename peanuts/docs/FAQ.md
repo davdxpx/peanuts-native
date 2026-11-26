@@ -43,7 +43,7 @@ It is not an emulator in the usual sense: it does not emulate the console's hard
 
 ### Which devices does it run on?
 
-It is developed and tested on the AYN Thor (dual screen, Snapdragon 8 Gen 2, 16 GB). The stated needs are Android 13 or later, a 64-bit ARM device and a Snapdragon (Adreno) GPU with a Vulkan 1.3 driver. Other devices are untested. On a single-screen device the game still runs, without the companion.
+It is developed and tested on the AYN Thor (dual screen, Snapdragon 8 Gen 2, 16 GB). The stated needs are Android 13 or later, a 64-bit ARM device and a Snapdragon (Adreno) GPU with a Vulkan 1.3 driver. On Android 12 the app installs and opens (experimental): the library, settings, imports and saves work, but games need Android 13, and starting one says so. Other devices are untested. On a single-screen device the game still runs, without the companion.
 
 ### How much RAM do I need?
 
@@ -860,7 +860,7 @@ Once it reads **Ready**, every start of the game uses the mods that are on: the 
 
 Open the game's page › **Mods & Cheats**. Cheats that come with the app are listed there. **Add** takes a cheat file (`.txt`), a `.zip` or a folder, in the Atmosphère, Eden, Yuzu or Ryujinx layout. Each cheat has a switch; a switch works at once while the game runs and is kept for its next start. A file made for another game is refused, and one for another version of the game asks first.
 
-While you play, the in-game panel has a **Mods** tab with the same switches, each with its state (**Running**, the buttons it waits for, **Not possible here** or **Next start**). A cheat that sets a number has a field to change it; the cheat file itself is never changed. Settings › Controls › **Mods tab** turns the tab off.
+While you play, the in-game panel has a **Mods** tab with the same switches, each with its state (**Running**, the buttons it waits for, **Not possible here** or **Next start**). A cheat that sets a number has a field to change it; the cheat file itself is never changed. Settings › App › **Mods tab** turns the tab off.
 
 ## Troubleshooting
 

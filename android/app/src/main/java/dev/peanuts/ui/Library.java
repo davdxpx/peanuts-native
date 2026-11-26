@@ -2161,7 +2161,7 @@ public final class Library {
 
     /** The build's notifications (its progress, and its end while the app is not in front) need the permission; asked as upstream's Prepare asks (Ondevice) */
     private void askNotify() {
-        if (a.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+        if (android.os.Build.VERSION.SDK_INT >= 33 && a.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)   // Android 12: no such permission, nothing to ask
             a.requestPermissions(new String[] {android.Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIFY);
     }
 

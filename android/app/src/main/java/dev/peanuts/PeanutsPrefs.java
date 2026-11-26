@@ -287,7 +287,7 @@ public final class PeanutsPrefs {
     public static boolean modsTab(Context c, String titleId) { return of(c).getBoolean(key(titleId, "mods_tab"), true); }
     public static void modsTab(Context c, String titleId, boolean on) { of(c).edit().putBoolean(key(titleId, "mods_tab"), on).apply(); }
 
-    /** Settings › Controls › Mods tab: the in-game panel's Mods tab for every game; on by default */
+    /** Settings › App › Mods tab: the in-game panel's Mods tab for every game; on by default */
     public static boolean modsTabAll(Context c) { return of(c).getBoolean("mods_tab", true); }
     public static void modsTabAll(Context c, boolean on) { of(c).edit().putBoolean("mods_tab", on).apply(); }
 

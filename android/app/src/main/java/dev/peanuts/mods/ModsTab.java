@@ -110,7 +110,7 @@ public final class ModsTab {
     /** What a tab of the quick menu shows (dev.nxnative.android.ModsPanel): both halves (one Mods tab, as before the quick menu), the cheats, the mods */
     public static final int BOTH = 0, CHEATS = 1, MODS = 2;
 
-    /** Whether the panel has a Mods tab for this game: Settings › Controls › Mods tab on, the game's Show in the game on, and cheats or mods to show */
+    /** Whether the panel has a Mods tab for this game: Settings › App › Mods tab on, the game's Show in the game on, and cheats or mods to show */
     public static boolean wanted(Context c, String titleId, String gameDir, String packDir) { return wanted(c, titleId, gameDir, packDir, BOTH); }
 
     /** The same for one half (CHEATS: cheats to show, MODS: mods to show) */

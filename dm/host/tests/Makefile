@@ -90,6 +90,8 @@ run: $(B)/t_language $(B)/t_motion $(B)/t_heap_size $(B)/t_touch $(B)/t_gesture 
 	$(B)/t_android_psogate
 	$(B)/t_android_auto
 	$(B)/t_nvn_dpool
+# PEANUTS: #807, empty-pool command memory grants
+	$(B)/t_nvn_cmdarena
 	$(B)/t_android_t2tpath
 	$(B)/t_android_wbfollow
 	$(B)/t_nvn_levelof
@@ -478,6 +480,10 @@ $(B)/t_android_mapbudget: t_android_mapbudget.c $(VKA)/vka_mapbudget.h | $(B)
 $(B)/t_nvn_dpool: t_nvn_dpool.c ../../gfx/nvn/nvn_dpool.h | $(B)
 	$(CLANG) -O1 -g -Wall -Werror -fsanitize=address,undefined -I.. -o $@ t_nvn_dpool.c
 run: $(B)/t_nvn_dpool
+# PEANUTS: empty-pool command memory grants share a chunk per command buffer, each after the last recording (nvn_cmdarena.h; hle_nvn.c cmdarena_grant, #807)
+$(B)/t_nvn_cmdarena: t_nvn_cmdarena.c ../../gfx/nvn/nvn_cmdarena.h | $(B)
+	$(CLANG) -O1 -g -Wall -Werror -fsanitize=address,undefined -I.. -o $@ t_nvn_cmdarena.c
+run: $(B)/t_nvn_cmdarena
 # A scaled texture copy is a blit only into a blit destination; a depth one into a format that is none is a draw (vka_t2tpath.h; vka_exec.c copy_t2t)
 $(B)/t_android_t2tpath: t_android_t2tpath.c $(VKA)/vka_t2tpath.h | $(B)
 	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -fsanitize=address,undefined -I.. -o $@ t_android_t2tpath.c

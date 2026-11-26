@@ -164,6 +164,8 @@ SWITCH_BINDING = [
      'why': "the most image memory the game's scenes need, measured on the game; the measured limit still acts below it"}),
     ('low_ram_app_pool_mb', '', {'what': 'a smaller memory total reported to the game on a device of 12 GB or less, the pool unchanged', 'now': 'game', 'goal': 'game', 'purpose': 'memory',
      'why': "the total the game's SDK sizes its cache of freed pages from, measured on the game; the pool and the map limit stay the profile's"}),
+    ('place_join_mb', '', {'what': "a larger run of a pool's placed parts joined into one", 'now': 'game', 'goal': 'host', 'purpose': 'rendering',   # PEANUTS: GitHub issues #394, #651
+     'why': "a join holds the joined bytes twice for a moment, so the default stays 256 MiB; a larger default for every game once the transient is measured on the phones of 8 GB or less"}),
     ('tex_soft', '', {'what': 'large block-compressed textures kept without their finest level', 'now': 'game', 'goal': 'game', 'purpose': 'memory',
      'why': 'a loss of detail chosen for a game that does not fit a device otherwise'}),
     ('occlusion_split_pass', 'on', {'what': 'split Qualcomm depth passes after counted occlusion queries', 'now': 'game', 'goal': 'host', 'purpose': 'rendering',
