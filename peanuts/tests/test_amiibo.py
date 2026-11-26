@@ -58,6 +58,23 @@ class Table(unittest.TestCase):
         bins = [f for f in tracked if f.endswith('.bin') and 'amiibo' in f.lower()]
         self.assertEqual(bins, [], 'no amiibo dump in the repository')
 
+    def test_pictures_only_when_turned_on(self):
+        """igawa6's review of #711: a new outside host is the player's choice. Only AmiiboPictures reaches out, and only with the pictures turned on
+        (off by default); off, it answers at once with none (Peanuts' own card) and reads no cache"""
+        for p in sorted(PKG.glob('*.java')) + sorted((APP / 'main/java/dev/peanuts/ui').glob('Amiibo*.java')):
+            if p.name == 'AmiiboPictures.java':
+                continue
+            text = p.read_text(encoding='utf-8')
+            for word in ('http://', 'https://', 'HttpURLConnection', 'java.net.URL', 'openConnection'):
+                self.assertNotIn(word, text, f'{p.name} reaches out ({word})')
+        pictures = (PKG / 'AmiiboPictures.java').read_text(encoding='utf-8')
+        load = pictures[pictures.index('public static void load('):]
+        self.assertTrue(load.split('\n')[1].strip().startswith('if (!AmiiboSwitch.pictures(c)) { done.accept(null); return; }'), 'the first thing load does')
+        self.assertIn('getBoolean(PICTURES, false)', (PKG / 'AmiiboSwitch.java').read_text(encoding='utf-8'), 'off by default')
+        notice = (REPO / 'android/NOTICE.md').read_text(encoding='utf-8')
+        line = next(l for l in notice.splitlines() if 'AmiiboAPI' in l)
+        self.assertIn('once the player has turned the pictures on', line)
+
     def test_names_keep_the_ui_rules(self):
         db = PKG / 'AmiiboDb.java'
         self.assertRegex(db.read_text(encoding='utf-8'), r'name\.substring\(0, i\) \+ " \(" \+ name\.substring\(i \+ 3\) \+ "\)"')

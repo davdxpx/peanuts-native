@@ -3,10 +3,23 @@
 Games that read amiibo find one on Peanuts' virtual stand: a player places one of their own amiibo, or one of the app's list, and the game reads it as
 it reads a figure on a console's NFC reader. GitHub issue #582.
 
+## On only where the player turns it on
+
+amiibo is off by default. **Settings › Controls › amiibo** turns it on for every game, and a game's own **amiibo** switch under its Controls
+(shown for a game AmiiboAPI lists, or one seen opening nfp while amiibo was on for it) turns it on or off for that game alone; the game's own switch
+comes first. A change counts from the game's next start (`dev.peanuts.amiibo.AmiiboSwitch`, its own prefs file `peanuts_amiibo`).
+
+- A game started with amiibo on gets `PN_AMIIBO=1`. The host's loader then resolves the game's `nn::nfc` and `nn::nfp` imports to
+  `dm/peanuts/peanuts_amiibo.c` before its own take-over table (`dm/host/loader.c` `force_lookup`, one marked hook under the compile-time `PN_AMIIBO`
+  of `android/host/CMakeLists.txt`). The file's take-overs sit in a table of their own (the section `pnamiibo`), so `hle_sdk16.c`'s block stays in the
+  host unchanged; the loader's own duplicate check only looks inside one table.
+- Every other game gets `hle_sdk16.c`'s nfc and nfp block, exactly as without amiibo: NFC reported off by `nn::nfc`, `nn::nfp` with no tag. Peanuts'
+  stand is not reached: no helper thread starts, nothing is read or written, and the launcher's amiibo answers refuse (`enabled=0` in the status).
+
 ## How a game sees it
 
-The SDK's `nn::nfp` calls are taken over in the host (`dm/peanuts/peanuts_amiibo.c`, in place of `hle_sdk16.c`'s block in the Android host). The
-take-over sits above the NFC service and above the figures' encryption: a game asks for plain structures and gets them from what the app hands over.
+With amiibo on, the SDK's `nn::nfp` calls are taken over by `dm/peanuts/peanuts_amiibo.c` in place of `hle_sdk16.c`'s block. The take-over sits above
+the NFC service and above the figures' encryption: a game asks for plain structures and gets them from what the app hands over.
 
 | Call | Answer |
 |---|---|
@@ -34,8 +47,12 @@ game's data leaves the others'.
   with its name, series and type, and what each does in which Switch game, offline. `peanuts/scripts/amiibo-db.py` makes it from a pinned commit.
 - `files/amiibo/own/<ID>-<UID>/`: one of the player's amiibo. `tag.txt` (ID, UID, from a file or the list), `placed.tsv` (per game: how often, when
   last), and what the host writes: `area-<access ID>.bin` with the game's title ID beside it (`.title`) and `common.txt` (writes, last written).
-- `files/amiibo/games.txt`: games seen initializing nfp, so their page shows the amiibo area though AmiiboAPI does not list them.
-- `cacheDir/amiibo/<ID>.png`: pictures, fetched from AmiiboAPI's images only when a page shows the amiibo, and kept.
+- `files/amiibo/games.txt`: games seen initializing nfp while amiibo was on for them, so their page shows the amiibo area though AmiiboAPI does not
+  list them.
+
+- `cacheDir/amiibo/<ID>.png`: pictures, fetched from AmiiboAPI's images (raw.githubusercontent.com) only when a page shows the amiibo, and kept;
+  only once the player has turned them on (Settings › Controls › amiibo pictures, `AmiiboSwitch.pictures`, off by default). Off, or offline, each amiibo
+  shows as Peanuts' own card and nothing is fetched.
 
 An imported `.bin` gives its ID (plain at 0x54) and its UID (the first pages). Everything else in a dump is encrypted and is not read: the game data a
 figure carries from a console stays on the figure, and Peanuts keeps its own. No keys of any kind are asked for, read or shipped.

@@ -1,17 +1,23 @@
-"""amiibo in the host (dm/peanuts/peanuts_amiibo.c): the nfc and nfp take-overs with the app's virtual tag. A harness includes the file with stand-ins for the
-host's event binding, runs the game's calls as a game makes them (search, placed while searching, read, an area created and written, unmount and the tag
-lifted a second later, placed in advance and found by the next search) and checks the structures, the results and the files written. Made-up IDs only.
-Also the wiring: hle_sdk16.c leaves its own nfc and nfp block out under PN_AMIIBO, the Android host defines it and compiles the file, Bridge declares the calls."""
+"""amiibo in the host (dm/peanuts/peanuts_amiibo.c): the nfc and nfp take-overs with the app's virtual tag, only in a game started with PN_AMIIBO=1. A
+harness includes the file with stand-ins for the host's event binding. Without PN_AMIIBO=1 the loader's lookup gets nothing from it and the app's calls are
+refused. With it, the lookup finds every take-over, and the harness runs the game's calls as a game makes them (search, placed while searching, read, an
+area created and written, unmount and the tag lifted a second later, placed in advance and found by the next search) and checks the structures, the
+results and the files written. Made-up IDs only. Also the wiring: hle_sdk16.c's own nfc and nfp block stays whole, the loader asks peanuts_amiibo_force
+first under PN_AMIIBO, the Android host defines it and compiles the file, the game's start adds PN_AMIIBO=1 only through AmiiboSwitch, Bridge declares
+the calls."""
 from pathlib import Path
+import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / 'dm/peanuts/peanuts_amiibo.c'
 SDK16 = ROOT / 'dm/host/hle_sdk16.c'
+LOADER = ROOT / 'dm/host/loader.c'
 
 # The host's own headers are for arm64 Android and Apple only: the test compiles a copy of the file beside a stand-in hle.h with what it uses
 STAND_IN = r'''
@@ -21,7 +27,8 @@ STAND_IN = r'''
 typedef uint32_t Result;
 #define RES_OK 0u
 #define LOG(...) do { fprintf(stderr, "[dm] " __VA_ARGS__); fputc('\n', stderr); } while (0)
-#define HLE_FORCE(mangled, why, ret, cname, ...) static ret cname(__VA_ARGS__)
+typedef struct { const char *name; void *fn; const char *why; } hle_force_ent;
+#define PLAT_TABLE(name) __attribute__((used, section(#name), aligned(8)))   /* as on arm64: no padding between the entries (x86-64 compilers align a 24-byte global to 16) */
 void dm_applet_enter(const char *name);
 void dm_applet_leave(void);
 #define DM_APPLET(name) dm_applet_enter(name); dm_applet_leave()
@@ -61,11 +68,45 @@ static void describe(const char *extra) {
              "today=2026-11-24\nwrites=5\ndir=%s\ntitle=0100000000aa0000\n%s", mii_hex, dir, extra);
 }
 
+// Without PN_AMIIBO=1: the loader finds nothing here (and gives the game hle_sdk16.c's block), the app's calls are refused
+static int off(void) {
+    char st[512];
+    CHECK(peanuts_amiibo_force("_ZN2nn3nfp10InitializeEv") == NULL, "off: no take-over for the loader");
+    CHECK(peanuts_amiibo_force("_ZN2nn3nfc12IsNfcEnabledEv") == NULL, "off: nfc neither");
+    describe("");
+    CHECK(nxhost_peanuts_amiibo_place(desc) == 0, "off: placing is refused");
+    nxhost_peanuts_amiibo_status(st, sizeof st);
+    CHECK(!strncmp(st, "enabled=0\n", 10) && strstr(st, "lib=0\n"), "off: the status says so");
+    printf("amiibo host (off): %d checks, %d failed\n", checks, fails);
+    return fails != 0;
+}
+
 int main(int argc, char **argv) {
-    (void)argc; snprintf(dir, sizeof dir, "%s", argv[1]);
+    (void)argc; snprintf(dir, sizeof dir, "%s", argv[2]);
     for (int i = 0; i < 0x58; i++) snprintf(mii_hex + 2 * i, 3, "%02x", (i * 7 + 3) & 0xff);
+    if (!strcmp(argv[1], "off")) return off();
     void *ev_act = malloc(64), *ev_deact = malloc(64);
     char st[512];
+
+    // the app's screen starts before the host's main has set the game's environment: its early calls are refused and decide nothing (the AYN Thor:
+    // the watcher's first call came 0.25 s before PN_AMIIBO=1 was set)
+    describe("");
+    CHECK(nxhost_peanuts_amiibo_place(desc) == 0, "before the modules load: placing is refused");
+    nxhost_peanuts_amiibo_status(st, sizeof st);
+    CHECK(!strncmp(st, "enabled=0\n", 10), "before the modules load: not on yet");
+    setenv("PN_AMIIBO", "1", 1);   // main.c sets the game's environment, then the loader resolves the modules
+
+    // the loader's lookup: every take-over of the file, nothing else
+    CHECK(peanuts_amiibo_force("_ZN2nn2fs8MountRomEPKc") == NULL, "the first lookup (another service's name) decides, and goes by");
+    nxhost_peanuts_amiibo_status(st, sizeof st);
+    CHECK(!strncmp(st, "enabled=1\n", 10), "on from the loader's first lookup, though the app asked earlier");
+    CHECK(peanuts_amiibo_force("_ZN2nn3nfp10InitializeEv") == (void *)h_nfp_Init, "on: nfp::Initialize is the stand's");
+    CHECK(peanuts_amiibo_force("_ZN2nn3nfc12IsNfcEnabledEv") == (void *)h_nfc_Enabled, "on: nfc::IsNfcEnabled too");
+    CHECK(peanuts_amiibo_force("_ZN2nn3nfp99NotATakeOverEv") == NULL, "an nfp name it does not take over");
+    CHECK(peanuts_amiibo_force("_ZN2nn2fs8MountRomEPKc") == NULL, "another service's name goes by");
+    int entries = 0, found = 0;
+    for (const hle_force_ent *e = __start_pnamiibo; e < __stop_pnamiibo; e++) { entries++; if (peanuts_amiibo_force(e->name) == e->fn && e->why && e->why[0]) found++; }
+    CHECK(entries == ENTRIES && found == entries, "every take-over of the table is found, with its reason");
 
     CHECK(h_nfc_Enabled() == 1, "NFC is on");
     CHECK(h_nfp_LibState() == 0, "the library starts uninitialized");
@@ -173,18 +214,40 @@ int main(int argc, char **argv) {
 '''
 
 
+def own_entries():
+    return re.findall(r'PN_FORCE\("(_ZN2nn3nf[cp][^"]+)"', SRC.read_text(encoding='utf-8'))
+
+
 class Wiring(unittest.TestCase):
-    def test_upstream_block_left_out(self):
+    def test_upstream_block_stays_whole(self):
+        """hle_sdk16.c is not touched: every game amiibo is off for gets its nfc and nfp block as upstream wrote it"""
         s = SDK16.read_text(encoding='utf-8')
-        a = s.index('#ifndef PN_AMIIBO')
-        b = s.index('#endif   // PEANUTS: PN_AMIIBO')
-        block = s[a:b]
-        self.assertIn('// ---------- nfc: the NFC library beside nfp ----------', block)
-        self.assertIn('h_nfp_Nick2', block)
-        self.assertNotIn('nn3nfp', s[:a] + s[b:], 'every nfp take-over of hle_sdk16.c is inside the switch')
-        own = set(re.findall(r'HLE_FORCE\("(_ZN2nn3nf[cp][^"]+)"', SRC.read_text(encoding='utf-8')))
-        theirs = set(re.findall(r'HLE_FORCE\("(_ZN2nn3nf[cp][^"]+)"', block))
-        self.assertEqual(own, theirs, 'peanuts_amiibo.c takes over exactly the symbols the upstream block does')
+        self.assertNotIn('PN_AMIIBO', s)
+        self.assertNotIn('PEANUTS', s[s.index('// ---------- nfc: the NFC library beside nfp ----------'):s.index('// ---------- vi: vsync event ----------')])
+        own = own_entries()
+        theirs = set(re.findall(r'HLE_FORCE\("(_ZN2nn3nf[cp][^"]+)"', s))
+        self.assertEqual(len(own), len(set(own)), 'no name twice in the stand\'s table')
+        self.assertEqual(set(own), theirs, 'peanuts_amiibo.c takes over exactly the symbols the upstream block does')
+        self.assertNotIn('HLE_FORCE("', SRC.read_text(encoding='utf-8'), 'none of them in hle.h\'s table, where the loader would die on the duplicate')
+
+    def test_loader_asks_the_stand_first(self):
+        s = LOADER.read_text(encoding='utf-8')
+        body = s[s.index('static void *force_lookup(const char *name) {'):]
+        body = body[:body.index('\n}\n')]
+        hook = body[body.index('#ifdef PN_AMIIBO'):body.index('#endif')]
+        self.assertIn('PEANUTS', hook)
+        self.assertIn('peanuts_amiibo_force(name)', hook)
+        self.assertLess(body.index('peanuts_amiibo_force'), body.index('g_fidx'), 'before the loader\'s own table')
+
+    def test_only_a_game_turned_on_gets_it(self):
+        sw = (ROOT / 'android/app/src/main/java/dev/peanuts/amiibo/AmiiboSwitch.java').read_text(encoding='utf-8')
+        self.assertIn('getBoolean(ALL, false)', sw, 'Settings › Controls › amiibo is off by default')
+        self.assertIn('if (titleId != null && on(c, titleId)) env.add("PN_AMIIBO=1");', sw)
+        game = (ROOT / 'android/app/src/main/java/dev/nxnative/android/GameActivity.java').read_text(encoding='utf-8')
+        self.assertEqual(game.count('PN_AMIIBO'), 1, 'GameActivity sets PN_AMIIBO only through AmiiboSwitch.env')
+        self.assertRegex(game, r'dev\.peanuts\.amiibo\.AmiiboSwitch\.env\(this, id, env\);   // PEANUTS: ')
+        settings = (ROOT / 'android/app/src/main/java/dev/nxnative/android/GameSettings.java').read_text(encoding='utf-8')
+        self.assertRegex(settings, r'if \(dev\.peanuts\.amiibo\.AmiiboSwitch\.offered\(a, id\)\) controls\.add\(.*"amiibo".*// PEANUTS: ')
 
     def test_host_build_and_bridge(self):
         cm = (ROOT / 'android/host/CMakeLists.txt').read_text(encoding='utf-8')
@@ -198,7 +261,8 @@ class Wiring(unittest.TestCase):
 
 
 class Host(unittest.TestCase):
-    @unittest.skipUnless(shutil.which('cc'), 'C compiler required')
+    # ELF only: the table is a section the linker bounds with __start_ and __stop_ symbols, as on Android (Mach-O has none)
+    @unittest.skipUnless(sys.platform.startswith('linux') and shutil.which('cc'), 'a C compiler for ELF (Linux) required')
     def test_virtual_tag(self):
         with tempfile.TemporaryDirectory() as tmp:
             t = Path(tmp)
@@ -209,11 +273,14 @@ class Host(unittest.TestCase):
             out = t / 'data'; out.mkdir()
             exe = t / 'amiibo'
             cc = subprocess.run(['cc', '-O1', '-g', '-Wall', '-Werror', '-Wno-unused-function', '-pthread', '-fsanitize=address,undefined',
-                                 '-o', str(exe), str(t / 'harness.c')], capture_output=True, text=True)
+                                 f'-DENTRIES={len(own_entries())}', '-o', str(exe), str(t / 'harness.c')], capture_output=True, text=True)
             self.assertEqual(cc.returncode, 0, cc.stderr[-4000:])
-            run = subprocess.run([str(exe), str(out)], capture_output=True, text=True, timeout=60)
-            self.assertEqual(run.returncode, 0, run.stdout + run.stderr[-4000:])
-            self.assertIn('0 failed', run.stdout)
+            env = {k: v for k, v in os.environ.items() if k != 'PN_AMIIBO'}
+            for mode, line in (('off', 'amiibo host (off): '), ('on', 'amiibo host: ')):
+                run = subprocess.run([str(exe), mode, str(out)], capture_output=True, text=True, timeout=60, env=env)
+                self.assertEqual(run.returncode, 0, mode + ': ' + run.stdout + run.stderr[-4000:])
+                self.assertIn(line, run.stdout)
+                self.assertIn('0 failed', run.stdout)
 
 
 if __name__ == '__main__':
