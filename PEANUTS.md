@@ -1,6 +1,7 @@
 # Peanuts Native
 
-A second-screen companion layer for Banana Native, the sibling of Eden Duo for Switch 2 titles. Upstream
+A second-screen companion layer for Banana Native, the sibling of Eden Duo, for Switch 1 games only: Banana Native's Switch 2
+profiles and their host gates are not carried (`peanuts/upstream-dropped.txt`, kept out on every sync). Upstream
 Banana Native ships several releases a day, so this fork is kept as a **thin overlay** that rebases cleanly.
 
 ## Rules that keep upstream updates cheap
@@ -23,6 +24,7 @@ Banana Native ships several releases a day, so this fork is kept as a **thin ove
    - `android/host/CMakeLists.txt`, `android/app/src/main/cpp/CMakeLists.txt` — add the `dm/peanuts` sources.
    - `dm/gfx/vk_android/vka_present.c` — one call per presented frame (`peanuts_tick()`), beside `ovl_draw`; (2026-11-17) one weak declaration and one argument in `ovl_draw`'s `vko_place(...)`: `peanuts_ovl_corner(s, g_ocorner[s])` (the stats block's corner chosen in the launcher; the build tag steps aside from a top-left block).
    - `dm/host/hle_audren.c` — (2026-11-20, audio follows the game's pace) in `render_main`, a weak declaration of `pn_audio_follow` and two marked lines: the rendered frame goes through `pn_audio_follow` (`dm/peanuts/peanuts_audiosync.c`; the clock's next render moves by the frames it gave out), and a call that gives nothing out yet (the stretch filling its look-ahead) appends no block. `dm/peanuts/peanuts_audiovoice.c` takes over `nn::audio::SetVoicePlayState` with its own `HLE_FORCE` (calls the SDK's own first): if upstream ever takes that symbol over too, merge the two. `peanuts_tick` feeds the game's frames (`pn_as_frame`, `nvn_game_fps` weak). `PN_AUDIO_FOLLOW` 0 / 1 (automatic, default) / 2.
+   - `dm/host/hle_net.c` — (2026-11-24, issue #610) the socket Poll / Select waits (`efd_wait`, `sk_idle`, the co-op mixed poll's sleep) are native waits (`sk_sleep_ns`, `dm_thread_native_wait`), so a stop of all threads is not held up by a game thread that polls in a loop (FINAL FANTASY RESONANCE's HttpManagerThread kept its companion's load plan out). Tests: `t_net_eventfd.c` (two checks), `t_net_coop.c` (the stub). Upstream candidate. `peanuts/UPSTREAM-EDITS.md` "Socket waits are native waits".
    - `dm/host/loader.c` `force_lookup` — (2026-11-24, amiibo, GitHub issue #582; opt-in since 2026-11-26) one marked block under `#ifdef PN_AMIIBO` (the Android host defines it, `android/host/CMakeLists.txt`): `peanuts_amiibo_force(name)` first, which answers only in a game started with `PN_AMIIBO=1` (the player turned amiibo on for it: `dev.peanuts.amiibo.AmiiboSwitch`, off by default) with `dm/peanuts/peanuts_amiibo.c`'s nfc and nfp, the app's virtual amiibo stand. Its take-overs sit in a table of their own (section `pnamiibo`), so `hle_sdk16.c`'s block stays unchanged and every other game gets it; an upstream change inside that block reaches those games at once, and wants carrying over to `peanuts_amiibo.c` for the others (`peanuts/tests/test_amiibo_host.py` checks the two lists of symbols are the same). `peanuts/UPSTREAM-EDITS.md` Round 65, `peanuts/docs/AMIIBO.md`.
    - `android/app/src/main/java/dev/nxnative/android/GameActivity.java`, `GameSettings.java` — (2026-11-26, amiibo as an opt-in, GitHub issue #582) one line in `settingsEnv` after `Companion.env`: `dev.peanuts.amiibo.AmiiboSwitch.env` adds `PN_AMIIBO=1` for a game amiibo is on for; one line in the Game options after Time of day (above Mods & Cheats): the game's own amiibo switch (`AmiiboSwitch.offered`: a game AmiiboAPI lists, one seen opening nfp, or one whose switch was set). `peanuts/UPSTREAM-EDITS.md` Round 65.
    - `dm/gfx/vk_android/vka_dev.c` `vka_gpu_floor` — (2026-11-23, #113/#257) one weak call into `dm/peanuts/peanuts_gpufloor.c`: the KGSL clock floor's beat on kernels that apply the constraint only to flagged commands (`PN_GPU_FLOOR_BEAT`). `peanuts/UPSTREAM-EDITS.md` Round 62.
@@ -243,10 +245,10 @@ The script fetches, rebases `peanuts` onto the target, then checks that every `P
   plays, `android_builds` respected, and the package) and `peanuts/games.tsv` (the table's order, the name players know, a display
   version a profile lacks, the companion). The same script writes the Supported games table of `README.md` and `peanuts/docs/README.github.md`
   between its `PEANUTS begin` / `end` markers; `--refresh` adds a row for a game that ships without one and sets the companion column from
-  eden-duo-companions' releases. Seven issue forms, written by `peanuts/scripts/issue_forms.py` from one source: **Game problem** (the log
+  eden-duo-companions' releases. Six issue forms, written by `peanuts/scripts/issue_forms.py` from one source: **Game problem** (the log
   of the run required), **Build problem** (the Share build log `.zip` required), **Setup or app problem** (keys, firmware, the library,
-  storage, drivers, companions, mods, saves, the second screen, the app), **Desktop builder problem**, **Game request**, **Feature
-  request**, and **Question, device report or development topic**; `config.yml` links companion content to eden-duo-companions. They ask
+  storage, drivers, companions, mods, saves, the second screen, the app), **Desktop builder problem**, **Feature
+  request**, and **Question, device report or development topic**; `config.yml` links companion content to eden-duo-companions and says first that game requests are not accepted (every form says so too; the Game request form was removed on 2026-11-26). They ask
   mostly by picks: the game with its version (one option per catalog build, then another version or another game with a line to write it),
   the app version (peanuts/VERSION first), device, chip with its GPU, RAM, Android, the driver family, the settings changed, whether it
   worked before, and a required check that the log is this game's; every form keeps optional text boxes, and Game problem and Setup or app problem take
@@ -430,3 +432,8 @@ The script fetches, rebases `peanuts` onto the target, then checks that every `P
   takes the corner's side margin on the right side (`Hud.margins`, one hook in `Overlay.Block.draw`). Players who never picked a style keep the table (igawa6, landing #538: the pill is a choice, not the default). The build tag is off by default under the pill (`Hud.tagOn`,
   used by `GameActivity` in two marked lines; a player's own switch wins, and only the Full preset turns it on there).
   Tests: `t_android_ovl`, `t_peanuts_graph`, `dm/tools/tests/test_android_hud.py` (`test_pill`).
+- 2026-11-26 (Switch 1 only, owner): the 19 Switch 2 profiles (`dm/games/04*`) and the host gates only they used (`dkb_wide.c`, `mkw_wide.c`,
+  `oot_wide.c`, `mtf_size.c`, `pkp_aspect.c`, their tests and `OBS_*` rows) are removed; `nxGames` (the default APK's games) is
+  `peanuts/release-titles.txt` with Breath of the Wild first. `upstream-update.sh` keeps them out on every sync (`peanuts/upstream-dropped.txt`,
+  [UPSTREAM.md](peanuts/docs/UPSTREAM.md#38-dropped-upstream-content-switch-2)). Tests that read those profiles use Switch 1 profiles or
+  `peanuts/tests/fixtures/profiles/`. The shared Switch 2 support in the host and the app (NVN2, Program-n, `Edition.java`) stays.

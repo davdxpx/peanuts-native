@@ -39,12 +39,57 @@ public final class PeanutsPrefs {
     /** What the importer that last read the firmware takes from one (LibrarySettings.FIRMWARE_READ); 0 when it was read before the app kept this */
     public static int firmwareRead(Context c) { return of(c).getInt("firmware_read", 0); }
     public static void firmwareRead(Context c, int what) { of(c).edit().putInt("firmware_read", what).apply(); }
-    public static String gameDir(Context c) { return of(c).getString("game_dir", null); }
-    public static void gameDir(Context c, String p) { put(c, "game_dir", p); }
-    public static String updateDir(Context c) { return of(c).getString("update_dir", null); }
-    public static void updateDir(Context c, String p) { put(c, "update_dir", p); }
-    public static String dlcDir(Context c) { return of(c).getString("dlc_dir", null); }
-    public static void dlcDir(Context c, String p) { put(c, "dlc_dir", p); }
+    /** The first game folder, null when there is none (where "is a game folder set" is all a caller asks; the list is {@link #gameDirs}) */
+    public static String gameDir(Context c) {
+        List<String> l = gameDirs(c);
+        return l.isEmpty() ? null : l.get(0);
+    }
+
+    /**
+     * The game folders (issue #546: several, on the phone and an SD card). The first stays in "game_dir", where the app kept its one game folder before, so an
+     * install that had one has it here as the first, and the others follow in "game_dirs_extra". The same way as the build folders (buildDirs)
+     */
+    public static List<String> gameDirs(Context c) {
+        return dev.peanuts.folders.FolderList.read(java.util.Collections.singletonList(of(c).getString("game_dir", null)), extra(c, "game_dirs_extra"));
+    }
+    public static void gameDirs(Context c, List<String> dirs) { list(c, "game_dir", null, "game_dirs_extra", dirs); }
+
+    /**
+     * The folders with updates and DLC (one kind since issue #546: the scan tells an update from a DLC by what the file holds, never by its folder). The update
+     * folder and the DLC folder an older version kept ("update_dir", "dlc_dir") are the first two; added ones follow in "addon_dirs_extra". A change keeps the
+     * first in "update_dir" and moves the DLC folder into the list
+     */
+    public static List<String> addonDirs(Context c) {
+        SharedPreferences p = of(c);
+        return dev.peanuts.folders.FolderList.read(java.util.Arrays.asList(p.getString("update_dir", null), p.getString("dlc_dir", null)), extra(c, "addon_dirs_extra"));
+    }
+    public static void addonDirs(Context c, List<String> dirs) { list(c, "update_dir", "dlc_dir", "addon_dirs_extra", dirs); }
+
+    /** A JSON list of paths in key ("[]" when none or unreadable) */
+    private static List<String> extra(Context c, String key) {
+        List<String> out = new ArrayList<>();
+        try {
+            JSONArray a = new JSONArray(of(c).getString(key, "[]"));
+            for (int i = 0; i < a.length(); i++) { String d = a.optString(i, ""); if (!d.isEmpty()) out.add(d); }
+        } catch (org.json.JSONException ignored) { /* the first folder still works */ }
+        return out;
+    }
+
+    /** A folder list kept as its first in firstKey and the others in extraKey; oldKey (a second single folder of an older version) is folded into the list */
+    private static void list(Context c, String firstKey, String oldKey, String extraKey, List<String> dirs) {
+        SharedPreferences.Editor e = of(c).edit();
+        if (dirs.isEmpty()) e.remove(firstKey); else e.putString(firstKey, dirs.get(0));
+        if (oldKey != null) e.remove(oldKey);
+        JSONArray extra = new JSONArray();
+        for (int i = 1; i < dirs.size(); i++) extra.put(dirs.get(i));
+        if (extra.length() == 0) e.remove(extraKey); else e.putString(extraKey, extra.toString());
+        e.apply();
+    }
+
+    /** The game folder an import of this game file writes its .nup into when no build folder is set: the game folder that holds it, else the first; null without one */
+    public static File homeFor(Context c, File gameFile) {
+        return dev.peanuts.folders.FolderList.home(gameDirs(c), gameFile == null ? null : gameFile.getAbsolutePath());
+    }
 
     /** Settings › Library › Build folder: null (default) = beside the game, today's behaviour. A folder the user picked, on the phone or an SD card,
      *  to keep every build organized by title ID instead (one folder per game, nothing loose at its top level): {@code <build folder>/<title ID>/}. */
@@ -163,25 +208,26 @@ public final class PeanutsPrefs {
      *  (a clip-on top screen that Android lists as the external display, GitHub issue #131). dev.peanuts.Screens applies it */
     public static boolean swapScreens(Context c) { return of(c).getBoolean("swap_screens", false); }
     public static void swapScreens(Context c, boolean on) { of(c).edit().putBoolean("swap_screens", on).apply(); }
+    /** Home's Sort: "last" (default: last played, then A–Z), "az", "added" (newest game file first) or "time" (most play time first) */
+    public static String librarySort(Context c) { return of(c).getString("library_sort", "last"); }
+    public static void librarySort(Context c, String mode) { of(c).edit().putString("library_sort", mode).apply(); }
+    /** Home's Sort: true (default) = Ready, Build needed and Not supported yet stay apart in All, the order applies inside each; false = one list */
+    public static boolean librarySortGrouped(Context c) { return of(c).getBoolean("library_sort_grouped", true); }
+    public static void librarySortGrouped(Context c, boolean on) { of(c).edit().putBoolean("library_sort_grouped", on).apply(); }
 
     /** Settings › TV and monitors (dev.peanuts.Screens, #358): true a game plays on a connected TV or monitor; false (the default) the system decides what the TV
      *  shows (Android mirrors the screen, a handheld's firmware may turn its own screens off), and Peanuts only keeps its pages off the TV */
     public static boolean tvPlay(Context c) { return of(c).getBoolean("tv_play", false); }
     public static void tvPlay(Context c, boolean on) { of(c).edit().putBoolean("tv_play", on).apply(); }
 
-    /** The roots the library scans: the game folder first, then the update and DLC folders when set and different, then the build folder (walked the same
-     *  two levels deep, so its {@code <title ID>/<name>.nup} entries are found) */
+    /** The roots the library scans: the game folders first, then the update and DLC folders, then the build folders (walked the same two levels deep, so their
+     *  {@code <title ID>/<name>.nup} entries are found); a folder in two lists once */
     public static List<File> roots(Context c) {
+        List<String> all = new ArrayList<>(gameDirs(c));
+        all.addAll(addonDirs(c));
+        all.addAll(buildDirs(c));
         List<File> out = new ArrayList<>();
-        for (String p : new String[] {gameDir(c), updateDir(c), dlcDir(c)}) {
-            if (p == null || p.isEmpty()) continue;
-            File f = new File(p);
-            if (!out.contains(f)) out.add(f);
-        }
-        for (String p : buildDirs(c)) {
-            File f = new File(p);
-            if (!out.contains(f)) out.add(f);
-        }
+        for (String p : dev.peanuts.folders.FolderList.read(all, null)) out.add(new File(p));
         return out;
     }
 
@@ -190,6 +236,14 @@ public final class PeanutsPrefs {
     private static String key(String titleId, String what) { return "t." + titleId.toUpperCase(Locale.ROOT) + "." + what; }
 
     /** The update file the user chose for a title (null: the newest found) */
+    /** When Home first saw the game (dev.peanuts.ui.LibrarySort.firstSeen; Sort's Recently added), 0 before that */
+    public static long firstSeen(Context c, String titleId) { return of(c).getLong(key(titleId, "first_seen"), 0); }
+    /** Keeps first-seen times by title ID, in one write */
+    public static void firstSeen(Context c, java.util.Map<String, Long> seen) {
+        SharedPreferences.Editor e = of(c).edit();
+        for (java.util.Map.Entry<String, Long> s : seen.entrySet()) e.putLong(key(s.getKey(), "first_seen"), s.getValue());
+        e.apply();
+    }
     public static String chosenUpdate(Context c, String titleId) { return of(c).getString(key(titleId, "update"), null); }
     public static void chosenUpdate(Context c, String titleId, String path) { put(c, key(titleId, "update"), path); }
 

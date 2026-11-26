@@ -31,6 +31,10 @@ listed), and **Import save… (a .zip or a folder)** at the end. Pick one and co
 anything, the app backs up the current save (a backup ending in `-before-restore`), so a restore can be undone with
 **Restore saves** again.
 
+For a game with code mods turned on, before the first start after an app update and before the first start of another
+build of the game (with or without its code mods), the app backs up the save the same way (a backup ending in `-before-update`), so the save from before
+the update can be brought back. No backup is ever deleted. <!-- PEANUTS: issue #514 -->
+
 ## Import save
 
 The game's ⋯ button › **Import save** asks for:
