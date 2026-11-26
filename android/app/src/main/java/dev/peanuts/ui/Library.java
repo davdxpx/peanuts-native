@@ -65,7 +65,8 @@ import java.util.function.Predicate;
 
 /**
  * Banana's Home is the library (SPEC.md, SPEC3.md): {@link #fill} is the one call MainActivity.refresh makes for its game box. It lays out the filter row (All ·
- * Building · Ready · Build needed · Not Supported Yet, Find), then one cover grid (Eden's shape in Banana's clothes: PUi.tile at cell size with the NACP icon,
+ * Building · Ready · Build needed · Not Supported Yet, Find; a chip only for a state with games, no chips when one state has them all: HomeFilters), then
+ * one cover grid (Eden's shape in Banana's clothes: PUi.tile at cell size with the NACP icon,
  * the name under it, the state on the cover, four columns on a handheld), ordered Building → Ready by last played → Build needed A–Z → Not Supported Yet A–Z,
  * no sections. A tap plays a ready game (Banana's launch) or opens the game sheet; a long press (or Y) opens Banana's Manage sheet for a listed game. The Building
  * filter exists only while something runs and holds the full cards: the build card (Ondevice's shape: status, a sentence, the bar, Stop/Retry and a disabled Play)
@@ -74,8 +75,7 @@ import java.util.function.Predicate;
  * into upstream's list so Play and Manage are Banana's. With no game folder set, the first-run card (emptyCard's shape with three Setting rows) is Home's one card.
  */
 public final class Library {
-    private static final int ALL = 0, BUILDING = 1, READY = 2, BUILD = 3, NO_PROFILE = 4;
-    private static final int[] FILTERS = {ALL, BUILDING, READY, BUILD, NO_PROFILE};
+    private static final int ALL = HomeFilters.ALL, BUILDING = HomeFilters.BUILDING, READY = HomeFilters.READY, BUILD = HomeFilters.BUILD, NO_PROFILE = HomeFilters.NO_PROFILE;
     private static final int REQ_NOTIFY = 71;   // the notification permission's request (nobody reads the answer: the next notification shows or does not)
     private static final String GOES_ON = " The build goes on if you leave the app.";
 
@@ -146,6 +146,7 @@ public final class Library {
     private boolean scanning;
     private boolean staleChecking;   // one in flight at a time; staleTick skips a tick rather than piling up background threads
     private int filter = ALL;
+    private int[] stateCounts = new int[3];   // the last render's Ready, Build needed and Not Supported Yet counts: which chips L/R step through
     private String find = "";
     private boolean showHidden;   // the "Hidden: N missing games · Show/Hide" toggle (found in review): off by default, so a hidden card needs an explicit tap to reveal
     private final Map<String, TextView> tiles = new HashMap<>();   // the tiles of the covers showing, by title ID (icons land while they show)
@@ -1090,6 +1091,9 @@ public final class Library {
                 default: noProfile++; if (shown) np.add(r);
             }
         }
+        boolean[] chipsOn = HomeFilters.chips(building, ready, toBuild, noProfile);   // no "Build needed 0", and no "All 12" beside "Ready 12"
+        stateCounts = new int[] {ready, toBuild, noProfile};
+        filter = HomeFilters.shown(filter, chipsOn);   // a chosen filter whose last game left it goes back to All, as Building does
         Collections.sort(bl, (x, y) -> Integer.compare(buildRank(x), buildRank(y)));   // upstream's Prepare first, like its card, then the build, the queue in its order, what stopped
         playTimes = dev.peanuts.launch.PlayTime.all(a);   // once per render: Sort by play time and the bottom screen's card of a focused cover
         noteAdded(rows);
@@ -1144,15 +1148,15 @@ public final class Library {
         HorizontalScrollView chips = new HorizontalScrollView(a);
         chips.setHorizontalScrollBarEnabled(false);
         LinearLayout chipRow = PUi.row(a);
-        chip(chipRow, "All " + all, ALL);
+        if (chipsOn[ALL]) chip(chipRow, "All " + all, ALL);
         if (building > 0) {
             SpannableString s = new SpannableString("Building " + building);
             if (filter != BUILDING) s.setSpan(new ForegroundColorSpan(PUi.col(a, R.color.bn_banana)), 9, s.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);   // the count in banana: something runs
             chip(chipRow, s, BUILDING);
         }
-        chip(chipRow, "Ready " + ready, READY);
-        chip(chipRow, "Build needed " + toBuild, BUILD);
-        chip(chipRow, a.getString(R.string.not_supported_yet) + " " + noProfile, NO_PROFILE);
+        if (chipsOn[READY]) chip(chipRow, "Ready " + ready, READY);
+        if (chipsOn[BUILD]) chip(chipRow, "Build needed " + toBuild, BUILD);
+        if (chipsOn[NO_PROFILE]) chip(chipRow, a.getString(R.string.not_supported_yet) + " " + noProfile, NO_PROFILE);
         if (hidden > 0) {
             // Found in review: lets the player see and remove a confirmed-missing (or currently unreachable) game themselves, through upstream's
             // own "Game file gone → Remove" dialog, instead of this code ever deleting the record on its own
@@ -1162,7 +1166,7 @@ public final class Library {
             focusRing(hideB, Color.TRANSPARENT);
             track(hideB, "hidden", null);
             LinearLayout.LayoutParams hlp = PUi.wrap();
-            hlp.leftMargin = PUi.dp(a, 8);
+            if (chipRow.getChildCount() > 0) hlp.leftMargin = PUi.dp(a, 8);
             chipRow.addView(hideB, hlp);
         }
         chips.addView(chipRow, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -1267,6 +1271,7 @@ public final class Library {
         boolean placed = focusGrid;
         focusAfterRender(chipRow);
         View v = placed || keep == null ? null : keyed.get(keep);
+        if (v == null && !placed && keep != null && keep.startsWith("chip:")) v = keyed.containsKey("chip:" + filter) ? keyed.get("chip:" + filter) : firstCover;   // its chip went with its last game: the chosen chip, else the first game
         if (v != null && !box.isInTouchMode()) {
             Haptics.quiet(200);
             restoring = true;
@@ -1346,20 +1351,21 @@ public final class Library {
     private final View.OnKeyListener shoulders = (v, code, ev) -> {
         Haptics.focusKey(v, ev);
         if (ev.getAction() != KeyEvent.ACTION_DOWN || ev.getRepeatCount() != 0) return false;
-        if (code == KeyEvent.KEYCODE_BUTTON_L1) { Haptics.play(v, Haptics.Word.CLICK); stepFilter(-1); return true; }
-        if (code == KeyEvent.KEYCODE_BUTTON_R1) { Haptics.play(v, Haptics.Word.CLICK); stepFilter(1); return true; }
+        if (code == KeyEvent.KEYCODE_BUTTON_L1) { stepFilter(v, -1); return true; }
+        if (code == KeyEvent.KEYCODE_BUTTON_R1) { stepFilter(v, 1); return true; }
         return false;
     };
 
-    private void stepFilter(int d) {
+    /** L/R: the previous/next chip there is; with no other chip nothing happens, not even the click */
+    private void stepFilter(View v, int d) {
         Build b = build;
         boolean pcShows = ondeviceCard != null && !(b != null && b.failed && b.step.equals("prepare"));   // as render(): a build stopped in Prepare shows its own card only
         boolean buildCard = b != null && !(b.step.equals("prepare") && pcShows && !b.failed);
         boolean hasBuilding = pcShows || buildCard || !queueWaiting().isEmpty() || !queueStopped().isEmpty();
-        List<Integer> avail = new ArrayList<>();
-        for (int f : FILTERS) if (f != BUILDING || hasBuilding) avail.add(f);
-        int i = Math.max(0, avail.indexOf(filter));
-        filter = avail.get(((i + d) % avail.size() + avail.size()) % avail.size());
+        int next = HomeFilters.step(filter, HomeFilters.chips(hasBuilding ? 1 : 0, stateCounts[0], stateCounts[1], stateCounts[2]), d);
+        if (next == filter) return;
+        Haptics.play(v, Haptics.Word.CLICK);
+        filter = next;
         focusGrid = true;
         animateNext = true;
         render();
