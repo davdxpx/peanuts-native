@@ -27,7 +27,7 @@ static inline uint64_t pn_swtf_hash(const pwrec *r, const void *kb) { return (vk
 
 // An entry that may reach the prewarm: a vertex pipeline's record that passes vka_pw_rec_ok, not instanced, whose hash is its own, and a layout of the form
 // vka_tf_layout_read gives (vka_tf_spv.c): a buffer with no stride has no outputs, one with a stride 1 to VKA_TF_OUTS outputs of 1-4 components at a Location
-// below 32 whose bytes make the stride, and at least one buffer (vka_tf.c checks it against the device too)
+// below 32 whose bytes make the stride, the slots past its outputs 0, and at least one buffer (vka_tf.c checks it against the device too)
 static inline int pn_swtf_ok(const pn_swtf_ent *e) {
     if (e->r.kind != VKA_PW_GFX || e->r.bad || e->r.inst[0] || e->r.inst[1] || e->r.klen > sizeof e->k) return 0;
     if (!vka_pw_rec_ok(&e->r, (const uint8_t *)&e->k) || e->h != pn_swtf_hash(&e->r, &e->k)) return 0;
@@ -35,15 +35,22 @@ static inline int pn_swtf_ok(const pn_swtf_ent *e) {
     for (size_t i = e->r.klen; i < sizeof e->k; i++) if (k[i]) return 0;
     int any = 0;
     for (int b = 0; b < 4; b++) {
-        if (!e->L.stride[b]) { if (e->L.n[b]) return 0; continue; }
+        if (!e->L.stride[b]) { if (e->L.n[b]) return 0; for (int i = 0; i < VKA_TF_OUTS; i++) if (e->L.loc[b][i] || e->L.comp[b][i]) return 0; continue; }
         if (e->L.n[b] < 1 || e->L.n[b] > VKA_TF_OUTS) return 0;
         unsigned sum = 0;
         for (int i = 0; i < e->L.n[b]; i++) { if (e->L.loc[b][i] >= 32 || e->L.comp[b][i] < 1 || e->L.comp[b][i] > 4) return 0; sum += e->L.comp[b][i]; }
+        for (int i = e->L.n[b]; i < VKA_TF_OUTS; i++) if (e->L.loc[b][i] || e->L.comp[b][i]) return 0;   // (vka_tf_layout_read leaves them 0: pn_swtf_holds compares bytes)
         if (e->L.stride[b] != 4 * sum) return 0;
         any = 1;
     }
     return any;
 }
+
+// A capture variant made ahead with layout made (an earlier run's, from the file), at its first use by a draw (vka_tf.c learned_holds): 1 when this run's program noted
+// the same layout for its vertex shader (st as vka_tf_layout_read returned it: 1 read, 0 none noted, -1 a form not known; run that layout), else 0: the variant is not
+// used (its pipelines made ahead are never reached: the pipeline map keys a pipeline by its shader objects) and the draw makes its own with this run's layout, as before.
+// Any byte counts: an output's Location, component count or order, a buffer's stride or output count, another buffer
+static inline int pn_swtf_holds(int st, const vka_tf_layout *run, const vka_tf_layout *made) { return st == 1 && run && made && !memcmp(run, made, sizeof *made); }
 
 // A file's bytes: NULL and *out (malloc'd, NULL when empty) with the entries that may reach the prewarm (*skipped the others); else why it is not used (*out NULL, *n 0)
 static inline const char *pn_swtf_parse(const uint8_t *d, size_t len, uint32_t layout, pn_swtf_ent **out, size_t *n, size_t *skipped) {

@@ -3780,5 +3780,5 @@ tab's numbers come from the list (`vka_pso_watch`, `Bridge.shaderWatch`); turnin
 
 Peanuts-owned: `dev.peanuts.shaders.HostWatch`, `HostCounts`, `dev.peanuts.Bridge.shaderWatch` / `shaderWatchLearn`, `dm/peanuts/peanuts_shaderwatch.c`,
 `dm/peanuts/peanuts_swhot.h`, `dm/peanuts/peanuts_swtf.h`, `dm/gfx/vk_android/vka_tf.c` and `vka_tf.h` (Peanuts' transform feedback: `vka_tf_learned`,
-`vka_tf_layout_of`, `vka_tf_is_variant`, the first-draw check `learned_holds`), the Found on line of `dm/games/010051F0207B2000/README.md`. Tests:
+`vka_tf_layout_of`, `vka_tf_is_variant`, the first-draw check `learned_holds` through `peanuts_swtf.h` `pn_swtf_holds`), the Found on line of `dm/games/010051F0207B2000/README.md`. Tests:
 `peanuts/tests/test_shader_watch.py` (with `HostCountsJvmTest`, `dm/host/tests/t_peanuts_swhot.c` and `t_peanuts_swtf.c`).

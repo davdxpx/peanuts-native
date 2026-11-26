@@ -16,6 +16,7 @@
 // as before this file: skipped under rasterizer discard, else drawn without capture
 #if defined(__ANDROID__)
 #include "vka_tf.h"
+#include "../../peanuts/peanuts_swtf.h"   // Smoother next start: pn_swtf_holds, a variant made ahead checked at its first use (learned_holds)
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -75,7 +76,7 @@ static int learned_holds(int i) {
     vka_tf_layout lay; int st = 0;
     pthread_mutex_lock(&g_mu);
     for (int j = 0; j < g_nlay; j++) if (g_lay[j].key == g_var[i].s->key) { st = g_lay[j].st; lay = g_lay[j].L; break; }
-    int ok = st == 1 && !memcmp(&lay, &g_var[i].L, sizeof lay);
+    int ok = pn_swtf_holds(st, &lay, &g_var[i].L);   // (dm/peanuts/peanuts_swtf.h; t_peanuts_swtf.c has layouts that differ)
     if (ok) g_var[i].checked = 1; else g_var[i].dead = 1;
     pthread_mutex_unlock(&g_mu);
     if (ok) VLOG("transform feedback: vertex shader %016llx draws with the capture variant Smoother next start made ahead", (unsigned long long)g_var[i].s->key);

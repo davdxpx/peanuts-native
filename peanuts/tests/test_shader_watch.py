@@ -185,7 +185,9 @@ class OffMeansOff(unittest.TestCase):
     def test_a_capture_made_ahead_is_checked_at_its_first_draw(self):
         t = read(TF)
         self.assertIn('if (g_var[i].learned && !g_var[i].checked && !learned_holds(i)) continue;', body(t, 'static vka_shader *variant('))
-        self.assertIn('int ok = st == 1 && !memcmp(&lay, &g_var[i].L, sizeof lay);', body(t, 'static int learned_holds(int i)'))
+        self.assertIn('int ok = pn_swtf_holds(st, &lay, &g_var[i].L);', body(t, 'static int learned_holds(int i)'))   # t_peanuts_swtf.c: layouts that differ
+        self.assertIn('return st == 1 && run && made && !memcmp(run, made, sizeof *made); }', read(SWTF))
+        self.assertIn('if (ok) g_var[i].checked = 1; else g_var[i].dead = 1;', body(t, 'static int learned_holds(int i)'))
         learned = body(t, 'vka_shader *vka_tf_learned(vka_shader *s, const vka_tf_layout *lay)')
         self.assertIn('if (!V.xfb || !s || !s->e) return NULL;', learned.splitlines()[1])
         self.assertEqual(t.count('.learned = 1;'), 1)   # only vka_tf_learned makes one
@@ -233,10 +235,10 @@ CC = shutil.which('cc') or shutil.which('gcc') or shutil.which('clang')
 @unittest.skipUnless(CC, 'no C compiler')
 class C(unittest.TestCase):
     def test_swhot(self):
-        for src in (C_TEST, C_TEST_TF):
+        for src, more in ((C_TEST, []), (C_TEST_TF, ['-Wno-unused-function', str(REPO / 'dm/gfx/vk_android/vka_tf_spv.c')])):   # (the layout reader: this run's layouts)
             with tempfile.TemporaryDirectory() as d:
                 exe = str(Path(d) / src.stem)
-                r = subprocess.run([CC, '-std=c11', '-O1', '-Wall', '-Wextra', '-Werror', '-o', exe, str(src)], capture_output=True, text=True)
+                r = subprocess.run([CC, '-std=gnu11', '-O1', '-Wall', '-Wextra', '-Werror', '-o', exe, str(src)] + more, capture_output=True, text=True)
                 self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
                 r = subprocess.run([exe], capture_output=True, text=True)
                 self.assertEqual(r.returncode, 0, r.stdout + r.stderr)

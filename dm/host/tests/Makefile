@@ -814,12 +814,12 @@ peanuts-swhot: $(B)/t_peanuts_swhot
 peanuts-host: peanuts-swhot
 $(B)/t_peanuts_swhot: t_peanuts_swhot.c ../../peanuts/peanuts_swhot.h | $(B)
 	$(CLANG) -std=c11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -o $@ t_peanuts_swhot.c
-# t_peanuts_swtf: its file of the transform feedback capture pipelines (dm/peanuts/peanuts_swtf.h, vka_pso.c sw_tf_*): an entry's check, the file's, the run's table
-# and the save's choice (the entries the .hot file keeps)
+# t_peanuts_swtf: its file of the transform feedback capture pipelines (dm/peanuts/peanuts_swtf.h, vka_pso.c sw_tf_*): an entry's check, the file's, the run's table,
+# the save's choice (the entries the .hot file keeps) and a variant made ahead checked at its first use against the layout of this run's control section (vka_tf_spv.c)
 .PHONY: peanuts-swtf
 peanuts-swtf: $(B)/t_peanuts_swtf
 	$(B)/t_peanuts_swtf
 peanuts-host: peanuts-swtf
-$(B)/t_peanuts_swtf: t_peanuts_swtf.c ../../peanuts/peanuts_swtf.h ../../peanuts/peanuts_swhot.h $(VKA)/vka_pwlist.h $(VKA)/vka_gkey.h $(VKA)/vka_tf.h | $(B)
-	$(CLANG) -std=c11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -o $@ t_peanuts_swtf.c
+$(B)/t_peanuts_swtf: t_peanuts_swtf.c ../../peanuts/peanuts_swtf.h ../../peanuts/peanuts_swhot.h $(VKA)/vka_pwlist.h $(VKA)/vka_gkey.h $(VKA)/vka_tf.h $(VKA)/vka_tf_spv.c | $(B)
+	$(CLANG) -std=gnu11 -O1 -g -Wall -Wextra -Werror -Wno-unused-function -fsanitize=address,undefined -o $@ t_peanuts_swtf.c $(VKA)/vka_tf_spv.c
 # PEANUTS end

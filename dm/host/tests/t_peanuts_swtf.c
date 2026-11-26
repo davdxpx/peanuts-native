@@ -1,6 +1,7 @@
 // PEANUTS: Smoother next start's file of the transform feedback capture pipelines a game's runs made (dm/peanuts/peanuts_swtf.h, vka_pso.c sw_tf_*): an entry's check
 // (a record the prewarm may take, its own hash, a layout of vka_tf_layout_read's form), the file's check (damaged entries skipped, another form or layout not used), the
-// run's table (once each, at most PN_SWTF_MAX) and the save's choice (the entries the .hot file keeps: this run's first, then the runs before's)
+// run's table (once each, at most PN_SWTF_MAX), the save's choice (the entries the .hot file keeps: this run's first, then the runs before's) and the first use's check
+// of a variant made ahead (pn_swtf_holds): the stored layout against the one this run's program notes, read from a control section as vka_tf.c's nvn_tf_ctl_note does
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,6 +18,19 @@ static pn_swtf_ent ent(uint64_t vs, uint64_t fs) {
     e.L.stride[0] = 24; e.L.n[0] = 2; e.L.loc[0][0] = 0; e.L.comp[0][0] = 4; e.L.loc[0][1] = 3; e.L.comp[0][1] = 2;
     e.h = pn_swtf_hash(&e.r, &e.k);
     return e;
+}
+// A control section as GLSLC writes the fields vka_tf_layout_read reads (t_android_tf.c's ctl_buf): buffer b's stride at +0x6dc, its output count at +0x6e8, its
+// outputs' Locations (+ 0x20) at +0xdc and component counts at +0x4dc
+static void ctl_buf(uint8_t *c, int b, uint16_t stride, int n, const uint8_t *loc, const uint8_t *comp) {
+    memcpy(c + 0x6dc + 2 * b, &stride, 2); c[0x6e8 + b] = (uint8_t)n;
+    for (int i = 0; i < n; i++) { c[0xdc + 0x80 * b + i] = (uint8_t)(0x20 + loc[i]); c[0x4dc + 0x80 * b + i] = comp[i]; }
+}
+// The layout this run's program notes for its vertex shader (st as vka_tf_layout_read returns it), from a section with buffer 0 of n outputs and buffer b2 (-1 none)
+static int run_layout(vka_tf_layout *L, uint16_t stride, int n, const uint8_t *loc, const uint8_t *comp, int b2) {
+    static uint8_t c[0x880]; memset(c, 0, sizeof c);
+    if (stride) ctl_buf(c, 0, stride, n, loc, comp);
+    if (b2 >= 0) ctl_buf(c, b2, 12, 1, (uint8_t[]){5}, (uint8_t[]){3});
+    return vka_tf_layout_read(c, sizeof c, L);
 }
 static size_t file(uint8_t *buf, uint32_t layout, const pn_swtf_ent *e, uint32_t n) {
     pn_swtf_hdr h; memset(&h, 0, sizeof h); memcpy(h.magic, PN_SWTF_MAGIC, 8); h.n = n; h.layout = layout; h.ent_size = sizeof(pn_swtf_ent);
@@ -84,6 +98,50 @@ int main(void) {
     CHECK(n == 3 && out[2].h == c.h);
     CHECK(pn_swtf_keep(mine, 2, before, 2, keep, 3, out, 1) == 1 && out[0].h == b.h);   // at most max
     CHECK(pn_swtf_keep(NULL, 0, before, 2, NULL, 0, out, PN_SWTF_MAX) == 0);           // learning on, nothing kept: none
+
+    // a variant made ahead at its first use by a draw: kept only when this run's program notes the stored layout, byte for byte; else the draw makes its own
+    {
+        pn_swtf_ent st = a;   // stored: buffer 0, Location 0 with 4 components and Location 3 with 2 (24 bytes); through the file, as the next start reads it
+        len = file(buf, 77, &st, 1);
+        CHECK(pn_swtf_parse(buf, len, 77, &got, &gn, &skipped) == NULL && gn == 1);
+        const vka_tf_layout *made = &got[0].L;
+        vka_tf_layout L; int rs;
+        rs = run_layout(&L, 24, 2, (uint8_t[]){0, 3}, (uint8_t[]){4, 2}, -1);
+        CHECK(rs == 1 && pn_swtf_holds(rs, &L, made));                                  // the same layout: drawn with
+        rs = run_layout(&L, 28, 3, (uint8_t[]){0, 3, 5}, (uint8_t[]){4, 2, 1}, -1);
+        CHECK(rs == 1 && !pn_swtf_holds(rs, &L, made));                                 // one output more (a game update's shader, the same key)
+        rs = run_layout(&L, 16, 1, (uint8_t[]){0}, (uint8_t[]){4}, -1);
+        CHECK(rs == 1 && !pn_swtf_holds(rs, &L, made));                                 // one output fewer
+        rs = run_layout(&L, 24, 2, (uint8_t[]){0, 4}, (uint8_t[]){4, 2}, -1);
+        CHECK(rs == 1 && !pn_swtf_holds(rs, &L, made));                                 // an output at another Location
+        rs = run_layout(&L, 24, 2, (uint8_t[]){0, 3}, (uint8_t[]){3, 3}, -1);
+        CHECK(rs == 1 && !pn_swtf_holds(rs, &L, made));                                 // the same stride, the components split otherwise
+        rs = run_layout(&L, 24, 2, (uint8_t[]){3, 0}, (uint8_t[]){2, 4}, -1);
+        CHECK(rs == 1 && !pn_swtf_holds(rs, &L, made));                                 // the same outputs in another order (other offsets)
+        rs = run_layout(&L, 24, 2, (uint8_t[]){0, 3}, (uint8_t[]){4, 2}, 2);
+        CHECK(rs == 1 && !pn_swtf_holds(rs, &L, made));                                 // a second buffer captured too
+        { static uint8_t c[0x880]; memset(c, 0, sizeof c); ctl_buf(c, 1, 24, 2, (uint8_t[]){0, 3}, (uint8_t[]){4, 2});
+          rs = vka_tf_layout_read(c, sizeof c, &L); CHECK(rs == 1 && !pn_swtf_holds(rs, &L, made)); }   // the same outputs into buffer 1
+        rs = run_layout(&L, 0, 0, NULL, NULL, -1);
+        CHECK(rs == 0 && !pn_swtf_holds(rs, &L, made));                                 // the program notes no capture for it
+        rs = run_layout(&L, 20, 2, (uint8_t[]){0, 3}, (uint8_t[]){4, 2}, -1);
+        CHECK(rs == -1 && !pn_swtf_holds(rs, &L, made));                                // a form not known (a stride that is not its outputs' bytes)
+        CHECK(!pn_swtf_holds(1, NULL, made) && !pn_swtf_holds(1, made, NULL));
+        free(got);
+        // two stored for the same vertex shader with other pixel shaders: each checked by its own layout (one held, one not)
+        pn_swtf_ent wide = ent(0x1111, 0x6666); wide.L.stride[0] = 28; wide.L.n[0] = 3; wide.L.loc[0][2] = 5; wide.L.comp[0][2] = 1; wide.h = pn_swtf_hash(&wide.r, &wide.k);
+        pn_swtf_ent two[2] = {a, wide};
+        len = file(buf, 77, two, 2);
+        CHECK(pn_swtf_parse(buf, len, 77, &got, &gn, &skipped) == NULL && gn == 2);
+        rs = run_layout(&L, 28, 3, (uint8_t[]){0, 3, 5}, (uint8_t[]){4, 2, 1}, -1);
+        CHECK(!pn_swtf_holds(rs, &L, &got[0].L) && pn_swtf_holds(rs, &L, &got[1].L));
+        free(got);
+        // a stored layout that means the same but has a byte set past its outputs (a damaged file) never reaches the prewarm: the first use compares bytes
+        pn_swtf_ent junk = a; junk.L.loc[0][2] = 9; CHECK(!pn_swtf_ok(&junk));
+        junk = a; junk.L.comp[1][0] = 1; CHECK(!pn_swtf_ok(&junk));
+        len = file(buf, 77, &junk, 1);
+        CHECK(pn_swtf_parse(buf, len, 77, &got, &gn, &skipped) == NULL && !got && !gn && skipped == 1);
+    }
 
     if (fails) { fprintf(stderr, "%d checks failed\n", fails); return 1; }
     printf("t_peanuts_swtf: ok\n");
