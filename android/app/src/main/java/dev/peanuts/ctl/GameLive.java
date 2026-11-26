@@ -225,8 +225,12 @@ public final class GameLive {
 
     // ---- amiibo ----
 
-    /** status: the stand; off: the amiibo taken off; an ID or own:&lt;key&gt;: placed (data.placed found or ready), then the stand */
+    /** status: the stand; off: the amiibo taken off; an ID or own:&lt;key&gt;: placed (data.placed found or ready), then the stand. Refused in a game amiibo is off for */
     static void amiibo(String v, Live live, Result res) throws Request.Bad {
+        String before = live.amiiboStatus();
+        if (before == null || before.isEmpty()) throw new Request.Bad("not_for_this_game", "This game's host has no amiibo stand.");
+        if (!("\n" + before).contains("\nenabled=1\n"))
+            throw new Request.Bad("not_for_this_game", "amiibo is off for this game: turn it on under the game's Controls or in Settings › Controls, then start the game again.");
         if (v.equals("off")) { live.amiiboOff(); res.put("placed", "off"); }
         else if (!v.equals("status")) {
             int got = live.amiiboPlace(v);

@@ -48,6 +48,7 @@ public final class GameHelp {
         m.put("Button mapping", "Which button of your controller presses which Switch button, for this game. Default follows Settings.");
         m.put("Motion sensitivity", "How far the phone's gyro turns the aim. From the next start.");
         m.put("Xbox button labels", "For a controller labelled like an Xbox pad: whether A and B, and X and Y, change places.");
+        m.put("amiibo", "Lets this game find your amiibo on Peanuts' own stand. Off, it finds none, as before. Default follows Settings › Controls › amiibo. From the next start.");
         // Companion
         m.put("Companion", "The second screen's page made for this game: install it, update it or remove it.");
         m.put("Second screen", "Whether the companion shows on the second screen while the game runs.");

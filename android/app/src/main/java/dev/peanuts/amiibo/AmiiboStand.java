@@ -20,9 +20,10 @@ import dev.peanuts.users.UserPictures;
 import dev.peanuts.users.UsersPort;
 
 /**
- * The game's amiibo stand, from the app's side (the game's process): what the host's nfp says (whether the game searches, since when, what lies on the
- * stand: Bridge.amiiboStatus), and placing one of the player's amiibo there with the player's Mii as its owner. A game seen initializing nfp is noted
- * (files/amiibo/games.txt), so the game page shows its amiibo area even when AmiiboAPI's table does not list the game.
+ * The game's amiibo stand, from the app's side (the game's process): what the host's nfp says (whether amiibo is on for this game, whether the game
+ * searches, since when, what lies on the stand: Bridge.amiiboStatus), and placing one of the player's amiibo there with the player's Mii as its owner. The
+ * stand is there only in a game the player turned amiibo on for (AmiiboSwitch). A game seen initializing nfp is noted (files/amiibo/games.txt), so the game
+ * page shows its amiibo area even when AmiiboAPI's table does not list the game.
  */
 public final class AmiiboStand {
     private AmiiboStand() {}
@@ -46,12 +47,13 @@ public final class AmiiboStand {
 
     /** The host's stand as it was at one read */
     public static final class Status {
-        public final boolean lib;
+        public final boolean enabled, lib;   // enabled: amiibo is on for this game (AmiiboSwitch); without it the game has no stand and nothing else counts
         public final int state, search, reads;
         public final long searchingMs;
         public final String on, ready, access;
         Status(Map<String, String> m) {
-            lib = "1".equals(m.get("lib"));
+            enabled = "1".equals(m.get("enabled"));
+            lib = enabled && "1".equals(m.get("lib"));
             state = num(m.get("state")); search = num(m.get("search")); reads = num(m.get("reads"));
             long ms; try { ms = Long.parseLong(m.getOrDefault("searching_ms", "0")); } catch (NumberFormatException e) { ms = 0; }
             searchingMs = ms;
