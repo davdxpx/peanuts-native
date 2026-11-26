@@ -860,7 +860,7 @@ Once it reads **Ready**, every start of the game uses the mods that are on: the 
 
 Open the game's page › **Mods & Cheats**. Cheats that come with the app are listed there. **Add** takes a cheat file (`.txt`), a `.zip` or a folder, in the Atmosphère, Eden, Yuzu or Ryujinx layout. Each cheat has a switch; a switch works at once while the game runs and is kept for its next start. A file made for another game is refused, and one for another version of the game asks first.
 
-While you play, the in-game panel has a **Mods** tab with the same switches, each with its state (**Running**, the buttons it waits for, **Not possible here** or **Next start**). A cheat that sets a number has a field to change it; the cheat file itself is never changed. Settings › Controls › **Mods tab** turns the tab off.
+While you play, the in-game panel has a **Mods** tab with the same switches, each with its state (**Running**, the buttons it waits for, **Not possible here** or **Next start**). A cheat that sets a number has a field to change it; the cheat file itself is never changed. Settings › App › **Mods tab** turns the tab off.
 
 ## Troubleshooting
 

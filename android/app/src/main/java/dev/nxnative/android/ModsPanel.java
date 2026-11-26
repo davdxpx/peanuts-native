@@ -22,7 +22,7 @@ import dev.peanuts.mods.ModsTab;
  * package-private. A Peanuts Native file in upstream's launcher package, as CheatsBridge.java. SidePanel's hooks:
  * <ul>
  * <li>open: {@link #opening} gives the tabs (Performance, Display, Controls, Mods, General; Mods only when the game has cheats or mods and neither Settings ›
- *     Controls › Mods tab nor the game's Show in the game hides it) and the tab to open on (the last one shown, by name, kept across runs);</li>
+ *     App › Mods tab nor the game's Show in the game hides it) and the tab to open on (the last one shown, by name, kept across runs);</li>
  * <li>build: {@link #build} builds the Mods tab when it is the one shown, and keeps which tab shows;</li>
  * <li>General: its cheat switches only when there is no Mods tab ({@link #shows});</li>
  * <li>padKey: Y and X on the Mods tab ({@link #padKey});</li>

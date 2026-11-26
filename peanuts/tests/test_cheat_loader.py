@@ -85,7 +85,10 @@ class Sources(unittest.TestCase):
         self.assertIn('R.style.Theme_Banana_Dialog', tab, "the tab's dialogs are the app's sheet, also in the game's process")
         self.assertIn('android.R.attr.dialogPreferredPadding', tab, "the details' text starts under the sheet's title, as a message does")
         sections = (APP / 'main/java/dev/peanuts/ui/SettingsSections.java').read_text(encoding='utf-8')
-        self.assertIn('r("Mods tab", "mods")', sections, 'Settings › Controls has the Mods tab row')
+        app = sections[sections.index('new Section("app"'):sections.index('new Section("help"')]
+        controls = sections[sections.index('new Section("controls"'):sections.index('new Section("screens"')]
+        self.assertIn('new Group("In-game panel", r("Mods tab", "mods"))', app, 'Settings › App › In-game panel has the Mods tab row')
+        self.assertNotIn('Mods tab', controls, "Settings › Controls is the controller's: buttons, touch and the controller")
 
     def test_a_value_cheat_has_a_number(self):   # Part F
         mc = (LAUNCHER / 'ModCheats.java').read_text(encoding='utf-8')
