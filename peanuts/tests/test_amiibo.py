@@ -110,6 +110,7 @@ class Page(unittest.TestCase):
         """The area starts with the game's amiibo switch, the same setting as the one in its Game options; the tile says when it is off"""
         page = (PKG / 'AmiiboPage.java').read_text(encoding='utf-8')
         self.assertIn('PUi.add(body, switchRow(a), 14);', page)
+        self.assertIn('Icons.tile((TextView) row.view.getChildAt(0), "amiibo")', page, 'the switch row has the stand icon (a row of its own title, which GameAreas does not know)')
         self.assertIn('AmiiboSwitch.game(a, titleId, now)', page)
         self.assertIn('if (!AmiiboSwitch.on(c, titleId)) return "Off for this game";', page)
 

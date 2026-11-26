@@ -140,6 +140,7 @@ public final class AmiiboPage {
                 .value(on ? AmiiboSwitch.ON + "." : "Off: " + game + " finds no amiibo. Turn it on to place yours, from its next start.")
                 .toggle(a, on, (b, now) -> { Feel.toggled(b, now); AmiiboSwitch.game(a, titleId, now); b.post(AmiiboPage::build); });
         row.view.setOnClickListener(v -> row.toggle.toggle());
+        Icons.tile((TextView) row.view.getChildAt(0), "amiibo");   // the stand, as the tile and the Game options row show it
         card.addView(row.view);
         return card;
     }
