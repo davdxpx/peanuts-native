@@ -83,6 +83,7 @@ public final class GamePage {
     private static final android.os.Handler UI = new android.os.Handler(android.os.Looper.getMainLooper());
     private static final List<String> shown = new ArrayList<>();
     private static final Map<String, TextView> tileLines = new HashMap<>();   // the tiles' lines, for the ones that change while the page shows (Companion)
+    private static final Presses playPress = new Presses();   // Y's presses the page saw (playKey): the panel's and the pane's, a press on one may come up on the other
 
     // ---- Hooks ----
 
@@ -423,10 +424,13 @@ public final class GamePage {
         @Override public boolean dispatchKeyEvent(KeyEvent e) { return playKey(e) || super.dispatchKeyEvent(e); }
     }
 
-    /** Y plays (its press and its release are taken; Play runs on the release); in Mods &amp; Cheats Y stays its rows' (their details) */
+    /**
+     * Y plays (its press and its release are taken; Play runs on the release of a press the page saw: Home opens the page at Y's press, and that press's
+     * release is not a Play, issue #599); in Mods &amp; Cheats Y stays its rows' (their details)
+     */
     private static boolean playKey(KeyEvent e) {
         if (e.getKeyCode() != KeyEvent.KEYCODE_BUTTON_Y || GameAreas.MODS.equals(area) || play == null || !play.isShown()) return false;
-        if (e.getAction() == KeyEvent.ACTION_UP && e.getRepeatCount() == 0) play.performClick();
+        if (playPress.released(e.getKeyCode(), e.getAction(), e.getRepeatCount(), e.getDownTime(), e.getFlags())) play.performClick();
         return true;
     }
 

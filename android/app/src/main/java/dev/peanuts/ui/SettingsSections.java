@@ -53,7 +53,7 @@ public final class SettingsSections {
 
     public static final List<Section> ALL = Collections.unmodifiableList(java.util.Arrays.asList(
             new Section("library", "Library", "library", "Where the app finds your games, the space they take and the time you played.",
-                    new Group("Folders", r("Game folder", "folder"), r("Update folder", "update"), r("DLC folder", "dlc"), r("Build folders", "build"),
+                    new Group("Folders", r("Game folder", "folder"), r("Update and DLC folder", "update"), r("Build folder", "build"), r("Add folder", "add"),
                             r("Folders", "folder"), r("Rescan", "search")),
                     new Group("Space", r("Free up space", "trash"), r("Storage", "storage")),
                     new Group("Play time", r("Played", "clock"))),
@@ -66,7 +66,7 @@ public final class SettingsSections {
                             r("FSR sharpness", "search"), r("CRT filter", "screen-landscape"), r("Dynamic resolution", "gauge")),
                     new Group("Speed", r("Frame rate cap", "gauge"), r("Frame generation", "gauge"), r("Use fast cores", "gauge"), r("Overlay", "list"))),
             new Section("controls", "Controls", "controller", DEFAULTS,
-                    new Group("Buttons", r("Button mapping", "controller"), r("Xbox button label swap", "controller")),
+                    new Group("Buttons", r("Button mapping", "controller")),
                     new Group("Touch", r("On-screen controls", "game"), r("Show / hide button", "game")),
                     new Group("Controller", r("Controller: in-game panel", "controller"), r("Quick menu button", "controller"), r("Mods tab", "mods"),
                             r("Rumble", "controller"))),

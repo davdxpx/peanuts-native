@@ -697,8 +697,47 @@ final class SaveStore {
     static String when(String name) {
         if (!name.matches("\\d{8}-\\d{6}.*")) return name;
         String d = name.substring(0, 4) + "-" + name.substring(4, 6) + "-" + name.substring(6, 8) + " " + name.substring(9, 11) + ":" + name.substring(11, 13) + ":" + name.substring(13, 15);
-        return d + (name.contains(BEFORE_RESTORE) ? " (automatic, before a restore)" : "");
+        return d + (name.contains(BEFORE_RESTORE) ? " (automatic, before a restore)" : name.contains(BEFORE_UPDATE) ? " (automatic, before the first start of a new build)" : "");   // PEANUTS: BEFORE_UPDATE
     }
+
+    // PEANUTS begin: a backup before the first start of a new build (issue #514). After an app update a game whose code mods' build was not made again started
+    // as the game without its mods, which read the modded game's save and wrote a new one over it at its start, before its first picture: nothing the player
+    // did could save it, and no backup of it was left. So the first start of another app version, another pack (with or without mods) or another save folder
+    // than the save's last start backs the save up first, as Back up saves does (checked file by file, a folder of its own, never deleted). GameActivity calls
+    // it under the save's lock, before the host has the save. start: what this start is (the app build, the pack's folder, the save's folder, a tab between
+    // them); stamp: the file that holds the last start's line, in the app's own storage. A save with no files gets no backup, and one that is the same as the
+    // newest backup made from it gets none either (a start of the same build again, without play between). Other users' saves beside it (others: their
+    // folders, each with its own lock) are backed up too. The stamp is written only when every backup was made, so a start that could not back up tries
+    // again the next time. Returns the backups made, none when this start is of the same build as the last one
+    static final String BEFORE_UPDATE = "-before-update";
+
+    static List<Backup> beforeNewBuild(File save, List<File> others, File backups, String name, File stamp, String start) throws IOException {
+        List<Backup> made = new ArrayList<>();
+        String last = null;
+        try { if (stamp.isFile()) last = new String(Files.readAllBytes(stamp.toPath()), StandardCharsets.UTF_8).trim(); } catch (IOException e) { /* backed up again */ }
+        if (start.trim().equals(last)) return made;
+        if (hasFiles(save) || hasFiles(device(save))) {
+            if (!sameAsNewest(save, backups)) made.add(backupLocked(save, backups, name + BEFORE_UPDATE));
+        }
+        for (File o : others) if (hasFiles(o) && !sameAsNewest(o, backups)) made.add(backup(o, backups, name + BEFORE_UPDATE));
+        File p = stamp.getParentFile();
+        if (p != null && !p.isDirectory() && !p.mkdirs()) throw new IOException("cannot create " + p);
+        File tmp = new File(stamp.getPath() + ".tmp");
+        writeSynced(tmp, (start.trim() + "\n").getBytes(StandardCharsets.UTF_8));
+        if (!tmp.renameTo(stamp)) throw new IOException("cannot write " + stamp);
+        return made;
+    }
+
+    /** Whether the newest backup made from this save (its manifest's source) holds what the save holds now */
+    private static boolean sameAsNewest(File save, File backups) throws IOException {
+        for (Backup b : list(backups)) {
+            if (!b.source.equals(save.getAbsolutePath())) continue;
+            Manifest m = readManifest(new File(backups, b.name + MANIFEST));
+            return m.layout >= 2 && scanParts(parts(save)).diff(m) == null;
+        }
+        return false;
+    }
+    // PEANUTS end
 
     // PEANUTS begin: whose save (issue #422). Each user has a save of their own (Users.saveDir: the first user's is the game's save folder, another user's is
     // <save>_user_<uid> beside it), and the device save (<save>_device) is the game's, every user's, as on the console: another user's save is their account

@@ -408,7 +408,7 @@ public final class InGamePanel {
 
     private static int[] keys(Activity a) {
         String id = String.valueOf(a.getIntent().getStringExtra("title_id"));
-        return PadPanel.confirmBack(Prefs.padMap(a, id), Prefs.xboxButtons(a, id) == 2 ? 2 : 0);
+        return PadPanel.confirmBack(Prefs.padMap(a, id), 0);   // dev-0.1.9 has no Xbox button label swap (as GameActivity)
     }
 
     // ---- The game menu's rows ----
