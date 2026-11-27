@@ -1723,7 +1723,7 @@ public final class Library {
         // a newer update or new add-ons beside a built game's .nup (issue #120): the cover says so, and a tap asks before it takes them in ("Not now" asks no more for these)
         k.found = !k.building && st == READY ? found(r) : null;
         k.askFound = k.found != null && !k.found.key().equals(PeanutsPrefs.foundSeen(a, r.id()));
-        if (k.found != null) k.state = PUi.joined(k.state, UpdateFound.what(k.found, updateName(r, k.found)));
+        if (k.found != null) k.state = PUi.joined(k.state, UpdateFound.what(k.found, updateName(r, k.found)) + (k.askFound ? "" : ", for later"));   // as the bottom screen's card
 
         FrameLayout cover = new FrameLayout(a);
         int pad = PUi.dp(a, padDp);
