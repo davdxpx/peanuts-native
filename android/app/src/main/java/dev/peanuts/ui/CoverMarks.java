@@ -23,7 +23,7 @@ import dev.nxnative.android.R;
 /**
  * A cover's state as a mark (Home's covers in every view, Round 5 of the Home design): one round mark top right, 24 dp on a cover of 150 dp, smaller on a
  * smaller one. The check for Ready, an arrow for an update found, the tool for Build needed, the folder for a file that is gone, the layers for a version
- * this app does not build, a square for a build that stopped, an hourglass and its place for a game that waits in the build queue. A build that runs grows
+ * this app does not build, a square for a build that stopped, an hourglass and its place ("#2", on a pale banana) for a game that waits in the build queue. A build that runs grows
  * the mark to the left into a yellow pill (BuildPill): the heavy hammer at its left, the percent at its right, filling from the left. A game without a
  * profile gets the NO SUPPORT tape (Tape) across its greyed cover instead of a mark. The words stay where there is room (the bottom screen's card,
  * Compact, the line under a large cover, the cover's description for TalkBack): the marks are not read out.
@@ -69,23 +69,27 @@ final class CoverMarks {
         return v;
     }
 
-    /** The queued game's mark: the hourglass and its place in the build queue on the card colour */
+    /**
+     * The queued game's mark: the hourglass and its place in the build queue as "#2" (the same number as "Queued, 2 of 5"; a bare number beside the
+     * hourglass read as minutes left), on a pale banana in both themes: the build's yellow, not yet its turn
+     */
     static View queued(Context c, int markDp, int place) {
         LinearLayout v = new LinearLayout(c);
         v.setOrientation(LinearLayout.HORIZONTAL);
         v.setGravity(Gravity.CENTER_VERTICAL);
         int h = PUi.dp(c, markDp);
-        v.setBackground(PUi.round(PUi.col(c, R.color.bn_card), h / 2f, PUi.col(c, R.color.bn_card_stroke), Math.max(1, PUi.dp(c, 1))));
+        int pale = BuildPill.blend(PUi.col(c, R.color.bn_banana), 0xFFFFFFFF, 0.7f);
+        v.setBackground(PUi.round(pale, h / 2f, PUi.col(c, R.color.bn_banana_deep), Math.max(1, PUi.dp(c, 1))));
         v.setPadding(Math.round(h * 0.22f), 0, Math.round(h * (place > 0 ? 0.34f : 0.22f)), 0);
         v.setMinimumWidth(h);
         v.setElevation(PUi.dp(c, 1.5f));
         v.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         ImageView glass = new ImageView(c);
-        glass.setImageDrawable(icon(c, "hourglass", PUi.col(c, R.color.bn_text)));
+        glass.setImageDrawable(icon(c, "hourglass", PUi.col(c, R.color.bn_on_banana)));
         int g = Math.round(h * 0.62f);
         v.addView(glass, new LinearLayout.LayoutParams(g, g));
         if (place > 0) {
-            TextView t = PUi.text(c, String.valueOf(place), markDp * 0.5f, R.color.bn_text, 800);
+            TextView t = PUi.text(c, "#" + place, markDp * 0.5f, R.color.bn_on_banana, 800);
             t.setIncludeFontPadding(false);
             LinearLayout.LayoutParams lp = PUi.wrap();
             lp.leftMargin = Math.round(h * 0.08f);
