@@ -1,5 +1,7 @@
 # Upstream edits — marker status and contribution candidates
 
+- Upstream candidate: descriptor pools. A small pool (NVN's 256 reserved descriptors plus a few of the game's) takes a host range for its own IDs only; its reserved IDs below 256 read as no descriptor on Android (macOS: TODO); 1,024 slots, per-table limits (textures `NVN_DPOOL_TEX_IDS`, 16 M; samplers 16,384) that hold for small pools only, pools over the same memory share a range, and the least recently used small pool gives its slot up when the table is full (large pools are never given up) (`dm/gfx/nvn/nvn_dpool.h`, `hle_nvn.c`, `vka_treg.h`, `dm/host/tests/t_nvn_dpool.c`; [rendering.md](../docs/reference/rendering.md#many-small-descriptor-pools-read-another-pools-textures)). ASTLIBRA Revision keeps hundreds of 272-entry pools live. With `tex_pool_range` set (#859), its per-pool limit applies on top of the host ID the pool table gives (`hle_nvn.c` `texpool_reg_id`); without it, registrations take that host ID unchanged. `dm/tools/tests/test_nvn_texpool_range.py`'s stub memory pool has the `mem` field `dpool_store` reads, and its reused range is a small pool's (base = range start - 256).
+
 - Upstream candidate: Vulkan direct texture and sampler bindings resolve against the executing queue’s descriptor pools. The CPU registry retains sparse texture IDs beyond one full pool without enlarging GPU tables. Trails through Daybreak II rotates three such pools.
 
 - Scarlet and Violet 4.0.0 and Kakarot 1.70 add game profiles and generated shader tables. The PC splitter accepts build-specific regular variation pairs, and the packer loads optional shader keys once per split. The host adds elapsed integer timing rows and offline Bluetooth replies.
@@ -3557,6 +3559,15 @@ NARUTO X BORUTO Ultimate Ninja STORM CONNECTIONS draws its UI with OpenGL throug
 | `dm/host/hle.h` | 1 | `HLE_FORCE_BIG`'s comment: two stack slots carried over | `PEANUTS` |
 | `dm/host/tests/t_bigstack.c` | 4 | a ten-argument take-over through the switch and on the direct path; the call helpers use `PLAT_ASM_SYM` (ELF too) | `PEANUTS` |
 | `docs/reference/memory.md` | 1 | "Host calls on small guest stacks": the two stack slots | `PEANUTS` |
+| `dm/gfx/nvn/hle_nvn.c`, `dm/gfx/nvn/nvn_obj.h` | 7, 2 | GL interop entry points: `nvnTextureBuilderSetGLTextureName` / `GetGLTextureName` (the texture takes the GL texture's description, no storage; bound to its serial at `TextureInitialize`, released at `Finalize`), `nvnSyncInitializeFromFencedGLSync` (a sync fenced by a GL layer handle, `fenced` 3, waited for in `QueueWaitSync` and `SyncWait`), `nvnSyncCreateGLSync`; weak GL layer functions whose defaults refuse with a red line. Every game, inert unless called. Upstream candidate: yes | `PEANUTS begin` / `PEANUTS` |
+| `dm/gfx/vk_android/vka_gl.c` | new file | EGL and the called GL functions forwarded to the system's OpenGL ES (big host stack, host FPCR); the GL side of the interop: AHardwareBuffer-backed GL textures that take the game's texture name, EGL fences (GL to NVN), the layer's own GLsyncs waited for on the CPU (NVN to GL). Inert until a game calls `eglGetDisplay` | `PEANUTS` |
+| `dm/gfx/vk_android/vka_glattr.h`, `dm/host/tests/t_android_glattr.c` | new files | what the GL layer changes in the game's EGL API and attribute lists, and its test | `PEANUTS` |
+| `dm/host/tests/Makefile` | 2 | `t_android_glattr` | `PEANUTS` |
+| `dm/gfx/vk_android/vka_tex.c`, `vka.h` | 3, 3 | `img_create_gl`: the image of an NVN texture made from a GL texture is its AHardwareBuffer, imported (dedicated memory, GPU-owned, no clear or upload at its first use); `vka_img.gl_ahb`, `vka_dev.gl_ahb`, `vka_gl_ahb` | `PEANUTS` / `PEANUTS begin` |
+| `dm/gfx/vk_android/vka_dev.c` | 2 | `VK_ANDROID_external_memory_android_hardware_buffer` and `VK_EXT_queue_family_foreign` when the game imports EGL and the driver has them (one log line); room for 28 device extensions | `PEANUTS` |
+| `docs/reference/rendering.md`, `docs/agents/symptoms.md` | 1, 1 | the entry "An NVN game whose UI draws with OpenGL through EGL (Android)", and its line in the generated index | `PEANUTS` / generated |
+
+Landing review fixes (same files, same markers): `fwd_of` keeps its own copy of each forwarded name (a game may build the names in a buffer it reuses) and refuses the ES functions with more than two stack-passed arguments, which the plain stub cannot carry (`fwd_wide`: `glTexSubImage3D`, `glCompressedTexSubImage3D`, `glCopyImageSubData` and their extension names, from the NDK's `gl32.h` / `gl2ext.h`), with a red line; the plain stubs set the host's FPCR around the call as the wrappers do (`vka_gl_fwd_entry`, `vka_gl_fwd_fp`: the driver can compile variants in instanced draws, dispatches and `glProgramBinary`); `eglMakeCurrent` destroys the previous configuration's 1x1 pbuffer and forgets pbuffers made before an `eglTerminate`; `eglDestroyContext` forgets the context's framebuffer attachments; `tex_desc` keeps an error the game had pending for the game's next `glGetError`; `nvn_gl_tex_release` returns at once until a GL texture was ever bound (other games never take the layer's lock in `TextureFinalize`). Known gap, written in `vka_tex.c` `img_create_gl` and the rendering entry: `VK_EXT_queue_family_foreign` is enabled but no ownership transfer from `VK_QUEUE_FAMILY_FOREIGN_EXT` is recorded.
 
 ### Round 66, the spin wait search and the x18 scan decode each word once (2026-11-28)
 
@@ -3713,6 +3724,33 @@ changes, so every title's profile.bin is regenerated with the APK; the struct si
 `render_cfg`), `peanuts/tests/test_push_desc_qcom_old.py` (the values, every real profile's macro, the generic profile field, the `layout_slow` line cut from
 vka_pso.c against the pre-#907 expression over every driver state with the key unset, and the `vka_auto.h` rule agreeing with it). No rewrite key or shader
 input changes: `vka_pso.c` layouts do not feed `DMSH_VK_CHAIN`. Upstream candidate: the switch and the key, if upstream wants a per-game choice.
+
+## Draws that write no colour on Qualcomm's Vulkan driver (2026-11-27)
+
+Qualcomm's own driver gives a draw that writes no colour channel wrong pixel shader inputs; NARUTO X BORUTO Ultimate Ninja STORM CONNECTIONS draws its effects in 32x32 cells there. Found while taking over the draft igawa6/peanuts-native#637 (codetz7).
+
+| File | Hunks | What | Marker |
+|---|---|---|---|
+| `dm/gfx/vk_android/vka_pso.c`, `vka_auto.h` | 3, 1 | `DM_VK_DEPTH_ONLY_BLEND` (`pstate_fill`): on Qualcomm's own driver before 512.800 (`V.qcom_old`) a pipeline that writes no colour channel writes its fixed-point targets that its pixel shader writes through blend ZERO, ONE, because the driver gives such a draw wrong pixel shader inputs (format features queried only for such a pipeline; only unsigned normalized and sRGB targets whose output is of the float class); `gpl_link` keys the fragment output library on the edited blend state (`P->cb`), not `k->att`; its `[auto]` rule | `PEANUTS` |
+| `dm/gfx/vk_android/vka_zonly.h`, `dm/host/tests/t_android_zonly.c` | new files | which colour targets that rule writes, and its test | `PEANUTS` |
+| `dm/host/tests/Makefile`, `dm/host/tests/t_android_auto.c` | 1, 6 | `t_android_zonly`; the `DM_VK_DEPTH_ONLY_BLEND` rule in the automatic defaults' test (on with Qualcomm before 512.800, off with 512.800 or later and Turnip; old Qualcomm counts 5 rules without `push_desc_qcom_old off` and 6 with it) | `PEANUTS` |
+| `dm/gfx/vk_android/vka_ctl.c` | 1 | `DM_VK_DEPTH_ONLY_BLEND` in `g_restart` (read at pipeline creation) | `PEANUTS` |
+| `docs/env_switches.tsv`, `docs/advanced_settings.tsv` | 1, 1 | the `DM_VK_DEPTH_ONLY_BLEND` rows | rows |
+| `docs/reference/rendering.md`, `docs/agents/symptoms.md` | 1, 1 | the entry "Effects in 32x32 cells on Qualcomm's driver: a draw that writes no colour gets wrong pixel shader inputs", and its line in the generated index | `PEANUTS` / generated |
+
+Taken from #850 without #845 (`DM_VK_DYN_PASS`, not landed: `ds_forget` and `DM_VK_DYN_FILTER=0` on Qualcomm before 512.800 cover it). The rule is on only before 512.800 (only 512.676 was measured). The prewarm list's keys (`vka_gkey`, `vka_pwlist.h`) are unchanged, so existing lists and seeds still match. Held for a Thor A/B before landing.
+
+## NARUTO X BORUTO Ultimate Ninja STORM CONNECTIONS, EU and US profiles for 1.70 (2026-11-28, #853)
+
+Two profiles of the game that the OpenGL UI and no-colour draw sections above were made for: the EU release (`01005A20190A6000`, tapionallanaire's #853) and the US release (`0100D2D0190A4000`). The US 1.70 `main` has the EU 1.70's build ID, so the US folder is the EU profile with its own title ID, as for the other releases with a profile of their own (13 Sentinels, Unicorn Overlord, NieR:Automata): `game.tsv` and the generated tables copied, no table shared by reference. Neither profile is on the release list.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `dm/games/01005A20190A6000/game.tsv`, `README.md` | new | the EU profile and its note (Odin 2, Turnip and Qualcomm's driver) | `PEANUTS` in the first lines |
+| `dm/games/0100D2D0190A4000/game.tsv`, `README.md` | new | the US profile and its note (AYN Thor, Turnip) | `PEANUTS` in the first lines |
+| `dm/games/01005A20190A6000/shader_map.tsv`, `shader_facts.tsv`, `shader_pairs.tsv`, `shader_files.tsv`, and the same four in `dm/games/0100D2D0190A4000/` | new | the generated tables (the US ones copies of the EU ones) | allow-listed in `peanuts/upstream-unmarked.txt` |
+| `dm/games/README.md` | 2 | the two table rows | `<!-- PEANUTS: ... -->` in the row's last cell |
+| `docs/reference/rendering.md` | 3 | the Found on lines of the BGR5A1, no-colour draw and OpenGL UI entries link the EU profile | `<!-- PEANUTS -->` at the line's end |
 
 ### amiibo: a virtual stand the app places amiibo on (2026-11-24, GitHub issue #582, Part A: engine and store; opt-in since 2026-11-26)
 
