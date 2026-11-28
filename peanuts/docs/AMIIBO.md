@@ -50,9 +50,9 @@ game's data leaves the others'.
 - `files/amiibo/games.txt`: games seen initializing nfp while amiibo was on for them, so their page shows the amiibo area though AmiiboAPI does not
   list them.
 
-- `cacheDir/amiibo/<ID>.png`: pictures, fetched from AmiiboAPI's images (raw.githubusercontent.com) only when a page shows the amiibo, and kept;
-  only once the player has turned them on (Settings › Users › amiibo pictures, `AmiiboSwitch.pictures`, off by default). Off, or offline, each amiibo
-  shows as Peanuts' own card and nothing is fetched.
+- `cacheDir/amiibo/<ID>.png`: pictures, downloaded from AmiiboAPI's images on GitHub (raw.githubusercontent.com) only when a page shows the amiibo,
+  and kept; only once the player has turned them on (Settings › Users › amiibo pictures, off by default) and while amiibo is on, in Settings or for a
+  game (`AmiiboSwitch.picturesOn`). Otherwise, or offline, each amiibo shows as Peanuts' own card and nothing is downloaded.
 
 An imported `.bin` gives its ID (plain at 0x54) and its UID (the first pages). Everything else in a dump is encrypted and is not read: the game data a
 figure carries from a console stays on the figure, and Peanuts keeps its own. No keys of any kind are asked for, read or shipped.
