@@ -170,6 +170,8 @@ SWITCH_BINDING = [
      'why': "the total the game's SDK sizes its cache of freed pages from, measured on the game; the pool and the map limit stay the profile's"}),
     ('place_join_mb', '', {'what': "a larger run of a pool's placed parts joined into one", 'now': 'game', 'goal': 'host', 'purpose': 'rendering',   # PEANUTS: GitHub issues #394, #651
      'why': "a join holds the joined bytes twice for a moment, so the default stays 256 MiB; a larger default for every game once the transient is measured on the phones of 8 GB or less"}),
+    ('push_desc_qcom_old', 'off', {'what': "draw and compute layouts without push descriptors on Qualcomm's driver before 512.800", 'now': 'game', 'goal': 'host', 'purpose': 'rendering',   # PEANUTS: #888, #907
+     'why': "off cost Breath of the Wild about 45 % more replay CPU on 512.676 with no difference in its picture, so only games whose push updates of deferred uniform ranges break there take it; the driver bug's own trigger, found and avoided in the replay, would serve every game"}),
     ('tex_soft', '', {'what': 'large block-compressed textures kept without their finest level', 'now': 'game', 'goal': 'game', 'purpose': 'memory',
      'why': 'a loss of detail chosen for a game that does not fit a device otherwise'}),
     ('occlusion_split_pass', 'on', {'what': 'split Qualcomm depth passes after counted occlusion queries', 'now': 'game', 'goal': 'host', 'purpose': 'rendering',

@@ -29,6 +29,12 @@ mem_stack	0x10000000
 app_pool	0xCD500000
 sys_resource	0x1000000
 
+# ---- Rendering ----
+# PEANUTS: Qualcomm's driver before 512.800 (512.762.41, Adreno 750): terrain and hill meshes flickered and disappeared with push descriptors and the deferred uniform
+# updates (DM_VK_UB_DEFER=1) both on; with draw / compute layouts off push descriptors it played at 58-60 fps (#888, #907; README.md). Turnip and newer Qualcomm
+# drivers keep push descriptors. DM_VK_PUSH_DESC still overrides it
+push_desc_qcom_old	off
+
 # ---- Shader split ----
 shader_groups	/Data/=data
 shader_note	Untitled Goose Game shaders
