@@ -3719,8 +3719,9 @@ that fit the game (the last placed in it first), then every amiibo that fits it,
 `LibrarySettings.result`, codes 87 and 88). An amiibo opens its page in the area: the picture, series and type, what it does in this game, the game's data on
 it with Reset game data (that game's area only), where it came from and how often it was placed, the other games that use it, and Remove from yours. B goes
 back from the page or the search to the pictures (`GamePage.onBack`). Pictures load when the area shows them (`AmiiboPictures`), once the player has
-turned them on: Settings › Users › amiibo pictures (`LibrarySettings`, `SettingsSections`, `SettingsHelp`), off by default, names the host
-(2026-11-26, igawa6's review of #711 and #712). Peanuts' own card (the stand icon, `pi_amiibo`) stands in until then, while they are off, offline, or when
+turned them on: Settings › Users › amiibo pictures (`LibrarySettings`, `SettingsSections`, `SettingsHelp`), off by default, says that turning it on
+downloads them from AmiiboAPI on GitHub (raw.githubusercontent.com) (2026-11-26 and 2026-11-28, igawa6's review of #711 and #712: strictly opt-in), and
+only while amiibo is on (`AmiiboSwitch.picturesOn`). Peanuts' own card (the stand icon, `pi_amiibo`) stands in until then, while they are off, offline, or when
 there is none. The tile says "Off for this game" while amiibo is off for it. No upstream file changes.
 
 Peanuts-owned: `AmiiboPage`, `GameAreas.AMIIBO`, its lines in `GamePage` and `LibrarySettings`, `pi_amiibo` (`peanuts/scripts/icons.py`). Tests:

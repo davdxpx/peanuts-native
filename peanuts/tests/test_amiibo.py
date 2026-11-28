@@ -168,13 +168,15 @@ class Page(unittest.TestCase):
         row = lib[lib.index('new PUi.Setting(a, "", "amiibo pictures", null)'):]
         row = row[:row.index('card.addView(pics.view);')]
         self.assertIn('raw.githubusercontent.com', row, 'the host is named')
+        self.assertIn('"Turning this on downloads each amiibo\'s picture from AmiiboAPI on GitHub', row, 'the row says what turning it on does')
+        self.assertIn('Off: Peanuts\' own card, nothing downloaded.', row)
         self.assertIn('dev.peanuts.amiibo.AmiiboSwitch.pictures(a, on)', row)
         self.assertIn('new Group("amiibo", r("amiibo", "amiibo"), r("amiibo pictures", "amiibo"))', (ui / 'SettingsSections.java').read_text(encoding='utf-8'))
         self.assertIn('put(m, "amiibo pictures",', (ui / 'SettingsHelp.java').read_text(encoding='utf-8'))
 
     def test_pictures_only_on_demand(self):
         """Pictures are fetched when a page shows an amiibo (AmiiboPictures.load from the page), never at start or in the background"""
-        uses = [p.name for p in APP.rglob('*.java') if 'AmiiboPictures.load(' in p.read_text(encoding='utf-8') and p.name != 'AmiiboPictures.java']
+        uses = [p.name for p in (APP / 'main').rglob('*.java') if 'AmiiboPictures.load(' in p.read_text(encoding='utf-8') and p.name != 'AmiiboPictures.java']
         self.assertTrue(set(uses) <= {'AmiiboPage.java', 'AmiiboTab.java', 'AmiiboCard.java', 'AmiiboWatch.java'}, uses)
 
 
