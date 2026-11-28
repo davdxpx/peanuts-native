@@ -3673,6 +3673,47 @@ names ooz), `dm/third_party/ooz/` (`build.sh`, `unoodle.cpp`, `README.md`), `dm/
 command, no wait on the ooz path, the markers, the fallback and its memory, the PC path, the phone's wiring), `peanuts/tests/test_unoodle.py` (the library form
 through the same tests, the source digest), `peanuts/docs/INCREMENTAL-BUILD.md`. Upstream candidate: no (upstream has no ooz).
 
+## Qualcomm driver before 512.800: auto-disable DM_VK_PUSH_DESC (2026-11-27)
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `dm/gfx/vk_android/vka_pso.c` | 1 | Gate `L->push` on `VKA_ENV("DM_VK_PUSH_DESC", !V.qcom_old)` for draw/compute pipeline layouts | `PEANUTS(upstream-candidate)` |
+| `dm/gfx/vk_android/vka_auto.h` | 1 | Add `DM_VK_PUSH_DESC=0` auto rule when `qcom_old` is set | `PEANUTS(upstream-candidate)` |
+| `dm/host/tests/t_android_auto.c` | 3 | Check `DM_VK_PUSH_DESC` is `0` for `qcom_old` and unset for Turnip and Qualcomm 512.800+ | `PEANUTS(upstream-candidate)` |
+
+Qualcomm driver 512.762.41 (Adreno 750, OnePlus 13R) mis-handles `vkCmdPushDescriptorSetKHR` UBO updates inside an open render pass when `DM_VK_UB_DEFER=1` swaps UBO bindings to `vka_scratch` shadows, causing disappearing terrain/geometry and flickering in *Untitled Goose Game* (`010082400BCC6000`) and overworld whiteout in *Sea of Stars* (`01008C0016544000`, #888). Disabling `DM_VK_UB_DEFER` fixes it at ~3x render-pass cost (67-114 passes/frame), whereas disabling `L->push` via `DM_VK_PUSH_DESC=0` fixes rendering completely while keeping `DM_VK_UB_DEFER=1` (~18-24 passes/frame, locked 60 fps) and leaving internal B2T mirroring push descriptors active.
+
+Upstream candidate: yes, a general fix with no Peanuts dependency.
+
+### #907 as a profile key: push_desc_qcom_old (2026-11-28)
+
+The section above turned push descriptors off for draw and compute layouts on every Qualcomm driver before 512.800. A Thor A/B on the stock `512.676` driver
+(Adreno 740) then measured the cost for a game that does not need it: Breath of the Wild drew the same picture with about 45 % more replay CPU (24.4 against
+16.7 ms a frame). The owner chose a profile key: `push_desc_qcom_old off` (`DM_GAME_PUSH_DESC_QCOM_OLD_OFF`) in the two games the change fixes. The rule above
+and its `t_android_auto.c` checks are replaced by the rows below; a profile without the key gets the layouts it got before #907 on every driver.
+
+| File | Hunks | Change | Marker |
+|---|---|---|---|
+| `dm/gfx/vk_android/vka_pso.c` | 1 | `layout_slow`: `DM_VK_PUSH_DESC` defaults to 0 only when `DM_GAME_PUSH_DESC_QCOM_OLD_OFF && V.qcom_old`, else 1; the env line still wins | `PEANUTS` |
+| `dm/gfx/vk_android/vka_auto.h` | 2 | `prof_push_desc_off` input; the `DM_VK_PUSH_DESC=0` rule needs it as well as `qcom_old` (the unconditional rule removed) | `PEANUTS` |
+| `dm/gfx/vk_android/vka_dev.c` | 1 | `auto_log`: `.prof_push_desc_off = DM_GAME_PUSH_DESC_QCOM_OLD_OFF` | `PEANUTS` |
+| `dm/host/tests/t_android_auto.c` | 6 | the unconditional checks back to dev's; the key on Turnip, Qualcomm 512.800+ and another driver adds no rule (counts unchanged), old Qualcomm only with the key, its line | `PEANUTS` |
+| `dm/games/game.py` | 2 | `push_desc_qcom_old` checked (`on` / `off`, default `on`), `#define DM_GAME_PUSH_DESC_QCOM_OLD_OFF` | `PEANUTS` |
+| `dm/games/README.md` | 1 | the key's row | `<!-- PEANUTS -->` |
+| `dm/tools/docs_patches.py` | 1 | the key's binding entry (`game` → `host`) | `PEANUTS` |
+| `docs/reference/rendering.md` | 1 | the #907 entry: Fix per profile, "Why not for every game" (the measured CPU cost) | inside the `PEANUTS(upstream-candidate)` block |
+| `docs/env_switches.tsv`, `docs/advanced_settings.tsv` | 1 each | `DM_VK_PUSH_DESC`: default per profile | `[PEANUTS]` / Peanuts' row |
+| `android/README.md` | 1 | the per-driver defaults list: `DM_VK_PUSH_DESC=0` for profiles with the key | `<!-- PEANUTS: #907 -->` |
+| `dm/games/010082400BCC6000/*` | 3 | `push_desc_qcom_old off`; README and readiness.tsv: the profile turns push descriptors off on Qualcomm `< 512.800` (no longer "use Turnip until #907 lands") | Peanuts' own profile |
+| `dm/games/01008C0016544000/*` | 3 | `push_desc_qcom_old off` (`# PEANUTS:` comment); README: the table row and a Testing line (#907's report, not yet checked on a device by us); the `recommend` row stays | `PEANUTS` |
+| `docs/agents/game-patches.md` | generated | `dm/tools/docs_patches.py` | (generated) |
+
+Peanuts' own files: `dm/peanuts/profile/` (`PUSH_DESC_QCOM_OLD_OFF` scalar, `push_desc_qcom_old_off` u32 after `place_join_mb`: the runtime profile schema
+changes, so every title's profile.bin is regenerated with the APK; the struct size stays 12216 bytes, the new field takes alignment padding before
+`render_cfg`), `peanuts/tests/test_push_desc_qcom_old.py` (the values, every real profile's macro, the generic profile field, the `layout_slow` line cut from
+vka_pso.c against the pre-#907 expression over every driver state with the key unset, and the `vka_auto.h` rule agreeing with it). No rewrite key or shader
+input changes: `vka_pso.c` layouts do not feed `DMSH_VK_CHAIN`. Upstream candidate: the switch and the key, if upstream wants a per-game choice.
+
 ### amiibo: a virtual stand the app places amiibo on (2026-11-24, GitHub issue #582, Part A: engine and store; opt-in since 2026-11-26)
 
 Games read amiibo through `nn::nfp`, which upstream's `hle_sdk16.c` takes over with one NFC device that never finds a tag. The take-over sits above
