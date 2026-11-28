@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * amiibo as an opt-in (igawa6/peanuts-native#582): a game finds amiibo on Peanuts' stand only when the player turned it on, for every game (Settings ›
@@ -36,12 +37,25 @@ public final class AmiiboSwitch {
     public static void game(Context c, String titleId, boolean on) { if (titleId != null) prefs(c).edit().putBoolean(key(titleId), on).apply(); }
 
     /**
-     * Settings › Users › amiibo pictures: each amiibo's picture from AmiiboAPI's images (raw.githubusercontent.com), fetched when a page shows it and
-     * kept (AmiiboPictures). Off by default: nothing is fetched, and Peanuts' own card shows. The launcher's and the game's process both read it
+     * Settings › Users › amiibo pictures: turned on, the app downloads each amiibo's picture from AmiiboAPI on GitHub (raw.githubusercontent.com) when a
+     * page shows it, and keeps it (AmiiboPictures). Off by default: nothing is downloaded, and Peanuts' own card shows. The launcher's and the game's
+     * process both read it
      */
     public static boolean pictures(Context c) { return prefs(c).getBoolean(PICTURES, false); }
     public static void pictures(Context c, boolean on) { prefs(c).edit().putBoolean(PICTURES, on).apply(); }
     static final String PICTURES = "pictures";
+
+    /**
+     * Whether AmiiboPictures may download at all: the pictures are turned on, and amiibo is on somewhere (Settings' row, or a game's own switch). With
+     * amiibo off everywhere the app downloads nothing for amiibo, whatever the pictures row says
+     */
+    public static boolean picturesOn(Context c) {
+        SharedPreferences p = prefs(c);
+        if (!p.getBoolean(PICTURES, false)) return false;
+        if (p.getBoolean(ALL, false)) return true;
+        for (Map.Entry<String, ?> e : p.getAll().entrySet()) if (e.getKey().startsWith("t.") && Boolean.TRUE.equals(e.getValue())) return true;
+        return false;
+    }
 
     /** Whether this game starts with Peanuts' stand */
     public static boolean on(Context c, String titleId) { Boolean g = game(c, titleId); return g != null ? g : all(c); }

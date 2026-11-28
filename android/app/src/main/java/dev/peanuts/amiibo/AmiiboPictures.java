@@ -19,10 +19,11 @@ import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
 /**
- * An amiibo's picture, loaded when the player opens an amiibo page or tab: from AmiiboAPI's images (the same database as the table), kept in the app's
- * cache (cacheDir/amiibo), and never fetched again while it is there. A picture AmiiboAPI does not have is noted for a day. Offline, or without one, the
- * caller shows Peanuts' own card. Nothing is fetched before a page asks, and nothing at all unless the player turned the pictures on
- * (AmiiboSwitch.pictures: Settings › Users › amiibo pictures, off by default; igawa6's review of #711: a new outside host is the player's choice).
+ * An amiibo's picture, downloaded when the player opens an amiibo page or tab: from AmiiboAPI's images on GitHub (the same database as the table), kept
+ * in the app's cache (cacheDir/amiibo), and never downloaded again while it is there. A picture AmiiboAPI does not have is noted for a day. Offline, or
+ * without one, the caller shows Peanuts' own card. Nothing is downloaded before a page asks, and nothing at all unless the player turned the pictures on
+ * and amiibo is on somewhere (AmiiboSwitch.picturesOn: Settings › Users › amiibo pictures, off by default; igawa6's review of #711: a new outside host
+ * is the player's choice, strictly opt-in).
  */
 public final class AmiiboPictures {
     private AmiiboPictures() {}
@@ -38,9 +39,9 @@ public final class AmiiboPictures {
 
     static File dir(Context c) { return new File(c.getCacheDir(), "amiibo"); }
 
-    /** The picture of this ID about px pixels tall, on the main thread; null when there is none (the pictures are off, offline, or AmiiboAPI has none) */
+    /** The picture of this ID about px pixels tall, on the main thread; null when there is none (the pictures or amiibo are off, offline, or AmiiboAPI has none) */
     public static void load(Context c, String id, int px, Consumer<Bitmap> done) {
-        if (!AmiiboSwitch.pictures(c)) { done.accept(null); return; }   // off: Peanuts' own card, nothing fetched and no cache read
+        if (!AmiiboSwitch.picturesOn(c)) { done.accept(null); return; }   // off, or amiibo off everywhere: Peanuts' own card, nothing downloaded, no cache read
         String key = id + "@" + px;
         Bitmap m = MEM.get(key);
         if (m != null) { done.accept(m); return; }

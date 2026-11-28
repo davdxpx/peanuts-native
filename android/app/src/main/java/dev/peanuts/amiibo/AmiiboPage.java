@@ -126,7 +126,7 @@ public final class AmiiboPage {
             PUi.add(body, PUi.small(a, "AmiiboAPI lists no amiibo for this game. It looked for one, so any of yours can be placed."), 14)
                     .setPadding(PUi.dp(a, 4), 0, PUi.dp(a, 4), 0);
         }
-        PUi.add(body, PUi.small(a, (AmiiboSwitch.pictures(a) ? "Pictures and names come from AmiiboAPI."
+        PUi.add(body, PUi.small(a, (AmiiboSwitch.picturesOn(a) ? "Pictures and names come from AmiiboAPI."
                 : "Names come from AmiiboAPI's list in the app. Its pictures show once you turn them on in Settings › Users › amiibo pictures.")
                 + " Each game keeps its own data on an amiibo; nothing is written to a figure."), 18)
                 .setPadding(PUi.dp(a, 4), 0, PUi.dp(a, 4), 0);
