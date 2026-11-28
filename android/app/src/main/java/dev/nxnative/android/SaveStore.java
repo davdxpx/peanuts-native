@@ -350,8 +350,26 @@ final class SaveStore {
         }
     }
 
+    // PEANUTS begin: the recovery apart from the copy, so the game menu's Back up the save (InGamePanel) copies the running game's save without it (backupRunning)
     private static Backup backupLocked(File save, File backups, String name) throws IOException {
         recoverLocked(save);
+        return copyLocked(save, backups, name, false);
+    }
+
+    /**
+     * backupLocked for the save of the game running in this process (InGamePanel: the game menu's Back up the save, under the lock the game's start took). That
+     * start recovered the save already (GameActivity, and the host at its mount), so while the game runs a marker beside the save is the host's own swap at a
+     * Commit, still being written, never a stopped one. Recovering it here would run a second swap beside the host's: stage 1 would delete from the save what
+     * the host's stage 2 has just moved out of its .new. So nothing of the journal is touched, and a marker before the copy or after its second scan (a Commit
+     * in between) fails the copy as a changed save does, which the caller tries again
+     */
+    static Backup backupRunning(File save, File backups, String name) throws IOException {
+        return copyLocked(save, backups, name, true);
+    }
+
+    private static Backup copyLocked(File save, File backups, String name, boolean running) throws IOException {
+        if (running && pending(save)) throw new IOException("the save changed while it was copied (the game is saving it)");
+        // PEANUTS end
         Map<String, File> parts = parts(save);
         if (!save.isDirectory() && !parts.containsKey(DEVICE)) throw new IOException("there is no save folder at " + save);
         if (!save.isDirectory()) parts.remove(MAIN);
@@ -367,10 +385,12 @@ final class SaveStore {
             if (!tmp.mkdirs()) throw new IOException("cannot create " + tmp);
             for (Map.Entry<String, File> e : parts.entrySet()) copyTree(e.getValue(), new File(tmp, e.getKey()));
             String d = want.diff(scan(tmp));
+            if (d != null && running && want.diff(scanParts(parts)) != null) throw new IOException("the save changed while it was copied (" + d + ")");   // PEANUTS: a Commit, not a bad copy (backupRunning)
             if (d != null) throw new IOException("the copy does not match the save (" + d + ")");
             Manifest again = scanParts(parts);
             String changed = want.diff(again);
             if (changed != null) throw new IOException("the save changed while it was copied (" + changed + "): is the game running?");
+            if (running && pending(save)) throw new IOException("the save changed while it was copied (the game started saving it)");   // PEANUTS: a Commit began meanwhile (backupRunning)
             writeManifest(want, new File(backups, n + MANIFEST));
             if (!tmp.renameTo(dir)) { new File(backups, n + MANIFEST).delete(); throw new IOException("cannot name the backup " + dir); }
         } finally {

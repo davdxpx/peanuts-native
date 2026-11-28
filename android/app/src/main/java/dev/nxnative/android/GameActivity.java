@@ -74,7 +74,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
     private PadPanel.Combo combo = new PadPanel.Combo(PadPanel.OPEN_BOTH);
     private final HashMap<Integer, HashSet<Integer>> gameKeys = new HashMap<>();
     private final HashSet<Integer> panelKeys = new HashSet<>();
-    private final Runnable comboHeld = () -> { if (panel != null && combo.fire(android.os.SystemClock.uptimeMillis())) panel.padToggle(); };
+    private final Runnable comboHeld = () -> { if (panel != null && combo.fire(android.os.SystemClock.uptimeMillis())) InGamePanel.toggle(this, true); };   // PEANUTS: − and + held open the game menu (InGamePanel)
     private File log;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private PadMotion padMotion;   // a gamepad's own gyroscope and accelerometer as its player's six-axis sensor (PadMotion), the phone's own sensors stay the host's
@@ -178,6 +178,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         controls.onSwitch = v -> handle.setVisibility(v ? View.VISIBLE : View.GONE);
         controls.setMode(TouchControls.mode(this));
         root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> handle.setTranslationY((b - t) * 0.3f - 70 * dp));
+        InGamePanel.attach(this, root, panel);   // PEANUTS: the game menu at the left (dev.peanuts.ingame.GameMenu) and its swipe in from the left edge
         // Paused (pause(): the in-game panel's Pause, or the screen coming back with pause-on-return on): the game is suspended until a tap, or A / Start on a gamepad.
         // Under the panel and its handle, so Stop stays reachable
         pausedView = new TextView(this);
@@ -397,6 +398,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         if (!skipShown) ui.postDelayed(skipRun, 30000);
     }
     private void skipShow(int pct) {
+        if (dev.peanuts.smooth.Smooth.hides(this, dev.peanuts.smooth.SmoothItems.SKIP)) { Native.note("skipped work: " + pct + " % of draws; the notice is off (Smooth Experience)"); return; }   // PEANUTS
         GpuDriver.Info drv = GpuDriver.selected(this, titleId());
         String st = Native.skipStatus();
         Native.note("skipped work: notice shown (" + pct + " % of draws; driver: " + (drv == null ? "system" : drv.label()) + ")");
@@ -425,12 +427,16 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
     // still make while draws are skipped for them (Native.warmStatus): shown, small, at the top, while that is above 0, with the count; gone when it is 0. A host without
     // the entry point (-1) is not asked again. Without it a first run looked broken: EA SPORTS FC 27's pitch was black for a minute with no word why on screen
     private TextView warmView;
+    private boolean warmQuiet;   // Smooth Experience took the notice: its log line is written once a run
     private final Runnable warmRun = this::warmTick;
     private void warmStart() { ui.removeCallbacks(warmRun); ui.postDelayed(warmRun, 1000); }
     private void warmTick() {
         if (rootView == null) return;
         int n = stopped || paused ? 0 : Native.warmStatus();
-        if (dev.peanuts.ui.WarmNotice.shown(n)) {
+        if (dev.peanuts.ui.WarmNotice.shown(n) && dev.peanuts.smooth.Smooth.hides(this, dev.peanuts.smooth.SmoothItems.WARM)) {   // Smooth Experience: the log only, once
+            if (!warmQuiet) Native.note("preparing graphics: " + n + " pipelines waiting; the notice is off (Smooth Experience)");
+            warmQuiet = true;
+        } else if (dev.peanuts.ui.WarmNotice.shown(n)) {
             if (warmView == null) {
                 warmView = new TextView(this);
                 warmView.setTextColor(Color.WHITE);
@@ -694,7 +700,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         if (prof != null && prof.hasFpsVariant() && Prefs.limited(id) && fpsModeAtStart != FrameRateCaps.GAME_OWNED) {
             String fv = prof.fpsVariant(FrameRateCaps.limitRate(fpsModeAtStart, Prefs.displayMaxHz(getDisplay())));
             if (fv != null && pack != null && pack.variantReady(fv)) fpsVariantAtStart = fv;
-            else {
+            else if (fv != null) {   // PEANUTS: a cap without a variant of its own (Ys X: Nordics' 30; its 60 starts one) starts the game's own code at that cap, not Game owned
                 fpsVariantMissing = true;
                 fpsModeAtStart = FrameRateCaps.GAME_OWNED;
                 String note = "[nxlaunch] frame rate: the build has no complete " + fv + " variant (pack.tsv variant row and " + fv + "/main.patched.bin): started Game owned";
@@ -988,6 +994,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
 
     private void start() {
         String id = getIntent().getStringExtra("title_id"), name = getIntent().getStringExtra("name");
+        dev.peanuts.ui.StartCover.add(this, rootView, rootView.indexOfChild(pausedView), overlay, this::end);   // PEANUTS: Smooth Experience's start screen in place of the log's lines (dev.peanuts.ui.StartCover)
         File game = new File(getIntent().getStringExtra("game")), packDir = new File(getIntent().getStringExtra("pack"));
         File files = getExternalFilesDir(null);
         try {
@@ -1140,12 +1147,12 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             if (readinessEnv > 0) Native.note("[nxlaunch] readiness check: ran with the game's " + readinessEnv + " environment lines (all but the paths), set before the GPU driver's first device");
             for (String n : unknownNotes) Native.note(n);
             for (String n : quietNotes) Native.note(n);   // PEANUTS
-            if (!unknownNotes.isEmpty()) android.widget.Toast.makeText(this, unknownNotes.get(0).replace("[RED] ", ""), android.widget.Toast.LENGTH_LONG).show();
+            { String t = dev.peanuts.smooth.DevView.startToast(this, unknownNotes); if (t != null) android.widget.Toast.makeText(this, t.replace("[RED] ", ""), android.widget.Toast.LENGTH_LONG).show(); }   // PEANUTS: Developer view off: a switch nothing reads goes to the log only
             if (!refused.isEmpty()) {
                 String msg = "not taken: " + String.join(", ", refused) + ": the launcher sets the game's paths (DM_SAVE, DM_ROMFS, DM_TEMP, DM_ROOT, DM_AOC_DIR, HOME)"
                         + (testApp() ? "; DM_SAVE is taken from env-<title ID>.txt only" : "");
                 Native.note("[RED] env: " + msg);
-                android.widget.Toast.makeText(this, "Environment lines " + msg, android.widget.Toast.LENGTH_LONG).show();
+                if (!dev.peanuts.smooth.DevView.plain(this)) android.widget.Toast.makeText(this, "Environment lines " + msg, android.widget.Toast.LENGTH_LONG).show();   // PEANUTS: Developer view off: the log only
             }
             if (testSave != null) Native.note("[nxlaunch] test app: DM_SAVE from env-" + id + ".txt: " + testSave);
             Native.note("frame generation: " + (Lsfg.on(this) ? "on" : "off") + "; " + Lsfg.note);
@@ -1325,6 +1332,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
     // never runs beside the game (SaveUi asks SaveStore.inUse); the process ending releases it ----
     private static SaveStore.Lock saveLock;
     private static File saveLocked;
+    static File runSave() { return saveLocked; }   // PEANUTS: the save this game runs on, for the game menu's Back up the save (InGamePanel)
 
     private static synchronized void holdLock(File save) throws IOException {
         if (saveLock != null && SaveStore.same(saveLocked, save)) return;   // this process holds it already (the game's screen opened again)
@@ -1411,6 +1419,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
 
     /** The last lines of the log over the surface, once a second: until the game's first frame, then only with the setting on (TouchControls.showLog), or after a crash */
     private boolean drawing, failed;
+    private long tailSeen;   // PEANUTS: the log length at the last look (tail)
     private void tail() {
         if (log == null) return;
         if (stopped || paused) { ui.postDelayed(this::tail, 2000); return; }   // the log does not move while the game is suspended
@@ -1420,15 +1429,25 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
             r.seek(from);
             r.readFully(b);
             String text = new String(b, StandardCharsets.UTF_8);
+            // PEANUTS: look for the first-frame lines in everything written since the last look, not only the last 2 KB shown: a game whose long stats lines follow them
+            // within the second (Ys X: Nordics) kept the log over the picture for the whole run
+            if (!drawing && tailSeen < from) {
+                long s0 = Math.max(tailSeen, from - (1 << 18)); byte[] m = new byte[(int) (from - s0)]; r.seek(s0); r.readFully(m);
+                String more = new String(m, StandardCharsets.UTF_8);
+                if (more.contains("[nvn] frame ") || more.contains("[longframe]") || more.contains("window frame rate")) drawing = true;
+            }
+            tailSeen = n;
+            // PEANUTS end
             if (text.contains("[nvn] frame ") || text.contains("[longframe]") || text.contains("window frame rate")) drawing = true;   // the host logs these once frames are presented
             if (text.contains("CRASH sig=") || text.contains("FATAL")) failed = true;
             overlay.setVisibility(!drawing || failed || TouchControls.showLog(this) ? View.VISIBLE : View.GONE);
+            dev.peanuts.ui.StartCover.tail(this, overlay, drawing, failed, TouchControls.showLog(this));   // PEANUTS: the start screen goes at the first frame, a failure shows its card
             String[] lines = text.split("\n");
             StringBuilder s = new StringBuilder();
             for (int i = Math.max(from > 0 ? 1 : 0, lines.length - 8); i < lines.length; i++) s.append(lines[i]).append('\n');
             overlay.setText(s.toString().trim());
         } catch (IOException ignored) { /* next time */ }
-        ui.postDelayed(this::tail, 1000);
+        ui.postDelayed(this::tail, dev.peanuts.ui.StartCover.next(1000));   // PEANUTS: every 250 ms while the start screen waits for the first frame
     }
 
     // ---- The host's side of the Activity: input devices, audio focus and route, motion, lifecycle ----
@@ -1798,19 +1817,23 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
     @Override public boolean dispatchKeyEvent(KeyEvent e) {
         if (dev.peanuts.build.ShaderCapture.active(this) && gamepad(e.getSource())) return true;   // PEANUTS: no gameplay input during preparation
         if (prewarmCover != null && gamepad(e.getSource())) return super.dispatchKeyEvent(e);   // PEANUTS: Preparing shaders: the pad moves over its buttons; nothing goes to the game or the panel under it
+        if (dev.peanuts.ui.StartCover.takesPad() && gamepad(e.getSource())) return super.dispatchKeyEvent(e);   // PEANUTS: the start screen's failure card: the pad moves over Share log and Close
         if (panel == null) return super.dispatchKeyEvent(e);   // no host for this game (onCreate): only the message is shown
         // A controller opens and closes the in-game panel (PadPanel.Combo: Home, or − and + held; Settings › Controller: in-game panel); while it is open the pad moves
         // through it and the game gets no pad keys. A key the panel took a press of stays the panel's until it comes up
         int k = e.getKeyCode();
         boolean down = e.getAction() == KeyEvent.ACTION_DOWN, up = e.getAction() == KeyEvent.ACTION_UP;
+        if (InGamePanel.backKey(this, e, prewarmCover != null)) return true;   // PEANUTS: the controller's Back pressed opens the game menu, held the quick menu (not under the cover, in preparation, in the controller applet)
+        if (InGamePanel.quickKey(this, e)) return true;   // PEANUTS: the player's own button for the quick menu (dev.peanuts.ui.QuickButton)
         if (gamepad(e.getSource()) || k == KeyEvent.KEYCODE_BUTTON_MODE) {
-            int c = combo.key(k, down, e.getRepeatCount(), e.getEventTime());
-            if (c == PadPanel.TOGGLE) { panel.padToggle(); return true; }
+            int c = InGamePanel.key(this, combo, k, down, e.getRepeatCount(), e.getEventTime());   // PEANUTS: Home held opens the quick menu
+            if (c == PadPanel.TOGGLE) { InGamePanel.toggle(this, true); return true; }   // PEANUTS: Home pressed opens the game menu, or closes either menu
             if (c == PadPanel.EAT) { if (up) panelKeys.remove(k); return true; }   // the pair's release after it fired (the panel may have taken its press)
             long due = combo.due();
             ui.removeCallbacks(comboHeld);
             if (due >= 0) ui.postAtTime(comboHeld, due);   // the event's time is uptimeMillis
         }
+        if (InGamePanel.menuKey(this, e, gamepad(e.getSource()))) return true;   // PEANUTS: the game menu has the controller while it is open
         if (panel.isOpen() && gamepad(e.getSource())) {
             boolean took = panel.padKey(e);
             if (took && down) panelKeys.add(k);
@@ -1855,6 +1878,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
 
     @Override public boolean onGenericMotionEvent(MotionEvent e) {
         if (dev.peanuts.build.ShaderCapture.active(this)) return true;   // PEANUTS: no gameplay input during preparation
+        if (InGamePanel.menuMotion(this, e)) return true;   // PEANUTS: the stick moves the game menu's selection
         if (panel != null && panel.isOpen() && (e.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) return panel.padMotion(e);   // the panel's, never the game's
         if (!input || panel.isOpen() || paused || (e.getSource() & InputDevice.SOURCE_JOYSTICK) != InputDevice.SOURCE_JOYSTICK || e.getAction() != MotionEvent.ACTION_MOVE || e.getDevice() == null)
             return super.onGenericMotionEvent(e);
@@ -1869,7 +1893,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
 
     /** Back (the phone's button or its edge swipe) opens and closes the in-game panel, which has Stop; while the controller applet's join screen shows, it cancels that */
     @SuppressWarnings("deprecation")
-    @Override public void onBackPressed() { if (prewarmCover != null) return; /* PEANUTS: Preparing shaders has its own Close; the panel is under it */ if (dev.peanuts.build.ShaderCapture.active(this)) { dev.peanuts.build.ShaderCapture.cancel(this); return; } /* PEANUTS: Back cancels preparation */ if (panel != null && !panel.isOpen() && CtrlScreen.back()) return; if (panel != null) panel.toggle(); else end(); }
+    @Override public void onBackPressed() { if (prewarmCover != null) return; /* PEANUTS: Preparing shaders has its own Close; the panel is under it */ if (dev.peanuts.build.ShaderCapture.active(this)) { dev.peanuts.build.ShaderCapture.cancel(this); return; } /* PEANUTS: Back cancels preparation */ if (panel != null && !panel.isOpen() && CtrlScreen.back()) return; if (panel != null) InGamePanel.back(this); /* PEANUTS: the game menu, or one step back in the quick menu (InGamePanel) */ else end(); }
 
     // For CtrlScreen: the view tree it goes into (under the in-game panel), and whether a gamepad is connected (then the on-screen controls are hidden and cannot join)
     FrameLayout rootView() { return rootView; }

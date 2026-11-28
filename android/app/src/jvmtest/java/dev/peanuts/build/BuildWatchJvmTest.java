@@ -110,6 +110,22 @@ public final class BuildWatchJvmTest {
         w.changed(100_000 + BuildWatch.GONE_GRACE_MS + 1);
         same(BuildWatch.NONE, w.verdict(200_000, false, 100_000), "the job changed after it went: Android started it again and it went on");
         check(w.verdict(1_000_000, true, 0) != BuildWatch.GONE, "never gone without a time it went");
+
+        // PEANUTS: a heat or battery pause (paused): no hang or stall while the packer holds the job; once its process went, or nothing runs it, the pause is no change,
+        // so it ends as a packer that ended or stalled (found in review: the heat hold with its process gone waited for good)
+        w = new BuildWatch.Watch(0, HANG, BUSY, BACK, STALL);
+        for (long t = 1_000; t <= 20_000; t += 1_000) { w.paused(t, true); same(BuildWatch.NONE, w.verdict(t, true, 0), "a held pause is no hang, at " + t); }
+        for (long t = 20_600; t <= 21_000; t += 100) { w.paused(t, false); same(BuildWatch.NONE, w.verdict(t, false, 20_500), "not before the time it may take to come back, at " + t); }
+        w.paused(21_001, false);
+        same(BuildWatch.GONE, w.verdict(21_001, false, 20_500), "a pause whose packer went and did not come back: gone");
+        w = new BuildWatch.Watch(0, HANG, BUSY, BACK, STALL);
+        w.paused(1_000, true);
+        w.paused(2_000, false);
+        same(BuildWatch.NONE, w.verdict(3_000, false, 0), "a pause nothing runs: not before the stall time");
+        w.paused(3_001, false);
+        same(BuildWatch.STALL, w.verdict(3_001, false, 0), "a pause nothing runs: stalled");
+        w.paused(3_002, true);
+        same(BuildWatch.NONE, w.verdict(3_002, true, 0), "a packer that holds it again");
     }
 
     private static void cpu() {

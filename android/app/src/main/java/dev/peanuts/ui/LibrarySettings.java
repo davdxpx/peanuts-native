@@ -37,7 +37,7 @@ public final class LibrarySettings {
     public static final int REQ_MOD_FOLDER = 69, REQ_MOD_ZIP = 70;
     private static final Handler UI = new Handler(Looper.getMainLooper());
     private static String fontsState;   // "Reading the firmware…" and what came of it, while the rows show
-    private static PUi.Setting keysRow, fontsRow, companionsRow, hapticsRow, motionRow, swapRow, tvRow, bottomRow, gamesRow;
+    private static PUi.Setting keysRow, fontsRow, companionsRow, hapticsRow, motionRow, swapRow, tvRow, bottomRow, gamesRow, smoothRow, devRow;
     private static Activity rowsOf;
 
     private LibrarySettings() {}
@@ -131,10 +131,35 @@ public final class LibrarySettings {
             return true;
         });
         // The in-game panel's Mods tab for every game (dev.peanuts.mods.ModsTab; SettingsSections puts the row under App › In-game panel)
-        PUi.Setting modsTab = new PUi.Setting(a, "", "Mods tab", null).value("Cheats and mods in the in-game panel")
+        PUi.Setting modsTab = new PUi.Setting(a, "", "Mods tab", null).value("Cheats and mods in the quick menu")
                 .toggle(a, PeanutsPrefs.modsTabAll(a), (b, on) -> { Feel.toggled(b, on); PeanutsPrefs.modsTabAll(a, on); });
         modsTab.view.setOnClickListener(v -> modsTab.toggle.toggle());
         card.addView(modsTab.view);
+        // The player's own button for the in-game quick menu (QuickButton; SettingsSections puts the row under Controls › Controller)
+        PUi.Setting quick = new PUi.Setting(a, "", "Quick menu button", null).chevron(a).value(QuickButton.label(a));
+        quick.view.setOnClickListener(v -> QuickButton.row(a, () -> quick.value(QuickButton.label(a))));
+        card.addView(quick.view);
+        // Smooth Experience (dev.peanuts.smooth; SettingsSections puts the row under App › Extras): its switch, and right under it, while it is on, one switch
+        // per thing it takes away (SmoothItems, all on by default), in a tinted block set in under the switch's title, so they read as its parts. The block
+        // is not a row of its own: SettingsPage carries it with the row it follows
+        smoothRow = new PUi.Setting(a, "", "Smooth Experience", null)
+                .toggle(a, dev.peanuts.smooth.Smooth.on(a), (b, on) -> { Feel.toggled(b, on); PeanutsPrefs.smooth(a, on); refreshRows(); });
+        smoothRow.view.setOnClickListener(v -> smoothRow.toggle.toggle());
+        card.addView(smoothRow.view);
+        smoothBox = new LinearLayout(a);
+        smoothBox.setOrientation(LinearLayout.VERTICAL);
+        smoothBox.setBackground(PUi.round(PUi.col(a, dev.nxnative.android.R.color.bn_tint), PUi.dp(a, 14), 0, 0));
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        bp.leftMargin = PUi.dp(a, 52); bp.rightMargin = PUi.dp(a, 6); bp.bottomMargin = PUi.dp(a, 6);   // under the switch's title, not its tile
+        card.addView(smoothBox, bp);
+        smoothPart(a, smoothBox, new PUi.Setting(a, "", "Start screen", null), dev.peanuts.smooth.SmoothItems.START_LOG);
+        smoothPart(a, smoothBox, new PUi.Setting(a, "", "Preparing graphics notice", null), dev.peanuts.smooth.SmoothItems.WARM);
+        smoothPart(a, smoothBox, new PUi.Setting(a, "", "Graphics driver notice", null), dev.peanuts.smooth.SmoothItems.SKIP);
+        // Developer view (dev.peanuts.smooth.DevView; under Developer › Testing): the testers' toasts and the in-game menu's tool words, or neither
+        devRow = new PUi.Setting(a, "", "Developer view", null)
+                .toggle(a, dev.peanuts.smooth.DevView.on(a), (b, on) -> { Feel.toggled(b, on); dev.peanuts.smooth.DevView.on(a, on); refreshRows(); });
+        devRow.view.setOnClickListener(v -> devRow.toggle.toggle());
+        card.addView(devRow.view);
         // amiibo for every game (dev.peanuts.amiibo.AmiiboSwitch; SettingsSections puts the row under Users › amiibo): off by default, a game's own switch
         // in its Game options comes first
         PUi.Setting amiibo = new PUi.Setting(a, "", "amiibo", null).value("Games find your amiibo on Peanuts' stand, from their next start. Off: they find none, as before.")
@@ -142,6 +167,20 @@ public final class LibrarySettings {
         amiibo.view.setOnClickListener(v -> amiibo.toggle.toggle());
         card.addView(amiibo.view);
         refreshRows();
+    }
+
+    /** Smooth Experience's parts, in their block under its row, shown while it is on (refreshRows) */
+    private static LinearLayout smoothBox;
+
+    /** One of Smooth Experience's parts in its block: no tile, a little smaller than a row of its own; its switch (the row turns it, one focus stop) and its line */
+    private static void smoothPart(Activity a, LinearLayout box, PUi.Setting r, String key) {
+        r.value(dev.peanuts.smooth.SmoothItems.of(key).line).toggle(a, PeanutsPrefs.smoothItem(a, key), (b, on) -> { Feel.toggled(b, on); PeanutsPrefs.smoothItem(a, key, on); refreshRows(); });
+        r.view.setOnClickListener(v -> r.toggle.toggle());
+        r.view.getChildAt(0).setVisibility(android.view.View.GONE);   // the tile: the switch above has the icon
+        r.view.setMinimumHeight(PUi.dp(a, 52));
+        r.view.setPadding(PUi.dp(a, 4), PUi.dp(a, 6), PUi.dp(a, 12), PUi.dp(a, 6));
+        ((android.widget.TextView) ((LinearLayout) r.view.getChildAt(1)).getChildAt(0)).setTextSize(15);
+        box.addView(r.view);
     }
 
     private static CharSequence companionsValue(Activity a) {
@@ -159,6 +198,13 @@ public final class LibrarySettings {
                 : "System: follows Android's touch feedback setting. Tap to turn the app's own haptics off.");
         if (motionRow != null) motionRow.value(PeanutsPrefs.motionReduced(a) ? "Reduced: fades and progress only. Tap to follow the system's animation setting again."
                 : "System: follows Android's animation setting. Tap for reduced motion (fades and progress only).");
+        if (smoothRow != null) {
+            boolean on = dev.peanuts.smooth.Smooth.on(a);
+            smoothRow.value(dev.peanuts.smooth.SmoothItems.rowLine(on, dev.peanuts.smooth.Smooth.picked(a)));
+            if (smoothBox != null) smoothBox.setVisibility(on ? android.view.View.VISIBLE : android.view.View.GONE);   // the page grows under the switch while it is on
+        }
+        if (devRow != null) devRow.value(dev.peanuts.smooth.DevView.on(a) ? "On: messages for testers and the in-game menu's tool words show. Tap to turn them off."
+                : "Off: no messages for testers, and the in-game menu in plain words. The log keeps them. Tap to show them.");
         if (swapRow != null) swapRow.value(PeanutsPrefs.swapScreens(a)
                 ? "On: games start on the other screen, the companion is on this one. Tap to swap back. Takes effect at the next game start."
                 : "Off: games start on this screen, the companion is on the other one. Tap to swap, for a clip-on top screen. Takes effect at the next game start.");
@@ -324,7 +370,11 @@ public final class LibrarySettings {
         }
     }
 
-    /** The picked document → files/keys/prod.keys (through the content resolver: no path needed), then the importer's check when it is in the build */
+    /**
+     * The picked document → files/keys/prod.keys (through the content resolver: no path needed). With the importer in the build, the file is checked beside the
+     * keys in the app first and takes their place only when the importer accepts it: a wrong file (not a prod.keys) changes nothing, and the keys the app had
+     * are loaded again (the importer's check of the wrong file replaced them in the importer). Before, the wrong file took their place and builds failed
+     */
     private static void copyKeys(Activity a, Uri u) {
         File out = PeanutsPrefs.keysFile(a);
         out.getParentFile().mkdirs();
@@ -333,20 +383,35 @@ public final class LibrarySettings {
             if (in == null) throw new IOException("the picker gave no file");
             byte[] buf = new byte[65536]; int n; long total = 0;
             while ((n = in.read(buf)) > 0) { o.write(buf, 0, n); total += n; if (total > 1 << 20) throw new IOException("that file is too large for a prod.keys"); }
-        } catch (IOException e) { tmp.delete(); error(a, "Could not copy the keys: " + e.getMessage()); return; }
-        if (!tmp.renameTo(out)) { tmp.delete(); error(a, "Could not place the keys in " + out); return; }
+        } catch (IOException e) { tmp.delete(); keysRefused(a, "keys: " + e.getMessage()); return; }
         ImporterPort imp = ImporterPort.get();
-        if (imp.available()) {
-            new Thread(() -> {
-                int r = imp.keys(out.getPath());
-                String err = imp.lastError();
-                UI.post(() -> {
-                    if (r != 0) error(a, "The importer does not accept these keys: " + err + "\nThe file is kept; pick another to replace it.");
-                    else { Haptics.play(a.getWindow().getDecorView(), Haptics.Word.CLICK); Toast.makeText(a, "Keys loaded", Toast.LENGTH_LONG).show(); }
-                    keysLanded(a);
-                });
-            }, "peanuts-keys").start();
-        } else keysLanded(a);
+        if (!imp.available()) {
+            if (!tmp.renameTo(out)) { tmp.delete(); error(a, "Could not place the keys in " + out); return; }
+            keysLanded(a);
+            return;
+        }
+        new Thread(() -> {
+            int r = imp.keys(tmp.getPath());
+            String err = imp.lastError();
+            boolean placed = r == 0 && tmp.renameTo(out);
+            if (!placed) {
+                tmp.delete();
+                ImporterPort.Holder.KEYS_OK = false;   // the importer holds the wrong file's keys now: the app's own again, when it has them
+                ImporterPort.ensureKeys(a);
+            } else ImporterPort.Holder.KEYS_OK = true;
+            UI.post(() -> {
+                if (!placed) { keysRefused(a, "keys refused by the importer: " + err); return; }
+                Haptics.play(a.getWindow().getDecorView(), Haptics.Word.CLICK);
+                Toast.makeText(a, "Keys loaded", Toast.LENGTH_LONG).show();
+                keysLanded(a);
+            });
+        }, "peanuts-keys").start();
+    }
+
+    /** A picked file that is not a prod.keys the app can read: nothing changed, and a dialog says so */
+    private static void keysRefused(Activity a, String why) {
+        android.util.Log.w("peanuts", why);
+        error(a, "That file is not a prod.keys the app can read. Your keys were not changed. Pick the prod.keys from your own console, the same version as your firmware.");
     }
 
     private static void keysLanded(Activity a) {
