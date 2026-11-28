@@ -54,6 +54,10 @@ public final class HomeViewsJvmTest {
         check("never tiny", HomeViews.bigCover(ROW, 800, 200, false, 66), 96);
         check("Carousel upright", HomeViews.bigCover(CAROUSEL, 371, 891, true, 0), 297);
         check("small beside it", HomeViews.smallCover(ROW, 214), 143);
+        // once the stage is laid out: its room decides, within a share of the width and a least size
+        check("the stage's room", HomeViews.stageCover(420, 560, 252), 420);
+        check("a wide stage: the width's share", HomeViews.stageCover(900, 560, 252), 560);
+        check("a cramped window: the least size, the page may scroll then", HomeViews.stageCover(120, 560, 252), 252);
 
         // the strip's places
         check("chosen: large", HomeViews.size(0, 200, 100), 200.0);

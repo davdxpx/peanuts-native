@@ -172,7 +172,9 @@ public final class Library {
     private HomeShelf shelf;             // Row's and Carousel's strip, null in the other views
     private List<Cover> shelfCovers = Collections.emptyList();
     private LinearLayout facts;          // the chosen game's facts at the large cover
-    private View tint;                   // Carousel: the page tinted with the chosen cover's colour (in the page's frame, under the column)
+    private LinearLayout stage;          // Row and Carousel: the strip and its facts, between the tabs and the key bar (stageBox)
+    private LinearLayout keyBar;         // Row and Carousel on a wide screen with a controller: what A and Y do, at the bottom as on a console's home
+    private View tint;                   // Row and Carousel: the page tinted with the chosen cover's colour (in the page's frame, under the column)
     private int tintColor;
     // ---- What a rebuild keeps (the grid is torn down and built again by every render that changes something) ----
     private String shown;   // the signature of what the box shows now (see render); null: build it again whatever it would be
@@ -1227,7 +1229,8 @@ public final class Library {
         lostKey = null; restoreKey = null;   // the removal above is not a focus lost to restore at the next rebuild
         buildStatus = null; buildBody = null; buildPct = null; buildBar = null; buildGoOn = null; coverPill = null; coverMark = null; coverWords = null; factsBuild = null;
         firstCover = null;
-        shelf = null; shelfCovers = Collections.emptyList(); facts = null;
+        shelf = null; shelfCovers = Collections.emptyList(); facts = null; stage = null; keyBar = null;
+        stageBox(false);   // shelf() takes the window's height for Row and Carousel again
         HomeDock.nameBar(frame(), null, null, null);
         if (ondeviceCard != null && ondeviceCard.getParent() instanceof ViewGroup) ((ViewGroup) ondeviceCard.getParent()).removeView(ondeviceCard);
         shown = sig;
@@ -1287,7 +1290,7 @@ public final class Library {
         if (note != null && !hadNote) Motion.fadeIn(note);
         hadNote = note != null;
         int firstRow = box.getChildCount();   // the grid's first row in the box (Motion.enterRows)
-        if (filter == BUILDING || view != HomeViews.CAROUSEL || show.isEmpty()) untint();
+        if (filter == BUILDING || !HomeViews.shelf(view) || show.isEmpty()) untint();
 
         // the Building filter: the full cards, two per row
         if (filter == BUILDING) {
@@ -1978,7 +1981,7 @@ public final class Library {
      */
     private void shelf(List<Row> show) {
         if (show.isEmpty()) return;
-        boolean carousel = view == HomeViews.CAROUSEL, upright = heightDp() > widthDp(), beside = !dual && !upright && !carousel;
+        boolean carousel = view == HomeViews.CAROUSEL, upright = heightDp() > widthDp(), beside = !upright && !carousel;   // Row on a wide screen: the name over the small covers
         int content = Math.min(widthDp(), 900) - 40;
         int big = HomeViews.bigCover(view, content, heightDp(), upright, HomeViews.below(view, dual)), small = Math.round(smallFor(PUi.dp(a, big), beside) / a.getResources().getDisplayMetrics().density);
         List<Cover> ks = new ArrayList<>();
@@ -2002,7 +2005,7 @@ public final class Library {
                 chosenId = k.r.id();
                 fillFacts(k);
                 if (made[0].isFocused() || byUser) bottom(k.r, k.tap, k.hold);
-                if (carousel) tint(k.r);
+                tint(k.r);
             }
             @Override public void tap(int i) {
                 if (i < 0 || i >= ks.size()) return;
@@ -2030,6 +2033,14 @@ public final class Library {
         });
         facts = new LinearLayout(a);
         facts.setOrientation(LinearLayout.VERTICAL);
+        stageBox(true);
+        stage = new LinearLayout(a);   // the strip and its facts in the middle of the room the tabs and the key bar leave
+        stage.setOrientation(LinearLayout.VERTICAL);
+        stage.setGravity(Gravity.CENTER_VERTICAL);
+        stage.setClipChildren(false);
+        LinearLayout.LayoutParams stl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
+        if (box.getChildCount() > 0) stl.topMargin = PUi.dp(a, 8);
+        box.addView(stage, stl);
         if (beside) {
             FrameLayout f = new FrameLayout(a);
             f.setClipChildren(false);
@@ -2037,40 +2048,47 @@ public final class Library {
             FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(PUi.dp(a, 48), PUi.dp(a, big - small - 10)));
             lp.leftMargin = PUi.dp(a, big + 18);
             f.addView(facts, lp);
-            PUi.add(box, f, 14);
+            PUi.add(stage, f, 0);
             factsKeys = PUi.row(a);
-            PUi.add(box, factsKeys, 10);
+            PUi.add(stage, factsKeys, 10);
         } else {
-            PUi.add(box, sh, carousel ? 18 : 14);
-            PUi.add(box, facts, 12);
+            PUi.add(stage, sh, 0);
+            PUi.add(stage, facts, 12);
             factsKeys = facts;
+        }
+        if (!docked() && Pads.connected(a)) {   // a wide screen with a controller: what the keys do, at the bottom, as a console's home says it
+            keyBar = new LinearLayout(a);
+            keyBar.setOrientation(LinearLayout.HORIZONTAL);
+            keyBar.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
+            keyBar.setMinimumHeight(PUi.dp(a, 40));
+            keyBar.setBackground(keyBarLine());
+            LinearLayout.LayoutParams klp = PUi.fill();
+            klp.topMargin = PUi.dp(a, 8);
+            box.addView(keyBar, klp);
         }
         unclip(sh);
         fillFacts(ks.get(at));
-        if (carousel) tint(show.get(at));
-        if (!upright) fit(sh, view, beside, Math.round(content * (carousel ? 0.30f : 0.31f)));
+        tint(show.get(at));
+        fit(sh, view, beside, upright ? big : Math.round(content * (carousel ? 0.34f : 0.36f)));
     }
 
     /**
-     * A wide screen: once laid out, the large cover takes the room the page really leaves between the tabs and its bottom edge (a status bar, a navigation
-     * bar, the header's height and large type all differ), less what stands under it, so the name and the buttons are in sight without scrolling. HomeViews
-     * guessed it first; the strip is laid out again only when the guess was off by more than a hair
+     * Once laid out, the large cover takes the stage's height (the room the window leaves between the tabs and the key bar: a status bar, a navigation
+     * bar, the header's height and large type all differ), less what stands under it, up to widest; HomeViews guessed it first, and the strip is laid out
+     * again only when the guess was off by more than a hair. Nothing stands out of the window, so the page has nothing to scroll and a focus moves nothing
      */
     private void fit(HomeShelf sh, int forView, boolean beside, int widest) {
+        LinearLayout st = stage;
         android.view.ViewTreeObserver vto = sh.getViewTreeObserver();   // the window's, while the strip is attached: removed from it, not from a detached strip's own
         vto.addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
             @Override public void onGlobalLayout() {
                 if (vto.isAlive()) vto.removeOnGlobalLayoutListener(this);
+                if (shelf != sh || stage != st || st == null || view != forView || facts == null || sh.count() == 0 || st.getHeight() == 0) return;
+                int under = beside ? (factsKeys == null || factsKeys.getChildCount() == 0 ? 0 : factsKeys.getHeight() + PUi.dp(a, 10)) : facts.getHeight() + PUi.dp(a, 12);
+                int room = st.getHeight() - under - PUi.dp(a, 12);   // a little air above and below the strip (its focus frame grows into it)
+                int big = HomeViews.stageCover(room, PUi.dp(a, widest), PUi.dp(a, 96));
                 android.widget.ScrollView pg = page();
-                if (shelf != sh || pg == null || view != forView || facts == null || sh.count() == 0) return;
-                int[] p = new int[2], s = new int[2];
-                pg.getLocationInWindow(p);
-                sh.getLocationInWindow(s);
-                int navBar = Math.max(0, pg.getPaddingBottom() - PUi.dp(a, 24));   // Ui.page: the navigation bar's inset and 24 dp under the last row
-                int top = s[1] - p[1] + pg.getScrollY();   // the strip's top in the page, as it is at the page's top
-                int under = beside ? (factsKeys == null ? 0 : factsKeys.getHeight() + PUi.dp(a, 10)) : facts.getHeight() + PUi.dp(a, 12);
-                int room = pg.getHeight() - navBar - top - under - PUi.dp(a, 10);
-                int big = Math.max(PUi.dp(a, 96), Math.min(PUi.dp(a, widest), room));
+                if (pg != null && pg.getScrollY() != 0) pg.scrollTo(0, 0);   // a focus before this layout may have moved it
                 if (Math.abs(big - sh.getHeight()) <= PUi.dp(a, 4)) return;
                 int small = smallFor(big, beside);
                 sh.resize(big, small);
@@ -2082,6 +2100,58 @@ public final class Library {
                 }
             }
         });
+    }
+
+    /**
+     * Row and Carousel hold still, as a console's home does: Home's box takes exactly the room upstream's page leaves under the header (the page fills
+     * its window), the stage in its middle grows into it and the key bar sits at its bottom, so nothing is left to scroll and a focus never pushes the
+     * header off. Every other view gives the box back its own height
+     */
+    private void stageBox(boolean on) {
+        if (box == null || !(box.getLayoutParams() instanceof LinearLayout.LayoutParams)) return;
+        android.widget.ScrollView pg = page();
+        if (pg != null && !docked()) {   // a wide screen: the page stays at its top (a rounding's pixel, a swipe on the strip); upright the dock follows the scroll (HomeDock.follow)
+            if (on) { pg.setOnScrollChangeListener((v, x, y, ox, oy) -> { if (y != 0) v.scrollTo(0, 0); }); pg.scrollTo(0, 0); }
+            else pg.setOnScrollChangeListener(null);
+        }
+        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) box.getLayoutParams();
+        int h = on ? 0 : ViewGroup.LayoutParams.WRAP_CONTENT;
+        float w = on ? 1f : 0f;
+        if (lp.height == h && lp.weight == w) return;
+        lp.height = h;
+        lp.weight = w;
+        box.setLayoutParams(lp);
+    }
+
+    /** The key bar's hairline at its top, across the page as a console's footer */
+    private Drawable keyBarLine() {
+        int c = (PUi.col(a, R.color.bn_text_2) & 0x00FFFFFF) | 0x40000000;
+        GradientDrawable line = new GradientDrawable();
+        line.setColor(c);
+        android.graphics.drawable.LayerDrawable d = new android.graphics.drawable.LayerDrawable(new Drawable[] {line});
+        d.setLayerGravity(0, Gravity.TOP | Gravity.FILL_HORIZONTAL);
+        d.setLayerHeight(0, Math.max(1, PUi.dp(a, 1)));
+        return d;
+    }
+
+    /** The key bar: a key's glyph and its word, the way a console's footer names them; a finger can tap it too */
+    private void keyHint(String key, String word, Runnable r, boolean heavy) {
+        if (keyBar == null || word == null || r == null) return;
+        LinearLayout h = PUi.row(a);
+        h.setGravity(Gravity.CENTER_VERTICAL);
+        h.setPadding(PUi.dp(a, 10), PUi.dp(a, 6), PUi.dp(a, 10), PUi.dp(a, 6));
+        ImageView g = new ImageView(a);
+        g.setImageDrawable(BottomScreen.keyGlyph(a, key, 22));
+        h.addView(g, new LinearLayout.LayoutParams(PUi.dp(a, 22), PUi.dp(a, 22)));
+        TextView t = PUi.text(a, word, 15, R.color.bn_text, 600);
+        t.setSingleLine(true);
+        LinearLayout.LayoutParams tl = PUi.wrap();
+        tl.leftMargin = PUi.dp(a, 8);
+        h.addView(t, tl);
+        h.setOnClickListener(v -> { Haptics.play(v, heavy ? Haptics.Word.HEAVY : Haptics.Word.CLICK); r.run(); });
+        h.setFocusable(false);   // the strip has the controller: these are its keys
+        h.setContentDescription(word);
+        keyBar.addView(h, PUi.wrap());
     }
 
     /** The strip's covers show to the window's edges: its parents up to the page's scroll view do not cut them at the gutter */
@@ -2104,8 +2174,15 @@ public final class Library {
         boolean carousel = view == HomeViews.CAROUSEL, upright = heightDp() > widthDp();
         int along = carousel ? Gravity.CENTER_HORIZONTAL : Gravity.START;
         facts.setGravity(along);
+        String p = k.primaryLabel(), q = k.secondLabel();
+        Runnable primary = k.tap, second = k.secondAction();
+        if (keyBar != null) {   // the console's footer: what A and Y do for this game
+            keyBar.removeAllViews();
+            keyHint("A", p, primary, k.plays);
+            keyHint("Y", q, second, false);
+        }
         TextView n = PUi.text(a, k.name, upright ? 24 : dual ? 18 : 21, R.color.bn_text, 800);
-        n.setMaxLines(2);
+        n.setMaxLines(upright ? 2 : 1);   // a wide screen's stage keeps its height whatever the name
         n.setEllipsize(TextUtils.TruncateAt.END);
         n.setGravity(along);
         n.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);   // the strip says it
@@ -2157,8 +2234,6 @@ public final class Library {
             }
         }
 
-        String p = k.primaryLabel(), q = k.secondLabel();
-        Runnable primary = k.tap, second = k.secondAction();
         if (p == null && q == null) return;
         if (upright) {   // a phone upright: Play and Game page under the facts, as large buttons
             View pb = null, qb = null;
@@ -2176,8 +2251,9 @@ public final class Library {
             } else facts.addView(pb != null ? pb : qb, blp);
             return;
         }
-        // a wide screen on its own: A and Y with their words (the controller's keys when one is there), each tappable too; under the large cover in Row
-        // (its facts stand beside it), on the state's line in Carousel
+        // a wide screen on its own without a controller: Play and Game page as buttons, under the large cover in Row (its facts stand beside it), on the
+        // state's line in Carousel; with a controller the key bar says them
+        if (keyBar != null) return;
         boolean pad = Pads.connected(a);
         LinearLayout keys = factsKeys != null && factsKeys != facts ? factsKeys : line;
         LinearLayout row = keys;

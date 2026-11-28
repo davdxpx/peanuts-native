@@ -71,6 +71,12 @@ final class HomeViews {
         return view == CAROUSEL ? 88 : 54;
     }
 
+    /**
+     * The large cover once the stage is laid out (Library.fit), in px: the stage's room less what stands under the cover, no larger than widest (a share of
+     * the width) and no smaller than least; so the strip, its facts and the key bar always fit the window and the page never scrolls
+     */
+    static int stageCover(int roomPx, int widestPx, int leastPx) { return Math.max(leastPx, Math.min(widestPx, roomPx)); }
+
     /** The smaller covers beside it */
     static int smallCover(int view, int big) { return Math.round(big * (view == CAROUSEL ? 0.69f : 0.67f)); }
 
