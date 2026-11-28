@@ -104,7 +104,7 @@ public final class InGamePanel {
             @Override public void onActivityDestroyed(Activity x) { if (x == a && panelOf == panel) closeBottom(true); }   // not after a newer screen attached
         });
         dev.peanuts.ingame.BottomMenu.opener = () -> { if (bottomMode(a)) openBottom(a, true, false); };
-        // amiibo (#582): the stand watched while the game is in front; its card and the quick menu's amiibo tab (dev.peanuts.amiibo.AmiiboWatch)
+        // PEANUTS begin: amiibo (#582): the stand watched while the game is in front; its card and the quick menu's amiibo tab (dev.peanuts.amiibo.AmiiboWatch)
         dev.peanuts.amiibo.AmiiboWatch.attach(a, root, new dev.peanuts.amiibo.AmiiboWatch.Host() {
             @Override public boolean menuOpen() { SidePanel p = panel(a); return one() != null || p != null && p.isOpen() || menu != null && menu.isOpen(); }
             @Override public void openTab() {
@@ -120,6 +120,7 @@ public final class InGamePanel {
             @Override public int[] keys() { return InGamePanel.keys(a); }
             @Override public void lit(boolean on) { Rail.lit(on ? dev.peanuts.amiibo.AmiiboTab.NAME : null); }
         });
+        // PEANUTS end
         root.addView(menu, root.indexOfChild(panel) + 1, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         // The cover (the launcher's copy of the game's icon) and the version, read off the main thread
@@ -296,7 +297,7 @@ public final class InGamePanel {
      * (Back cancels it)
      */
     static boolean backKey(Activity a, KeyEvent e, boolean covered) {
-        if (dev.peanuts.amiibo.AmiiboWatch.key(e)) return true;   // the amiibo card or show has the controller while it is up
+        if (dev.peanuts.amiibo.AmiiboWatch.key(e)) return true;   // PEANUTS: the amiibo card or show has the controller while it is up (#582)
         if (!controllerBack(e)) return false;
         if (e.getAction() == KeyEvent.ACTION_DOWN) {
             if (e.getRepeatCount() > 0) return backDown;
@@ -405,7 +406,7 @@ public final class InGamePanel {
 
     /** GameActivity.dispatchKeyEvent: while the game menu is open it has the controller (D-pad and A, B); no pad key reaches the game. True when taken */
     static boolean menuKey(Activity a, KeyEvent e, boolean gamepad) {
-        if (gamepad && dev.peanuts.amiibo.AmiiboWatch.key(e)) return true;   // the amiibo card or show has the controller while it is up
+        if (gamepad && dev.peanuts.amiibo.AmiiboWatch.key(e)) return true;   // PEANUTS: the amiibo card or show has the controller while it is up (#582)
         int k = e.getKeyCode();
         boolean down = e.getAction() == KeyEvent.ACTION_DOWN, up = e.getAction() == KeyEvent.ACTION_UP;
         SidePanel shown = shownPanel(a);

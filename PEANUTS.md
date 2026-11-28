@@ -137,6 +137,10 @@ Banana Native ships several releases a day, so this fork is kept as a **thin ove
      (`InGamePanel.openRight`, `openBottom`); `open()` starts with `InGamePanel.instead` (one menu at the right: the swipe and the controls' button open it).
      (2026-11-24, the quick menu button) GameActivity: `dispatchKeyEvent` hands the player's own button to `InGamePanel.quickKey` (dev.peanuts.ui.QuickButton).
      `peanuts/UPSTREAM-EDITS.md` "In-game menus".
+   - `android/app/src/main/java/dev/nxnative/android/InGamePanel.java`, `ModsPanel.java` — (2026-11-24, amiibo Part C, GitHub issue #582) InGamePanel:
+     `attach` starts `dev.peanuts.amiibo.AmiiboWatch` (one marked block; it starts nothing in a game amiibo is off for), and `backKey` and `menuKey` ask
+     `AmiiboWatch.key` first (the amiibo card or show has the controller while it is up). ModsPanel: the amiibo tab (`dev.peanuts.amiibo.AmiiboTab`) in
+     `opening`'s names, the tab to open on, its `build` line, its `host()` and the controller's X on it. `peanuts/UPSTREAM-EDITS.md` "amiibo Part C".
    - `GameActivity.java`, `MainActivity.java`, `SidePanel.java`, `Lsfg.java` — (2026-11-26, Smooth Experience
      and Developer view, `dev.peanuts.smooth`; `peanuts/tests/test_smooth_experience.py` lists every line) Smooth Experience (Settings › App › Extras, off by
      default, its parts right under it while it is on): `start()`'s first line puts up `dev.peanuts.ui.StartCover` (the game's cover and a breathing peanut in

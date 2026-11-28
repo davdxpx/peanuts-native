@@ -3751,7 +3751,7 @@ the game is in front.
 | File | Hunks | Change | Marker |
 |---|---|---|---|
 | `android/app/src/main/java/dev/nxnative/android/ModsPanel.java` | 5 | the amiibo tab in `opening`'s names; `openOn` around the tab to open on; its `build` line; `host()` for it; `padKey`: the controller's X (Take off) on the amiibo tab | `// PEANUTS` |
-| `android/app/src/main/java/dev/nxnative/android/InGamePanel.java` | (Peanuts' own) | `AmiiboWatch.attach` in `attach`; `AmiiboWatch.key` first in `backKey` and `menuKey` | Peanuts' own file |
+| `android/app/src/main/java/dev/nxnative/android/InGamePanel.java` | 3 | `AmiiboWatch.attach` in `attach`; `AmiiboWatch.key` first in `backKey` and `menuKey` (the in-game menus shipped in 0.1.9, so these are marked) | `// PEANUTS` |
 
 Peanuts-owned: `AmiiboTab`, `AmiiboCard`, `AmiiboWatch`, `dev.peanuts.ui.AmiiboShow`, `Rail.lit` and its `amiibo` icon, `PeanutsPrefs.amiiboWhen`,
 `pis_amiibo.xml` (design icons.py, SOLID). Tests: `peanuts/tests/test_amiibo.py` (InGame: the tab's and the watch's wiring with their markers, the watch only while
