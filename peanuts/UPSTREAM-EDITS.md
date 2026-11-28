@@ -3689,9 +3689,10 @@ amiibo placed in advance is found 0.3 s after the game's next search. Areas are 
 answers on now (upstream's open note: nfp and nfc agree). The amiibo settings applets end at once (already registered, nothing to erase or restore).
 `Bridge.amiiboStatus` tells the app whether the game searches and what lies on the stand. The app's side, `dev.peanuts.amiibo`: AmiiboAPI's table
 (MIT) offline (`peanuts/scripts/amiibo-db.py` makes `android/app/src/peanuts/res/raw/amiibo_db.tsv`), the player's own amiibo (`files/amiibo/own`), imports
-of .bin files, folders and ZIP packs (ID and UID only, no keys), pictures loaded on demand, and the adb control's `game do=amiibo`. The pictures come
-from AmiiboAPI's images only once the player turns them on (`AmiiboSwitch.pictures`, off by default, 2026-11-26: igawa6's review of #711 asked for no new
-outside host by default; Part B has the row); off, nothing is fetched and Peanuts' own card stands in. See `peanuts/docs/AMIIBO.md`.
+of .bin files, folders and ZIP packs (ID and UID only, no keys), pictures loaded on demand, and the adb control's `game do=amiibo`. The pictures are
+downloaded from AmiiboAPI's images on GitHub only once the player turns them on, and only while amiibo is on in Settings or for a game
+(`AmiiboSwitch.picturesOn`; the pictures off by default, 2026-11-26 and 2026-11-28: igawa6's review of #711, strictly opt-in; Part B has the row);
+otherwise nothing is downloaded and Peanuts' own card stands in. See `peanuts/docs/AMIIBO.md`.
 
 | File | Hunks | Change | Marker |
 |---|---|---|---|
@@ -3707,7 +3708,7 @@ Peanuts-owned: `dm/peanuts/peanuts_amiibo.c`, `dev.peanuts.amiibo` (`AmiiboDb`, 
 `amiibo_db.tsv`. Tests: `peanuts/tests/test_amiibo_host.py` (the stand in C with made-up IDs, off without `PN_AMIIBO=1`, and that its symbols are
 the upstream block's, which stays whole),
 `peanuts/tests/test_amiibo.py` (`AmiiboJvmTest`: the table, dumps made in the test, imports, the store, the host's description; no keys or dumps in the
-repository), `peanuts/tests/test_ctl.py`. `upstream-update.sh --check` counts `android/app/src/jvmtest/java/dev/peanuts/` (the JVM tests of
+repository; `AmiiboPicturesJvmTest`: no connection and no cache folder while the pictures or amiibo are off), `peanuts/tests/test_ctl.py`. `upstream-update.sh --check` counts `android/app/src/jvmtest/java/dev/peanuts/` (the JVM tests of
 Peanuts' own classes) as Peanuts-owned.
 
 ### amiibo Part B: a game's amiibo on its page (2026-11-24, GitHub issue #582, on Part A)
