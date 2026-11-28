@@ -108,6 +108,15 @@ public final class PackService extends Service {
     private volatile long heatSince;   // when the heat pause began, or the status last fell below SEVERE in it (elapsedRealtime): PackPolicy.COOL_MS
     private int heatPauses;   // heat pauses in this run of the job (Job.heatPauses: Go on anyway first from PackPolicy.HOT_AGAIN_AT)
     private final Runnable heatRecheck = this::policy;   // the cool-down ends without a thermal change to call policy()
+    // A step asked to hold is held only once its tool says so (HELD_LINE, pack_android.py: its worker group stopped, or the rewrite in this process waiting at
+    // a progress line): until then it runs (a rewrite in this process up to its next progress line), and a tool that never holds (identify, pack) runs to
+    // its step's end. job.json says paused from that line on, not before (holdTaken), and at CRITICAL or worse a step not held by HOLD_GRACE_MS is stopped
+    // (policy): it runs again when the phone has cooled down. Found in review: the card said paused while the step ran on into CRITICAL heat
+    private final Object holdLock = new Object();
+    private volatile boolean holdSeen;   // the tool said it is held (HELD_LINE) since the hold was asked
+    private volatile long heldAt;   // when the hold was asked (elapsedRealtime)
+    static final String HELD_LINE = "held where it is";   // the start of pack_android.py's line (wait_while_held, _rewrite_worker_once), trimmed
+    static final long HOLD_GRACE_MS = 3_000;   // a worker group is stopped within 0.5 s of the hold file
     // PEANUTS end
     private int batteryPct = 100, thermal;
     private boolean charging = true;
@@ -137,6 +146,8 @@ public final class PackService extends Service {
     @Override public void onDestroy() {
         unregisterReceiver(batteryReceiver);
         pm.removeThermalStatusListener(thermalListener);
+        main.removeCallbacks(heatRecheck);   // PEANUTS: no cool-down check on a service that is gone (#803)
+        unhold();   // PEANUTS: a held worker group is not left stopped (SIGSTOP) behind a service that is gone: the hold file goes, the tool goes on or takes the stop
         if (wake.isHeld()) wake.release();
         super.onDestroy();
     }
@@ -221,7 +232,8 @@ public final class PackService extends Service {
         }
         // PEANUTS end
         // A sticky restart (no intent: the process was killed) resumes only a job that was running; a start resumes one that is not done
-        boolean go = check || !checkAsked && j != null && (intent == null ? "running".equals(j.state()) : !"done".equals(j.state()) || j.apkChanged());   // PEANUTS: check ||, !checkAsked: a check's start never runs a job (an app update's job waits for the user)
+        // PEANUTS: a sticky restart also resumes a job the policy paused (heat, battery: PackPolicy.resumesAfterRestart), which waits in the pause again
+        boolean go = check || !checkAsked && j != null && (intent == null ? PackPolicy.resumesAfterRestart(j.state(), j.reason()) : !"done".equals(j.state()) || j.apkChanged());   // PEANUTS: check ||, !checkAsked: a check's start never runs a job (an app update's job waits for the user)
         if (go && intent == null) stepLog(j, "going on after Android ended the job's process (a sticky restart; " + readings() + ")");
         if (!go && (worker == null || !worker.isAlive())) {
             // startForegroundService must be answered by startForeground even when there is nothing to do
@@ -482,15 +494,23 @@ public final class PackService extends Service {
             if (working) stepLog(j, "going on after the " + was + " pause: " + readings() + (held ? " (the step goes on from where it was held)" : ""));   // PEANUTS: #803
             else Log.i(TAG, "going on: " + readings());
             // PEANUTS begin: a held step goes on where it is (#803)
-            if (held && j != null) {
-                unhold();
-                j.state("running", null, null);
-                save(j, true);
+            boolean wasHeld;
+            synchronized (holdLock) {
+                wasHeld = held && j != null;
+                if (wasHeld) { unhold(); j.state("running", null, null); }
             }
+            if (wasHeld) save(j, true);
             // PEANUTS end
             synchronized (lock) { lock.notifyAll(); }
         }
-        // PEANUTS begin: the cool-down at MODERATE ends with no thermal change to call this again (#803)
+        // PEANUTS begin: at CRITICAL or worse a step asked to hold that has not said it is held is stopped (holdLock's note); a held one uses no CPU and stays held
+        if ("thermal".equals(r) && held && !holdSeen && inTool && thermal >= PackPolicy.CRITICAL && SystemClock.elapsedRealtime() - heldAt >= HOLD_GRACE_MS) {
+            stepLog(j, "heat " + PackPolicy.thermalName(thermal) + ": the step did not hold where it is (its tool cannot hold, or has not reached a point where it can): "
+                    + "it is stopped and runs again when the phone has cooled down; " + readings());
+            unhold();
+            engine.interrupt();
+        }
+        // the cool-down at MODERATE ends with no thermal change to call this again (#803)
         main.removeCallbacks(heatRecheck);
         if ("thermal".equals(r)) main.postDelayed(heatRecheck, 15_000);
         // PEANUTS end
@@ -510,15 +530,25 @@ public final class PackService extends Service {
             stepLog(j, "the step cannot be held (" + holdFile() + ": " + e.getMessage() + "): it finishes, and the build waits before the next step");
             return;
         }
-        held = true;
-        stepLog(j, "the step is held where it is (not ended): it goes on from there when the phone has cooled down");
-        j.state("paused", "thermal", null);
-        j.reasonDetail(PackPolicy.plainReadings(batteryPct, charging, thermal), PackPolicy.canOverride("thermal", thermal));
+        synchronized (holdLock) { held = true; holdSeen = false; heldAt = SystemClock.elapsedRealtime(); }
+        stepLog(j, "the step is asked to hold where it is (not ended): it goes on from there when the phone has cooled down; a tool that cannot hold finishes its step first");
+        save(j, true);   // its heat pause count; job.json says paused once the tool says it is held (holdTaken)
+    }
+
+    /** The tool said it is held (HELD_LINE, Tail): job.json says paused now, for the card and the notification, and the watchdog takes it for a pause */
+    private void holdTaken(Job j) {
+        synchronized (holdLock) {
+            if (!held || holdSeen) return;
+            holdSeen = true;
+            if (!"thermal".equals(autoReason)) return;
+            j.state("paused", "thermal", null);
+            j.reasonDetail(PackPolicy.plainReadings(batteryPct, charging, thermal), PackPolicy.canOverride("thermal", thermal));
+        }
         save(j, true);
     }
 
     private void unhold() {
-        held = false;
+        synchronized (holdLock) { held = false; holdSeen = false; }
         if (holdFile().exists() && !holdFile().delete()) Log.w(TAG, "the hold file could not be deleted: " + holdFile());
     }
     // PEANUTS end
@@ -530,6 +560,59 @@ public final class PackService extends Service {
      * so no other game's split can resume from them before a job of that game starts again (after Forget, or a job whose folder went: a few hundred MB).
      * Decided from the job that runs, read from its job.json, never from the remembered path: shared storage that is briefly unreadable deletes nothing.
      */
+    // PEANUTS begin: the rewrite beside the split and the shaders (RewriteBeside, issue #120)
+    /** The pid file of a job's rewrite beside, in its ondevice folder */
+    private static File besidePid(Job j) { return new File(j.dir(), "rewrite-beside.pid"); }
+
+    /** Job.next(), but while the rewrite runs beside: the next step after it that is to do, the pack excepted (it needs the rewritten modules); none: the rewrite (joinBeside) */
+    private int nextStep(Job j) {
+        int i = j.next();
+        if (beside == null || i < 0 || !Job.STEPS[i].equals("rewrite")) return i;
+        for (int k = i + 1; k < Job.STEPS.length; k++) if (!Job.STEPS[k].equals("pack") && !"done".equals(j.stepState(Job.STEPS[k]))) return k;
+        return i;
+    }
+
+    /** Waits for the rewrite beside: null when it ended well (the loop marks it done), its failure as step() gives one, or "interrupted" on a stop or pause */
+    private String joinBeside(Job j) throws IOException {
+        RewriteBeside b = beside;
+        stepLog(j, "rewrite: the split and the shaders are done, waiting for the rewrite beside them");
+        int code;
+        try {
+            code = b.waitFor(() -> stopReason != null || autoReason != null);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            code = -1;
+        }
+        if (code < 0) return "interrupted";   // still running: the loop waits for the policy, or breaks (stopBeside)
+        beside = null;
+        if (besideTail != null) besideTail.finish();
+        Tail tail = besideTail;
+        besideTail = null;
+        long end = b.ended > 0 ? b.ended : SystemClock.elapsedRealtime(), sec = (end - b.began) / 1000, waited = (SystemClock.elapsedRealtime() - end) / 1000;
+        stepLog(j, "rewrite: the tool ended with code " + code + " after " + sec / 60 + " min " + sec % 60 + " s, beside the split and the shaders" + (waited > 1 ? " (" + waited / 60 + " min " + waited % 60 + " s before they were done)" : ""));
+        try { Files.deleteIfExists(b.pidFile.toPath()); } catch (IOException ignored) { }
+        if (code == 0) return null;
+        String why = tail != null ? tail.reason() : null;
+        failure = PrepareText.toolStopped(Job.STEP_TEXT[1], code, why, b.log.getPath());
+        return "rewrite stopped with code " + code + (why != null ? ": " + why.replaceFirst("^\\[RED\\] ", "") : "") + " (log: " + b.log + ")";
+    }
+
+    /** Ends a rewrite beside that is still running (the job stopped, paused or failed first): it runs again at the next start */
+    private void stopBeside(Job j) {
+        RewriteBeside b = beside;
+        if (b == null) return;
+        beside = null;
+        b.stop();
+        if (besideTail != null) besideTail.finish();
+        besideTail = null;
+        if (!"done".equals(j.stepState("rewrite"))) {
+            j.stepState("rewrite", "pending");
+            try { save(j, true); } catch (Exception e) { Log.w(TAG, "save: " + e); }
+        }
+        stepLog(j, "rewrite: the rewrite beside was ended; it runs again at the next start");
+    }
+    // PEANUTS end
+
     private void dropOtherSplitScans(Job j) {
         String keep = j.titleId();
         if (keep.isEmpty()) return;
@@ -565,10 +648,13 @@ public final class PackService extends Service {
             dropMissing(j, "before it goes on");
             j.state("running", null, null);
             save(j, true);
+            RewriteBeside.stopLeftover(besidePid(j));   // PEANUTS: a rewrite an earlier packer process left running
             int i;
-            while ((i = j.next()) >= 0) {
+            while ((i = nextStep(j)) >= 0) {   // PEANUTS: nextStep (the rewrite beside)
                 if (!waitWhileAuto(j)) break;
                 String s = Job.STEPS[i];
+                boolean joining = beside != null && s.equals("rewrite");   // PEANUTS: the rewrite ran beside the split and the shaders: wait for it here, before the pack
+                if (!joining) {   // PEANUTS
                 j.stepState(s, "running");
                 int starts = j.start(s);
                 save(j, true);
@@ -580,8 +666,10 @@ public final class PackService extends Service {
                     save(j, true);
                     break;
                 }
+                }   // PEANUTS: !joining
                 failure = null;
-                String fail = step(j, i);
+                String fail = joining ? joinBeside(j) : step(j, i);   // PEANUTS: joinBeside
+                if (fail == BESIDE) { save(j, true); continue; }   // PEANUTS: the rewrite runs beside; the split goes on (nextStep)
                 j.ended(s);
                 if (stopReason != null) { j.stepState(s, "pending"); break; }
                 // interrupted by the policy (which may have cleared since): wait if it still holds, then run the step again
@@ -623,6 +711,7 @@ public final class PackService extends Service {
             j.fail(PrepareText.crashed(Job.STEP_TEXT[j.current()], String.valueOf(e)));
             save(j, true);
         } finally {
+            stopBeside(j);   // PEANUTS: a job that stopped, paused or failed before the pack does not leave the rewrite running
             if (caches != null) caches.close();   // PEANUTS
             if (wake.isHeld()) wake.release();
             Thread self = Thread.currentThread();   // PEANUTS: the post names the worker that ended (finished)
@@ -755,7 +844,7 @@ public final class PackService extends Service {
                 if (dir != null) dir.mkdirs();
                 Files.write(log.toPath(), new byte[0]);   // a new log for each upgrade; the tool appends to it
                 // the build's settings that make its bytes (the zstd level of a rewritten module: the result must be a full build's byte for byte) and its threads
-                PackEngine.setenv("DMSH_VK_ZSTD_LEVEL", "6");   // as the shaders step (step below)
+                PackEngine.setenv("DMSH_VK_ZSTD_LEVEL", "3");   // as the shaders step (step below)
                 PackEngine.setenv("J", String.valueOf(Math.max(1, Math.min(8, Runtime.getRuntime().availableProcessors()))));
                 PackEngine.setenv("XLATE", "libdmsh_xlate.so");
                 PackEngine.setenv("SPIRV_VAL", "libSPIRV-Tools-shared.so");
@@ -1074,6 +1163,14 @@ public final class PackService extends Service {
             int eq = kv.indexOf('='); PackEngine.setenv(kv.substring(0, eq), kv.substring(eq + 1));
         }
         PackEngine.setenv("DM_UE_MODULES", pack.getPath());
+        PackEngine.setenv("PN_REWRITE_BESIDE_DONE", beside != null ? RewriteBeside.doneFile(besidePid(j)).getPath() : "");   // PEANUTS: the split waits on it before the game's own decoder needs the rewritten modules (rewrite_wait.py, #120)
+        // PEANUTS begin: the split decodes Oodle streams with the open-source ooz decoder (libunoodle.so from dm/third_party/ooz, GPL-3.0-or-later, in a worker process of
+        // DM_UE_HOST's command, as the game's decoder is), which needs no rewritten modules, so it does not wait for the rewrite beside it. Its output counts only when the
+        // split's tables are the profile's; otherwise the split runs again with the game's own decoder, waiting for the rewrite as before (dm/gfx/tools/ooz_split.py, #120).
+        // Empty without the library in the APK or without the worker; env.txt DM_OODLE_OOZ_LIB= (empty) forces the game's own decoder
+        String ooz = pyLib == null ? null : ((dalvik.system.BaseDexClassLoader) getClassLoader()).findLibrary("unoodle");
+        PackEngine.setenv("DM_OODLE_OOZ_LIB", ooz == null ? "" : "libunoodle.so");
+        // PEANUTS end
         PackEngine.setenv("DM_SPLIT_DIRECT", "1");   // a targeted file whose map sources name their containers (#BNSH@ / #BAHS@ / #IDRK@ offsets) is read at those containers only, not whole // PEANUTS
         PackEngine.setenv("DM_PACKER_COMMIT", BuildConfig.NX_COMMIT);   // pack.tsv's packer: no repository on the phone to ask
         PackEngine.setenv("NX_PACK_WORK", od.getPath());
@@ -1102,7 +1199,7 @@ public final class PackService extends Service {
         PackEngine.setenv("SPIRV_VAL", "libSPIRV-Tools-shared.so");
         // a library without every shader is a failed step, never a finished one; with Try anyway (the player's choice, warned that parts may not show) it is written
         PackEngine.setenv("DMSH_VK_REQUIRE_ALL", j.tryAnyway() ? "0" : "1");
-        PackEngine.setenv("DMSH_VK_ZSTD_LEVEL", "6");   // PEANUTS: the library's modules at zstd 6, not 19: 23x faster for a library 19 % larger (vk_android_build.py ZSTD_LEVEL); level 19 was half of the shaders step
+        PackEngine.setenv("DMSH_VK_ZSTD_LEVEL", "3");   // PEANUTS: the library's modules at zstd 3 (level 19 was half of the shaders step; level 6 was still 24 % of the shader workers' CPU on an AYN Thor, 2026-11-28 profile: the phone's _zstd is far slower than a PC's); about 3x faster than 6 for a library about 5 % larger, the same SPIR-V (vk_android_build.py ZSTD_LEVEL)
         PackEngine.setenv("DMSH_VK_XLATE_J", String.valueOf(Math.min(mem.xlate, 4)));   // PEANUTS: BuildMemory (was 2, then Prepare's env.txt line 4)
         //       // two translator calls at once: more threads of one process add little on the phone (android/ONDEVICE.md, The translator on the phone); the env file below can change it
         // worker interpreters (sub-interpreters of this process, each with its own GIL: the Python half no longer runs on one core), one a big or mid core, at most 4
@@ -1122,6 +1219,20 @@ public final class PackService extends Service {
         if (s.equals("shaders") && !checking) { j.shadersMissing(0, 0); j.shadersFailed(0, 0); }   // the step's own count (Tail), not an earlier run's // PEANUTS: shadersFailed; !checking
         Tail tail = new Tail(j, checking ? "check" : s, log);   // PEANUTS: the check's progress goes to a step of its own, not the done shaders step's
         tail.start();
+        // PEANUTS begin: the rewrite beside the split and the shaders (RewriteBesidePlan); a start that fails runs it here as before
+        if (s.equals("rewrite") && RewriteBesidePlan.allowed(checking, engine.simulated(), pyLib, mem.workers, j.memLevel(), j.stepState("split"), j.stepState("shaders"),
+                PackEngine.ENV.get("PN_REWRITE_BESIDE"))) {
+            try {
+                beside = RewriteBeside.start(PackNative.repo(), tool, argv, log, besidePid(j));
+                besideTail = tail;
+                stepLog(j, "rewrite: beside the split and the shaders, in a process of its own (pid " + beside.pid + ")");
+                return BESIDE;
+            } catch (IOException e) {
+                beside = null;
+                stepLog(j, "rewrite: not beside (" + e.getMessage() + "): it runs first");
+            }
+        }
+        // PEANUTS end
         int code;
         unhold();   // PEANUTS: no hold left from a step or a process before (#803)
         inTool = true;
@@ -1162,6 +1273,11 @@ public final class PackService extends Service {
 
     /** The steps that finished in this run of the job (work()): a step whose outputs are already gone again is not run a third time */
     private final java.util.Set<String> ranNow = new java.util.HashSet<>();
+    // PEANUTS begin: the rewrite beside the split and the shaders (RewriteBeside, issue #120): the running process and its log's Tail, or null
+    private static final String BESIDE = new String("beside");   // step()'s answer for a rewrite that went to run beside (compared by identity)
+    private RewriteBeside beside;
+    private Tail besideTail;
+    // PEANUTS end
 
     /** Job.dropMissing with a line in the step's log for each step that runs again; → those steps */
     private List<String> dropMissing(Job j, String when) {
@@ -1448,6 +1564,8 @@ public final class PackService extends Service {
                 } else if (st.find()) {
                     j.stepNote(step, st.group(1).trim());
                     changed = true;
+                } else if (line.startsWith(HELD_LINE)) {   // PEANUTS: the tool is held now (holdTaken, #803)
+                    holdTaken(j);
                 } else if (step.equals("shaders") && (m = BUILT.matcher(line)).find()) {   // PEANUTS: the library's summary line: shaders that did not translate or validate (Try anyway writes the library without them)
                     long of = Long.parseLong(m.group(1));
                     j.shadersFailed(of - Long.parseLong(m.group(2)), of);

@@ -19,10 +19,18 @@ import android.widget.FrameLayout;
  */
 public final class BottomScreen extends Presentation {
     private final View content;
+    private final Runnable touched;
 
-    public BottomScreen(Context game, Display d, View content) {
+    /** touched: a finger went down on the window (the menu is driven by touch again, InGamePanel.keyDriven) */
+    public BottomScreen(Context game, Display d, View content, Runnable touched) {
         super(game, d);
         this.content = content;
+        this.touched = touched;
+    }
+
+    @Override public boolean dispatchTouchEvent(android.view.MotionEvent e) {
+        if (e.getActionMasked() == android.view.MotionEvent.ACTION_DOWN && touched != null) touched.run();
+        return super.dispatchTouchEvent(e);
     }
 
     @Override protected void onCreate(Bundle saved) {

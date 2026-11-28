@@ -20,6 +20,6 @@
         <item name="pnSolidBase">#FFE8EAED</item>
         <item name="pnSolidAccent">#FFFFD54F</item>
     </style>
-    <!-- PanelPolish: a row already moved clear of the focus frame (a view tag) -->
-    <item type="id" name="pn_inset" />
+    <!-- The game page's Cheats row (upstream's strings.xml): the cheats are the quick menu's Cheats tab now (InGamePanel) -->
+    <string name="cheats_on">Cheat list in the quick menu (Cheats tab). Cheated values are stored when the game saves</string>
 </resources>

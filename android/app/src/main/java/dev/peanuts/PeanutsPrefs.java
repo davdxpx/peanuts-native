@@ -204,6 +204,12 @@ public final class PeanutsPrefs {
     /** Settings > Library > Motion: false (default) = the launcher's animations follow the system's animator scale, true = fades and the progress fill only */
     public static boolean motionReduced(Context c) { return of(c).getBoolean("motion_reduced", false); }
     public static void motionReduced(Context c, boolean on) { of(c).edit().putBoolean("motion_reduced", on).apply(); }
+    /** Settings > App > Extras > Smooth Experience (dev.peanuts.smooth.Smooth): the switch, off by default, and each of its items (SmoothItems), on by default.
+     *  commit, not apply: the game's process reads them at its start, which may come right after the change */
+    public static boolean smooth(Context c) { return of(c).getBoolean("smooth", false); }
+    public static void smooth(Context c, boolean on) { of(c).edit().putBoolean("smooth", on).commit(); }
+    public static boolean smoothItem(Context c, String key) { return of(c).getBoolean("smooth_" + key, true); }
+    public static void smoothItem(Context c, String key, boolean on) { of(c).edit().putBoolean("smooth_" + key, on).commit(); }
     /** Settings > Library > Swap screens: false (default) = the game on the built-in screen and the companion on the other display, true = the other way round
      *  (a clip-on top screen that Android lists as the external display, GitHub issue #131). dev.peanuts.Screens applies it */
     public static boolean swapScreens(Context c) { return of(c).getBoolean("swap_screens", false); }

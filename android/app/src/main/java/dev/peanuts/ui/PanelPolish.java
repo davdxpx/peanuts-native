@@ -26,8 +26,9 @@ import android.widget.TextView;
 public final class PanelPolish {
     private PanelPolish() {}
 
-    private static final String DONE = "pn_polish", INSET = "pn_inset";
-    private static final int INSET_KEY = dev.nxnative.android.R.id.pn_inset;
+    private static final String DONE = "pn_polish";
+    // The rows already moved clear of the focus frame: a weak set, not a keyed tag, so this class needs no R (dm/tools/tests/test_android_hud compiles it alone)
+    private static final java.util.Set<View> INSET = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
     private static final int ACCENT = 0xFFFFD54F;   // SidePanel.FOCUS, the selected tab's colour
     private static final int OUTLINE = 0xFF555555;
     private static final int HEAD = 0xFFCDB48C;   // peanut tan: the section heads (dev.peanuts.ingame.Look.TAN)
@@ -203,14 +204,14 @@ public final class PanelPolish {
     /**
      * A focusable row whose text starts at its edge (a switch, a list row such as Preset): SidePanel's focus frame lies on the row's edge and would cover
      * its first letter. The row reaches 10 dp into the rows' side padding at both ends and its content moves 10 dp in, so the text stays under the
-     * headings and the frame keeps clear of it. Only where the parent has that padding (the panel's rows); once a row (its tag)
+     * headings and the frame keeps clear of it. Only where the parent has that padding (the panel's rows); once a row (INSET)
      */
     private static void inset(View v, float dp) {
         int in = Math.round(10 * dp);
-        if (INSET.equals(v.getTag(INSET_KEY)) || !(v.getParent() instanceof ViewGroup) || !(v.getLayoutParams() instanceof LinearLayout.LayoutParams)) return;
+        if (INSET.contains(v) || !(v.getParent() instanceof ViewGroup) || !(v.getLayoutParams() instanceof LinearLayout.LayoutParams)) return;
         ViewGroup p = (ViewGroup) v.getParent();
         if (p.getPaddingLeft() < in || p.getPaddingRight() < in) return;
-        v.setTag(INSET_KEY, INSET);
+        INSET.add(v);
         p.setClipToPadding(false);
         LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) v.getLayoutParams();
         lp.leftMargin -= in;

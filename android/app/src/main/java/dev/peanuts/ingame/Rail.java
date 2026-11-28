@@ -149,7 +149,7 @@ public final class Rail {
         sheet.addView(col, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1));
 
         // Up and down on the rail switch the tab; left from the rows comes back to the selected tab only (the others take no focus then)
-        sheet.getViewTreeObserver().addOnGlobalFocusChangeListener((old, now) -> {
+        Look.focusListener(sheet, (old, now) -> {
             if (now != null && now == gameItem) { focusable(true); if (!onGame) game(); return; }
             int i = items.indexOf(now);
             if (i >= 0) {

@@ -27,8 +27,8 @@
 0100ABF008968000	Pokémon Sword		yes
 01008DB008C2C000	Pokémon Shield		yes
 01007EF00011E000	The Legend of Zelda: Breath of the Wild		yes
-0100F2C0115B6000	The Legend of Zelda: Tears of the Kingdom		no
-0100606026F12000	FINAL FANTASY RESONANCE		no
+0100F2C0115B6000	The Legend of Zelda: Tears of the Kingdom		yes
+0100606026F12000	FINAL FANTASY RESONANCE		yes
 01002DA013484000	The Legend of Zelda: Skyward Sword HD		yes
 01001F5010DFA000	Pokémon Legends: Arceus		no
 010099A00BC1E000	Resident Evil 4	131072	yes
@@ -52,7 +52,7 @@
 010051F0207B2000	Tomodachi Life: Living the Dream		no		intermission88,davdxpx
 010069401ADB8000	Unicorn Overlord		no	0.1.6
 0100DCA0064A6000	Luigi's Mansion 3		no	0.1.6
-0100F43008C44000	Pokémon Legends: Z-A		no	0.1.6
+0100F43008C44000	Pokémon Legends: Z-A		yes	0.1.6
 0100DAE01E4C8000	STORY OF SEASONS: Grand Bazaar		no	0.1.6	intermission88
 01006AE02236C000	Double Dragon Revive		no	0.1.6	tapionallanaire
 01007A2027548000	Trails in the Sky 2nd Chapter		no	0.1.6	tapionallanaire
@@ -67,9 +67,9 @@
 01006000040C2000	Yoshi's Crafted World		no	0.1.7	999sian
 0100DE501433A000	Tetris Effect: Connected		no	0.1.7	intermission88
 0100F4300BF2C000	New Pokémon Snap		no	0.1.7	ssv0225
-010062E01FE0C000	Digimon Story Time Stranger		no	0.1.7	intermission88
+010062E01FE0C000	Digimon Story Time Stranger		yes	0.1.7	intermission88
 0100F7E00C70E000	Hogwarts Legacy		no	0.1.7	tapionallanaire
-010065301A2E0000	Star Ocean The Second Story R		no	0.1.7
+010065301A2E0000	Star Ocean The Second Story R		yes	0.1.7
 010075101EF84000	Stray		no	0.1.8	dnyan007
 01003FC01670C000	13 Sentinels: Aegis Rim		no	0.1.8	intermission88
 01009BF0072D4000	Captain Toad: Treasure Tracker		no	0.1.8	intermission88
@@ -87,3 +87,22 @@
 0100A7C01B792000	Minecraft Dungeons II		no	0.1.8	intermission88
 01003D100E9C6000	The Witcher 3: Wild Hunt — Complete Edition		no	0.1.8
 01003D200BAA2000	Pokémon Mystery Dungeon: Rescue Team DX		no	0.1.8	shamonj03
+01008FE00E2F6000	One Piece: Pirate Warriors 4		no	0.1.9	codetz7
+0100EB100AB42000	FINAL FANTASY XII THE ZODIAC AGE		no	0.1.9	shamonj03
+01000EA014150000	FINAL FANTASY (Pixel Remaster)		no	0.1.9	shamonj03
+0100C5000F294000	Battle Brothers		no	0.1.9	marojiro
+010093C0215B4000	The Hundred Line -Last Defense Academy-		no	0.1.9	buinghia98
+0100A9D01C446000	DRAGON QUEST VII Reimagined		no	0.1.9	tapionallanaire
+01008C0016544000	Sea of Stars		no	0.1.9	Alliance-Sky
+01001BB01E8E2000	FANTASIAN Neo Dimension		no	0.1.9	tapionallanaire
+01004BC0166CC000	CRISIS CORE –FINAL FANTASY VII– REUNION		no	0.1.9	tapionallanaire
+0100ACD0163D0000	Batman: Arkham Knight		no	0.1.9	tapionallanaire
+010057D006492000	OCTOPATH TRAVELER		no	0.1.9	Alliance-Sky
+0100E95004038000	Xenoblade Chronicles 2		no	0.1.10	tapionallanaire
+010074F013262000	Xenoblade Chronicles 3		no	0.1.10	tapionallanaire
+01002E7016C46000	Cult of the Lamb		no	0.1.10	bryan-era24
+01006A800016E000	Super Smash Bros. Ultimate		no	0.1.10	bryan-era24
+0100A3501946E000	OCTOPATH TRAVELER II		no	0.1.10	zelkibuilds
+010088401495E000	THE HOUSE OF THE DEAD: Remake		no	0.1.10	Sed-El
+01007A3024D10000	THE HOUSE OF THE DEAD 2: Remake		no	0.1.10	Sed-El
+0100F6701FED4000	The Legend of Heroes: Trails through Daybreak II		no	0.1.10	tapionallanaire

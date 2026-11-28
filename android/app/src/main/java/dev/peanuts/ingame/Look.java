@@ -78,4 +78,22 @@ public final class Look {
     /** The bottom screen's menu: up from the bottom edge, back down */
     public static final int UP_MS = 280, DOWN_MS = 220;
     public static final Interpolator OUT = new PathInterpolator(0.2f, 0f, 0f, 1f), IN = new PathInterpolator(0.3f, 0f, 1f, 1f);
+
+    /**
+     * A global focus listener that stays with v from window to window. One added while v has no window is kept by the first window it joins only: the bottom
+     * screen's menu goes into a new window (BottomScreen) at each opening, and from the second opening its focus frame, the rail's tab switching and the
+     * focus ticks were gone. Here it is taken off the window v leaves and put on each window v joins
+     */
+    public static void focusListener(android.view.View v, android.view.ViewTreeObserver.OnGlobalFocusChangeListener l) {
+        v.getViewTreeObserver().addOnGlobalFocusChangeListener(l);
+        v.addOnAttachStateChangeListener(new android.view.View.OnAttachStateChangeListener() {
+            @Override public void onViewAttachedToWindow(android.view.View x) {
+                android.view.ViewTreeObserver o = x.getViewTreeObserver();
+                o.removeOnGlobalFocusChangeListener(l);   // the first window has it already (merged from the detached view's own)
+                o.addOnGlobalFocusChangeListener(l);
+            }
+
+            @Override public void onViewDetachedFromWindow(android.view.View x) { x.getViewTreeObserver().removeOnGlobalFocusChangeListener(l); }
+        });
+    }
 }

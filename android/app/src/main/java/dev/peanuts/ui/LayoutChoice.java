@@ -15,8 +15,7 @@ import dev.peanuts.PeanutsPrefs;
 
 /**
  * How the in-game menus look, picked once by the player: at the first start after the update, and for a new player at the start after the one that ran the
- * first start's setup (one question a start), Home's list shows the layouts as pictures (drawable/pil_layout_*.xml, made by
- * design/peanuts-native/layouts/layouts.py). Two menus (the game menu at the left, the quick menu at the right), One menu at the right, and on a device with
+ * first start's setup (one question a start), Home's list shows the layouts as pictures (drawable/pil_layout_*.xml). Two menus (the game menu at the left, the quick menu at the right), One menu at the right, and on a device with
  * a second screen Bottom screen (one menu there), which the focus starts on there. Later (or closing it) keeps the two menus and asks once more at the next
  * start, then no more. The menu's own settings change it later (Layout, dev.nxnative.android.InGamePanel).
  */
@@ -29,6 +28,8 @@ public final class LayoutChoice {
     static final int TIMES = 2;
     /** Each picture's box: the cards, their names and lines fit a handheld's screen under the title */
     private static final int PICTURE_DP = 108;
+    /** A card takes no press this soon after the question shows: a button already on its way (an A for Home's list) picks nothing */
+    static final long INPUT_DELAY_MS = 600;
 
     private static final int[] LAYOUTS = {PeanutsPrefs.LAYOUT_TWO, PeanutsPrefs.LAYOUT_RIGHT, PeanutsPrefs.LAYOUT_BOTTOM};
     private static final String[] PICTURES = {"pil_layout_two", "pil_layout_right", "pil_layout_bottom"};   // Peanuts' res (src/peanuts/res): by name
@@ -43,7 +44,6 @@ public final class LayoutChoice {
         if (!PeanutsPrefs.setupDone(a)) { setupRun = true; return; }
         if (asked || setupRun || a.isFinishing() || PeanutsPrefs.menuLayoutPicked(a) || PeanutsPrefs.menuLayoutAsked(a) >= TIMES) return;
         asked = true;
-        PeanutsPrefs.menuLayoutAsked(a, PeanutsPrefs.menuLayoutAsked(a) + 1);
         boolean second = dev.peanuts.Companion.hasSecondDisplay(a);
         int count = second ? 3 : 2;
         float dp = a.getResources().getDisplayMetrics().density;
@@ -67,10 +67,12 @@ public final class LayoutChoice {
         cards.setOrientation(wide ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
         cards.setBaselineAligned(false);   // side by side, the cards are one size: as tall as the tallest (a name on two lines)
         View[] made = new View[count];
+        long[] shownAt = {Long.MAX_VALUE};
         for (int i = 0; i < count; i++) {
             int layout = LAYOUTS[i];
             View card = card(a, dp, i, second && layout == PeanutsPrefs.LAYOUT_BOTTOM);
             card.setOnClickListener(v -> {
+                if (android.os.SystemClock.uptimeMillis() - shownAt[0] < INPUT_DELAY_MS) return;   // an A pressed for Home, not for this question
                 PeanutsPrefs.menuLayoutPick(a, layout);
                 d.dismiss();
             });
@@ -102,6 +104,10 @@ public final class LayoutChoice {
             int w = wide ? Math.min(Math.round(sw * 0.92f), Math.round((count == 3 ? 900 : 640) * dp)) : Math.round(sw * 0.92f);
             d.getWindow().setLayout(w, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
+        d.setOnShowListener(x -> {   // asked once it shows, not before (a dialog that never showed asks again)
+            shownAt[0] = android.os.SystemClock.uptimeMillis();
+            PeanutsPrefs.menuLayoutAsked(a, PeanutsPrefs.menuLayoutAsked(a) + 1);
+        });
         d.show();
         View first = made[second ? count - 1 : 0];   // two screens: the bottom screen's; else the first
         boolean controller = padAttached();   // with a controller the frame shows at once where it starts

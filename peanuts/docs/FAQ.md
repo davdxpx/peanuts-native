@@ -1,6 +1,6 @@
 # Peanuts Native FAQ
 
-For version 0.1.8. Labels in **bold** are the words the app shows. "Settings" is the gear button on the home screen. "Hold the cover" means a long press on a game's cover (or Y on a controller).
+For version 0.1.9. Labels in **bold** are the words the app shows. "Settings" is the gear button on the home screen. "Hold the cover" means a long press on a game's cover (or Y on a controller).
 
 ## Quick answers
 
@@ -90,13 +90,13 @@ Both come from your own console. The app contains no keys and no firmware, and i
 
 1. Open Settings › Console › **Keys**. The same row is on the first-run card, and a game's sheet has **Add keys…** while keys are missing.
 2. The file picker opens with the hint **Pick your prod.keys**. Pick the `prod.keys` file from your own console. A file larger than 1 MB is refused.
-3. The app copies the file into its own storage and checks it.
+3. The app checks the file and, when it is a usable `prod.keys`, keeps it in its own storage.
 
-What you should see: the message **Keys accepted**. The row then reads **prod.keys is in the app (N bytes)**.
+What you should see: the message **Keys loaded**. The row then reads **prod.keys is in the app (N bytes)**.
 
-### The app says "The importer does not accept these keys". What is wrong?
+### The app says "That file is not a prod.keys the app can read". What is wrong?
 
-The file is not a usable `prod.keys`. The message names what is missing, for example **has no header_key** or **has no key_area_key_application_00**. Pick the right file to replace it. Note that the rejected file is kept, so the row still reads **prod.keys is in the app**. A build will fail until you replace it.
+The file you picked is not a usable `prod.keys` (the app's log names what is missing, for example **has no header_key**). Nothing was changed: keys you added before stay as they were. Pick the `prod.keys` from your own console.
 
 ### A build stops with "prod.keys has no titlekek_…". What now?
 
@@ -258,7 +258,7 @@ For a game that is already built, tapping the cover shows the dialog **Game file
 
 ### Which games are supported?
 
-The project's README lists all 76 games included in 0.1.8, the updates each supports and which have an Eden Duo catalog entry.
+The project's README lists all 87 games included in 0.1.9, the updates each supports and which have an Eden Duo catalog entry.
 
 The games tested for 0.1.1 were Link's Awakening, Echoes of Wisdom, Fire Emblem: Three Houses, Fire Emblem Engage, Metroid Dread, Super Mario Odyssey, Mario Kart 8 Deluxe, Animal Crossing: New Horizons, Persona 5 Royal, Castlevania: Belmont's Curse, Octopath Traveler 0, Pokémon Brilliant Diamond, Pokémon Sword and Breath of the Wild (new, little tested). Super Mario Bros. Wonder and Dragon Quest III HD-2D Remake are in the app too, but were not tested on a device yet. 0.1.2 adds Pokémon Shining Pearl, Pokémon Shield, Final Fantasy Resonance, Skyward Sword HD, Pokémon Legends: Arceus and Resident Evil 4, all new and little tested, and Kirby's Return to Dream Land Deluxe, which was run by its contributor on their own AYN Thor only. 0.1.4 adds Crash Team Racing Nitro-Fueled, Kirby and the Forgotten Land, Super Mario 3D World + Bowser's Fury, Chained Echoes, My Time at Sandrock, Monster Sanctuary and Yoru, Tomosu, all new and little tested, and Xenoblade Chronicles X: Definitive Edition as an experiment. Super Mario Bros. Wonder was checked on a device for 0.1.4, on its 1.2.1 update, the only one the app builds now.
 
@@ -269,6 +269,14 @@ The games tested for 0.1.1 were Link's Awakening, Echoes of Wisdom, Fire Emblem:
 0.1.7 adds Trails in the Sky 1st Chapter, Yoshi's Crafted World, Tetris Effect: Connected, New Pokémon Snap, Digimon Story Time Stranger, Hogwarts Legacy and Star Ocean The Second Story R. Build New Pokémon Snap on the phone: the PC builder cannot build it yet.
 
 0.1.8 adds Stray, 13 Sentinels: Aegis Rim, Captain Toad: Treasure Tracker, Advance Wars 1+2: Re-Boot Camp, FANTASY LIFE i: The Girl Who Steals Time, Pokémon: Let's Go, Pikachu!, Pokémon: Let's Go, Eevee!, Viewfinder, SPY×ANYA: Operation Memories, Super Mario RPG, WarioWare: Get It Together!, LEGO 2K Drive, LEGO CITY UNDERCOVER, LEGO MARVEL Super Heroes, Minecraft Dungeons II, The Witcher 3: Wild Hunt Complete Edition and Pokémon Mystery Dungeon: Rescue Team DX. Play the two Pokémon: Let's Go games with a Turnip driver: Qualcomm's own driver draws the 3D scene of Let's Go, Pikachu! black, and Let's Go, Eevee! was not tried on it. Build Pokémon Mystery Dungeon: Rescue Team DX from its base game 1.0.0.
+
+0.1.9 adds One Piece: Pirate Warriors 4, FINAL FANTASY XII THE ZODIAC AGE, FINAL FANTASY Pixel Remaster, Battle Brothers, The Hundred Line -Last Defense Academy-, DRAGON QUEST VII Reimagined, Sea of Stars, FANTASIAN Neo Dimension, CRISIS CORE FINAL FANTASY VII REUNION, Batman: Arkham Knight and OCTOPATH TRAVELER. Play The Hundred Line, Sea of Stars, CRISIS CORE and Batman: Arkham Knight with a Turnip driver: on Qualcomm's own driver The Hundred Line draws no 3D world, Sea of Stars draws broken graphics on drivers before 512.800, and CRISIS CORE and Batman: Arkham Knight crash. CRISIS CORE can look washed out white on its first start; start it again. DRAGON QUEST VII Reimagined was not tried on a phone yet. FANTASY LIFE i: The Girl Who Steals Time also supports update 2.2.0, and Trails in the Sky 1st Chapter supports update 1.0.8.
+
+0.1.10 adds Xenoblade Chronicles 2 and Xenoblade Chronicles 3. Both were checked on an AYN Thor with a Turnip driver (30 fps through the first battle); Qualcomm's own driver was not tried. Xenoblade Chronicles 3 was checked with its European release.
+
+0.1.10 also adds Cult of the Lamb, Super Smash Bros. Ultimate and OCTOPATH TRAVELER II, each checked on an AYN Thor with a Turnip driver at 60 fps. Cult of the Lamb's inventory menu draws wrong on one older Turnip build; Turnip 27.0.0-R2 and the system driver draw it right. Super Smash Bros. Ultimate crashed once on its first launch, after about 4 minutes, and not again. OCTOPATH TRAVELER II needs Turnip: on Qualcomm's own driver the game stops after New Game, and on a first launch Hikari's opening can draw bright green and white until the game's shaders are ready.
+
+0.1.10 also adds THE HOUSE OF THE DEAD: Remake and THE HOUSE OF THE DEAD 2: Remake, each checked on a Samsung Galaxy Tab S8+ with a Turnip driver at about 60 fps; Qualcomm's own driver was not tried. And Trails through Daybreak II, base game 1.0.0, an early version: it was checked on an AYN Odin 2 with Turnip from New Game through the opening and the first field tutorials, and it needs Turnip, because on Qualcomm's own driver it stops before the title screen. Its water is not drawn yet, and saves, battles and later areas were not checked.
 
 The 0.1.5 verification build was checked on an AYN Thor with Turnip v26.2.0 R5. Demon Slayer 2 reached the playable rooftop fight against Daki at about 30 fps. Tears of the Kingdom reached the opening cave and responded to movement. Kirby and the Forgotten Land prepared all 418 pipeline keys on its first launch, then reused the cache on relaunch. The other six additions have earlier, game-specific device checks.
 
@@ -367,6 +375,12 @@ The dumps must still be in their folders. If one is missing, the app names it an
 
 The new file is written beside the old one, so for a while both are on the storage. If there is not enough room, the app says how much is needed. When deleting the old file first would make room, it offers that as a second choice. The risk: if the import then fails or is stopped, the game has no `.nup` and cannot be played until a build from its sheet has made one.
 
+### The build says a game file is cut off or damaged
+
+The import checks every part of the game against the sizes and the checksums the game's own files carry, as it reads them. A file that was copied or downloaded only in part ("is cut off"), or whose bytes changed on the way ("is damaged"), stops the build with its name, and nothing is changed. The check adds about a second to the import of a 6 GB game on an AYN Thor. Retry would stop at the same place, so the card offers the game's sheet instead: copy the file again from where you keep your dumps, or dump it again from your console, then build again.
+
+A game imported with an older version of the app was not checked this way. If its build stops at **Finding the shaders** with "A game file is damaged", the damage is inside its `.nup`: put good files in place and tap **Import again** on the game's sheet.
+
 ### Can I build from NSZ or XCZ files?
 
 Yes. Files compressed with nsz (`.nsz`, `.xcz`) build like `.nsp` and `.xci`, also mixed with them: a compressed base with an uncompressed update, for example. You do not need to keep an uncompressed copy of the game. The game's `.nup` comes out the same as from the uncompressed files.
@@ -431,7 +445,7 @@ With an update, the `.nup` now holds the update alone. The update already carrie
 
 ### How do I start and stop a game, and which controls work?
 
-Tap a ready cover. To stop, open the in-game panel and choose **Stop the game**. The panel opens with a swipe in from the right edge, with Back, or on a controller with Home or by holding − and + for half a second.
+Tap a ready cover. To stop, open the game menu and choose **Stop the game**. The game menu opens with Back, a swipe in from the left edge, or on a controller with Home (on the AYN Thor: the controller's Back) or by holding − and + for half a second; held, Home or Back opens the quick menu with the game's settings.
 
 Games take the handheld's own buttons and sticks, external controllers and on-screen touch controls. Settings has **On-screen controls** (Auto, On, Off), **Button mapping** and **Rumble**. Each game can override them in its own settings.
 
@@ -465,7 +479,7 @@ Some of these rows show only with Settings › Developer › **Tester settings**
 
 Yes. **Console mode** is in Settings › Graphics and in each game's settings (hold the cover › **Performance** › Picture). **Docked** makes the game draw as it does on a TV, up to 1080p. **Handheld** makes it draw as on the Switch's own screen, up to 720p: that is lighter, so it can hold a higher frame rate, and the app's upscaler fills the screen. Handheld also turns on the game's touch screen. With nothing chosen, each game uses its own mode, which is Docked for most.
 
-The row applies from the next start. To change it while you play, open the in-game panel: **Console mode** is at the top of its first tab, above **Frame rate cap**. It changes at once, as when a Switch leaves its dock, and is kept for that game. Some games take the new picture size only at their next scene or their next start.
+The row applies from the next start. To change it while you play, open the quick menu: **Console mode** is at the top of its first tab, above **Frame rate cap**. It changes at once, as when a Switch leaves its dock, and is kept for that game. Some games take the new picture size only at their next scene or their next start.
 
 A few games are fixed to Handheld because they need the touch screen or the pointer there. Games that have their own **Resolution** row do not show Console mode: their Resolution sets it.
 
@@ -494,6 +508,14 @@ By default the device decides what a connected TV or monitor shows, as for any o
 ### What is Tester settings?
 
 A switch in Settings › Developer. Off, a game that has **Resolution** choices shows just those. On, it also shows the rows made for testing: advanced resolution, **Upscaler** and **Dynamic resolution**. Leave it off unless you are trying things out or were asked to change one of those rows.
+
+### Can a game start without the log lines and notices?
+
+Yes. Turn on Settings › App › **Smooth Experience**. While a game starts you then see its cover and a peanut instead of log lines, and there is no **Preparing graphics** or graphics driver notice over the game. Each part has its own switch under it. Errors still show: a start that stops shows a card with **Share log**, and **Preparing shaders** still shows its progress. The log keeps everything. It is off by default.
+
+### What is Developer view?
+
+A switch in Settings › Developer. On, you also get the messages only testers need, such as a switch nothing reads or a command from another app that was ignored, and the in-game menu uses its technical words. Off, those messages go to the log only and the in-game menu says the same in plain words. Messages about your save, cheats, fonts and errors show either way. It is on if you had the app before 0.1.9 and off on a new install.
 
 ### Where are a game's own settings, such as its language?
 
@@ -860,7 +882,7 @@ Once it reads **Ready**, every start of the game uses the mods that are on: the 
 
 Open the game's page › **Mods & Cheats**. Cheats that come with the app are listed there. **Add** takes a cheat file (`.txt`), a `.zip` or a folder, in the Atmosphère, Eden, Yuzu or Ryujinx layout. Each cheat has a switch; a switch works at once while the game runs and is kept for its next start. A file made for another game is refused, and one for another version of the game asks first.
 
-While you play, the in-game panel has a **Mods** tab with the same switches, each with its state (**Running**, the buttons it waits for, **Not possible here** or **Next start**). A cheat that sets a number has a field to change it; the cheat file itself is never changed. Settings › App › **Mods tab** turns the tab off.
+While you play, the quick menu has **Cheats** and **Mods** tabs with the same switches, each with its state (**Running**, the buttons it waits for, **Not possible here** or **Next start**). A cheat that sets a number has a field to change it; the cheat file itself is never changed. Settings › App › **Mods tab** turns the tabs off.
 
 ## Troubleshooting
 
@@ -903,11 +925,11 @@ A screenshot or a short video helps for a wrong picture. Never attach or link ga
 
 ### Do I need to rebuild my games after an update?
 
-A game built with 0.1.7 does not need a new build for its shaders: the first time you play it on 0.1.8 they are updated in a few seconds (**Updating shaders**), instead of being made again. If that cannot be done for a game, it plays with its old shaders and offers the shader update as before. Animal Crossing: New Horizons needs **Build again** for its new 60 fps choice.
+After updating to 0.1.9, each game's shaders are made again once. This version translates shaders in a new way, so shaders made by 0.1.8 or 0.1.7 cannot be updated in place in a few seconds as before. Until they are made again, the game keeps playing with the shaders it has, without this version's graphics fixes. The game's page shows **Shader update · Optional** beside the game: tap it, then **Update shaders**, then **Rebuild** on the sheet that opens (or open **Build again** and tap **Rebuild**). The shaders are then made on the device in the background, and the game still plays meanwhile. It takes about as long as the shader part of a first build, from about 10 minutes for a small game to 40 minutes or more for one with many shaders, so keep the device charging. The game's code is kept, except for Trails in the Sky 1st Chapter and FANTASY LIFE i, whose code is made again too. A game with code mods waits for its build with mods: **Play** says when it is ready. The first start with the new shaders can show black or missing objects for a few seconds, once per game.
 
 In general, rebuilding every game after an app update is recommended. An update can change how a game's code and shaders are prepared, and a game built by an older version keeps the old result until it is built again. Hold the game's cover, open **Storage**, tap **Build again**, then **Rebuild**. Your saves are not touched. It is quick when the game's code is otherwise current. What the update changed is made again, which can take as long as a first build (all the shaders, when the update changed how they are translated); what it did not change is kept from the last build.
 
-The game's sheet, opened with **Build again**, says which app version made its graphics. "Built with 0.1.7" or "Built with this app version" is fine: shaders from 0.1.7 update themselves in a few seconds the next time the game starts. A warning **Built with 0.1.3**, or any version before 0.1.7, means the game still plays but misses the graphics fixes since then, and only **Rebuild** brings them.
+The game's sheet, opened with **Build again**, says which app version made its graphics. "Built with this app version" is up to date. "Built with 0.1.8" or "Built with 0.1.7" comes with a plain note: the game's shaders are made again once after this update, with **Rebuild** or **Update shaders**, and it plays with the ones it has until then. A warning **Built with 0.1.3**, or any version before 0.1.7, means the game still plays but misses the graphics fixes since then, and only **Rebuild** brings them.
 
 ### Will I lose my saves?
 
@@ -915,7 +937,7 @@ No. An update keeps the app's storage, and saves are in it. For a game with code
 
 ### How do I tell which version I have?
 
-The build name is under the app's title on the home screen and in Settings › **About**. A release build reads `peanuts-native-0.1.8`. Every log starts with it too.
+The build name is under the app's title on the home screen and in Settings › **About**. A release build reads `peanuts-native-0.1.9`. Every log starts with it too.
 
 ## Credits
 

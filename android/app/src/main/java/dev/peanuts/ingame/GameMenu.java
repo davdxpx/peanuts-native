@@ -71,7 +71,8 @@ public final class GameMenu extends FrameLayout {
     private final TextView name, version, time, note;
     private final FrameLayout bottom;
     private final List<Item> items = new ArrayList<>();
-    private final int widthPx, rowPx;
+    private int widthPx;
+    private final int rowPx;
     private final float text;
     private Item stop;
     private View stopRow;
@@ -419,6 +420,16 @@ public final class GameMenu extends FrameLayout {
         scrim.setAlpha(0f);
         sheet.animate().translationX(0).setDuration(Look.OPEN_MS).setInterpolator(Look.OUT).withLayer().start();
         scrim.animate().alpha(1f).setDuration(Look.OPEN_MS).setInterpolator(Look.OUT).start();
+    }
+
+    /** A new width (the screen's size changed: InGamePanel.menuWidth); laid out again only when it differs */
+    public void width(int px) {
+        if (px <= 0 || px == widthPx) return;
+        widthPx = px;
+        ViewGroup.LayoutParams lp = sheet.getLayoutParams();
+        lp.width = px;
+        sheet.setLayoutParams(lp);
+        if (!open) sheet.setTranslationX(-px);
     }
 
     /** Slides out to the left (CLOSE_MS, accelerating); then runs after it is gone, and onClosed */

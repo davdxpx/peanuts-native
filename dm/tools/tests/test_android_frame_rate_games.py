@@ -267,6 +267,29 @@ EXPECTED = {
     '0100A7C01B792000': ('Minecraft Dungeons II', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', '60', '-'),
     '01003D100E9C6000': ('The Witcher 3: Wild Hunt — Complete Edition', 'limit', '-', 'own,60,45,40,30,20', 'own,90,60,45,40,30,20', 'own,120,90,60,45,40,30,20', '-', 'high'),
     '01003D200BAA2000': ('Pokémon Mystery Dungeon: Rescue Team DX', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', '60', '-'),
+    # PEANUTS: the eleven games on the 0.1.9 release list (2026-11-27)
+    '01008FE00E2F6000': ('One Piece: Pirate Warriors 4', 'limit', '-', 'own,60,30', 'own,60,30', 'own,60,30', '-', '-'),
+    '0100EB100AB42000': ('FINAL FANTASY XII THE ZODIAC AGE', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', '60', '-'),
+    '01000EA014150000': ('FINAL FANTASY (Pixel Remaster)', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', '60', '-'),
+    '0100C5000F294000': ('Battle Brothers', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', '60', '-'),
+    '010093C0215B4000': ('The Hundred Line -Last Defense Academy-', 'limit', '-', 'own,60,30', 'own,60,30', 'own,60,30', '-', '-'),
+    '0100A9D01C446000': ('DRAGON QUEST VII Reimagined', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', 'profile 60', '-'),
+    '01008C0016544000': ('Sea of Stars', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', '60', '-'),
+    '01001BB01E8E2000': ('FANTASIAN Neo Dimension', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', '60', '-'),
+    '01004BC0166CC000': ('CRISIS CORE –FINAL FANTASY VII– REUNION', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', '60', '-'),
+    '0100ACD0163D0000': ('Batman: Arkham Knight', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', '60', '-'),
+    '010057D006492000': ('OCTOPATH TRAVELER', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', '60', '-'),
+    # PEANUTS: Xenoblade Chronicles 2 and 3 on the 0.1.10 release list (2026-11-27)
+    '0100E95004038000': ('Xenoblade Chronicles 2', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', '60', '-'),
+    '010074F013262000': ('Xenoblade Chronicles 3', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', '60', '-'),
+    # PEANUTS: Cult of the Lamb, Super Smash Bros. Ultimate and OCTOPATH TRAVELER II on the 0.1.10 release list (2026-11-28)
+    '01002E7016C46000': ('Cult of the Lamb', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', '60', '-'),
+    '01006A800016E000': ('Super Smash Bros. Ultimate', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', '60', '-'),
+    '0100A3501946E000': ('OCTOPATH TRAVELER II', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', 'profile 60', '-'),
+    # PEANUTS: THE HOUSE OF THE DEAD: Remake and 2: Remake, and Trails through Daybreak II on the 0.1.10 release list (2026-11-28)
+    '010088401495E000': ('THE HOUSE OF THE DEAD: Remake', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', '60', '-'),
+    '01007A3024D10000': ('THE HOUSE OF THE DEAD 2: Remake', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', '60', '-'),
+    '0100F6701FED4000': ('The Legend of Heroes: Trails through Daybreak II', 'target', '-', 'own,60,30,20,15', 'own,60,30,20,15', 'own,60,30,20,15', '60', '-'),
 }
 
 if __name__ == '__main__':

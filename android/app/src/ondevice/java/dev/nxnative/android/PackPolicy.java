@@ -31,6 +31,15 @@ final class PackPolicy {
 
     /** Whether a heat pause stops (interrupts) the tool of this step: only a step that keeps what it did and goes on from it. Every other one is held */
     static boolean heatStops(String step) { return "split".equals(step) || "shaders".equals(step); }
+
+    /**
+     * Whether a sticky restart (Android ended the packer's process; no intent) runs the job again: one that was running, or one this policy paused (heat,
+     * battery), which then waits in the pause again (PackService.waitWhileAuto) and goes on by itself. A paused heat hold whose process ended was left paused with
+     * nothing to take it on, and the build said "too hot, goes on when cooled" for good (found in review). The player's and Android's pauses stay paused
+     */
+    static boolean resumesAfterRestart(String state, String reason) {
+        return "running".equals(state) || "paused".equals(state) && ("thermal".equals(reason) || "battery".equals(reason));
+    }
     // PEANUTS end
 
     /** Why the job waits ("battery", "thermal"), null when it may run. was: the reason it waits now (null: it runs); heatOverride: Go on anyway was tapped */

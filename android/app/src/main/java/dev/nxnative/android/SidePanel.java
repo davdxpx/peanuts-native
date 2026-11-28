@@ -64,7 +64,7 @@ final class SidePanel extends FrameLayout {
     }
 
     // The ids of the choices a rebuild gives the focus back to (restyle)
-    private static final int ID_SIZE = 5000, ID_TEXT = 5100, ID_FIT = 5200, ID_MAP = 5300, ID_ONE = 5400, ID_RES = 5500, ID_RES_PRESET = 5590, ID_CONSOLE = 5600 /* PEANUTS: the two buttons of Console mode */;
+    private static final int ID_SIZE = 5000, ID_TEXT = 5100, ID_FIT = 5200, ID_MAP = 5300, ID_ONE = 5400, ID_RES = 5500, ID_RES_PRESET = 5590, ID_CONSOLE = 5600 /* PEANUTS: the two buttons of Console mode */, ID_OPT_GROUP = 6000 /* PEANUTS: option groups, 16 ids each, 16 groups at most (6000-6255; 5700 is #715's ID_WORDS) */;
 
     SidePanel(Activity a, Rows rows) {
         super(a);
@@ -92,7 +92,7 @@ final class SidePanel extends FrameLayout {
         addView(sh, new LayoutParams(PanelLook.widthPx(Prefs.panelSize(a), dp, a.getResources().getDisplayMetrics().widthPixels), LayoutParams.MATCH_PARENT, Gravity.END));
         sheet = sh;
         InGamePanel.frame(this, sh, tabs, scroll);   // PEANUTS: the quick menu, its tabs on a rail at the left with a header over the rows (dev.peanuts.ingame.Rail)
-        getViewTreeObserver().addOnGlobalFocusChangeListener(this::focusMoved);
+        dev.peanuts.ingame.Look.focusListener(this, this::focusMoved);   // PEANUTS: kept from window to window (the bottom screen's menu gets a new window at each opening)
         setVisibility(GONE);
     }
 
@@ -100,6 +100,7 @@ final class SidePanel extends FrameLayout {
     void padButtons(int[] cb) { confirm = cb[0]; back = cb[1]; }
 
     boolean isOpen() { return open; }
+    @Override public boolean isInTouchMode() { return super.isInTouchMode() && !InGamePanel.keyDriven(this); }   // PEANUTS: the bottom screen's menu driven by keys: Android keeps that display in touch mode (InGamePanel.keyDriven)
     Rows rows() { return rows; }   // PEANUTS: the bottom screen's menu builds the same rows (InGamePanel)
     void toggle() { if (open) close(); else open(); }
     /** Opened or closed by a controller (GameActivity: Home, or − and + held): opened, the focus on its first row, out of touch mode */
@@ -483,13 +484,15 @@ final class SidePanel extends FrameLayout {
         boolean simple = Prefs.simpleRes(act, game());   // a game with Resolution presets, tester rows off: no Upscaler or Dynamic resolution here (Settings › Help › Tester settings)
         if (!simple && (Prefs.dlssGame(game()) || GameUpscaler.shown(act, game()))) {   // right under the frame rate cap: the Upscaler (the game's own upscaler and the window's scaling to the screen), for games whose network it replaces; for a game on the DLSS stand-in (no network to replace), the stand-in's modes with Motion clarity / sharpness
             GameUpscaler.rows(act, game(), box);
-            note(act instanceof GameActivity && ((GameActivity) act).live() ? "Applies from the next frame, kept for this game (the same setting as Game settings › Upscaler)."
-                    : "Applies at the next start (this run takes no live changes: DM_CTL is off).");
+            note(dev.peanuts.smooth.DevView.panel(act, act instanceof GameActivity && ((GameActivity) act).live() ? "Applies from the next frame, kept for this game (the same setting as Game settings › Upscaler)."
+                    : "Applies at the next start (this run takes no live changes: DM_CTL is off)."));   // PEANUTS: Developer view off: player words (DevView.panel)
         }
         if (Prefs.drsGame(game()) && !simple) {
             TextView drsHead = head("Dynamic resolution");   // the render size's range (Prefs.DRS), applied at each step; the heading shows it
             box.addView(DrsSlider.view(act, Prefs.drs(act, game()), drsHead::setText, i -> { Prefs.drs(act, game(), i); Native.drsSet(Prefs.DRS[i][0], Prefs.DRS[i][1]); }));
         }
+
+        optionGroupRows();   // PEANUTS: option groups, above frame generation
 
         lsfgNow = Lsfg.rows(act, box, "", () -> { Lsfg.push(act); refresh(); });
 
@@ -768,10 +771,40 @@ final class SidePanel extends FrameLayout {
         box.addView(ss);
         if (canFill) note("Fill makes the game draw for this screen's shape, so nothing is stretched and there are no bars: from the next start."
                 + (Profile.of(game()).aspectUntested ? " Untested on this game: it may look wrong or not start; pick Fit to go back." : ""));   // PEANUTS
-        note(live ? "Fit keeps the game's shape, Stretch fills the screen; below 100 % the picture is smaller, with black around it. Applies now, kept for this game."
-                : "Applies at the next start (this run takes no live changes: DM_CTL is off).");
+        note(dev.peanuts.smooth.DevView.panel(act, live ? "Fit keeps the game's shape, Stretch fills the screen; below 100 % the picture is smaller, with black around it. Applies now, kept for this game."
+                : "Applies at the next start (this run takes no live changes: DM_CTL is off)."));   // PEANUTS: Developer view off: player words (DevView.panel)
         rows.position(box);
     }
+
+    /** The game's restart options in a group (game.tsv option_group), each one radio choice like the Frame rate cap: Default, then each member; applies at the next start */
+    // PEANUTS begin: option groups in Performance
+    private void optionGroupRows() {
+        if (!(act instanceof GameActivity)) return;
+        Profile prof = Profile.of(game());
+        if (prof == null || prof.optionGroups.isEmpty()) return;
+        int n = 0;
+        for (Profile.OptionGroup grp : prof.optionGroups) {
+            java.util.List<Profile.Option> members = Profile.groupMembers(prof.options, grp.name);
+            if (members.isEmpty() || n == 16) continue;   // 16 groups at most: their ids stay in ID_OPT_GROUP's range
+            Profile.Option cur = Profile.groupChoice(prof.options, grp.name, env -> Prefs.gameOption(act, game(), env));
+            int base = ID_OPT_GROUP + 16 * n++;
+            head(grp.label);
+            RadioGroup rg = new RadioGroup(act);
+            for (int k = 0; k <= members.size() && k < 16; k++) {
+                RadioButton b = new RadioButton(act); b.setId(base + k); b.setText(k == 0 ? "Default" : members.get(k - 1).label); rg.addView(b);
+                if (k > 0 && members.get(k - 1) == cur) rg.check(base + k);
+            }
+            if (cur == null) rg.check(base);
+            rg.setOnCheckedChangeListener((gr, id) -> {
+                int k = id - base;
+                Prefs.gameOptionGroup(act, game(), grp.name, k == 0 ? null : members.get(k - 1).env);
+                restyle(id);
+            });
+            box.addView(rg);
+            note("Applies at the next start.");
+        }
+    }
+    // PEANUTS end
 
     /** The panel itself: its size (width, row height) and its text size, for every game, applied at once */
     private void panelRows() {
@@ -806,6 +839,7 @@ final class SidePanel extends FrameLayout {
         if (prof != null && !prof.options.isEmpty()) {
             for (Profile.Option opt : prof.options) {
                 if (opt.live) continue;
+                if (!opt.group.isEmpty()) continue;   // PEANUTS: option groups show in Performance (optionGroupRows)
                 android.widget.CheckBox cb = new android.widget.CheckBox(act);
                 cb.setText(opt.label);
                 Profile.Option source = Profile.findImpliedBy(prof.options, opt, env -> Prefs.gameOption(act, game(), env));
@@ -919,9 +953,9 @@ final class SidePanel extends FrameLayout {
                     : now <= 0 ? "Starting…"
                     : own ? "This game picks its own frame rate."
                     : "Now " + now + " fps" + (cap > 0 ? ", capped at " + cap : ", the game's own") + "." + (f.length > 4 && f[4].equals("1") ? " " + Prefs.HEAT_TEXT : "");   // PEANUTS: held for heat
-            fpsNow.setText(s);
+            fpsNow.setText(dev.peanuts.smooth.DevView.panel(act, s));   // PEANUTS: Developer view off: player words
         }
-        if (lsfgNow != null) { String st = Native.frameGenStatus(); int sp = st.indexOf(' '); lsfgNow.setText("Now: " + (sp > 0 ? st.substring(sp + 1) : st)); }
+        if (lsfgNow != null) { String st = Native.frameGenStatus(); int sp = st.indexOf(' '); lsfgNow.setText(dev.peanuts.smooth.DevView.frameGen(act, st, "Now: " + (sp > 0 ? st.substring(sp + 1) : st))); }   // PEANUTS: Developer view off: the state in player words
         removeCallbacks(tick);   // a change calls refresh too: one loop, not one more per change
         postDelayed(tick, 500);
     }

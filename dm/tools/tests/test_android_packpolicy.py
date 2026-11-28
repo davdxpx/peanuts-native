@@ -68,6 +68,25 @@ class Policy(unittest.TestCase):
         note = src[src.index('private Notification note(Job j)'):]
         self.assertIn('if (again) b.addAction(goOnAction).addAction(pauseAction);', note)
 
+    def test_destroy_lifts_the_hold(self):   # a service that is destroyed leaves no cool-down check behind and no stopped (SIGSTOP) worker group: the hold file goes
+        src = SERVICE.read_text(encoding='utf-8')
+        d = src[src.index('@Override public void onDestroy() {'):]
+        d = d[:d.index('\n    }\n')]
+        self.assertIn('main.removeCallbacks(heatRecheck);', d)
+        self.assertIn('unhold();', d)
+        self.assertLess(d.index('unhold();'), d.index('super.onDestroy();'))
+        h = src[src.index('private void unhold() {'):]
+        self.assertIn('holdFile().delete()', h[:h.index('\n    }\n')])
+
+    def test_sticky_restart_resumes_a_policy_pause(self):   # Android ended the packer while a heat hold or a battery pause waited: the job runs again and waits there
+        out = [l.split('\t')[:2] for l in self.run_on('restart running', 'restart paused thermal', 'restart paused battery', 'restart paused user',
+                                                        'restart paused timeout', 'restart paused hung', 'restart paused ended', 'restart done', 'restart failed')[:-1]]
+        self.assertEqual([o[1] for o in out], ['true', 'true', 'true', 'false', 'false', 'false', 'false', 'false', 'false'])
+        src = SERVICE.read_text(encoding='utf-8')
+        self.assertIn('intent == null ? PackPolicy.resumesAfterRestart(j.state(), j.reason()) :', src)
+        work = src[src.index('private void work()'):]
+        self.assertLess(work.index('j.state("running", null, null);'), work.index('if (!waitWhileAuto(j)) break;'), 'the resumed job goes back into the pause before a step')
+
     def test_hot_again_words_match(self):   # the card (Prepare) and the packer (PackPolicy) say the same, from the same count
         pol = SRC.read_text(encoding='utf-8')
         prep = (REPO / 'android/app/src/main/java/dev/peanuts/build/Prepare.java').read_text(encoding='utf-8')

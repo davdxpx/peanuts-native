@@ -132,7 +132,7 @@ public final class QuickButton {
         new AlertDialog.Builder(a)
                 .setTitle(name(k) + " is a button games use")
                 .setMessage("While it opens the quick menu, the game no longer gets this button: whatever the game does with it stops working. "
-                        + "A button games leave free, such as a back button, is better.")
+                        + "A button games leave free, such as an extra button on the back of the controller, is better.")
                 .setPositiveButton("Use it anyway", (x, w) -> take(a, k, done))
                 .setNegativeButton("Pick another", (x, w) -> setUp(a, done))
                 .show();

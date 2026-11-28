@@ -33,21 +33,28 @@ public final class BottomMenu {
         return g;
     }
 
-    /** The bottom edge's strip (28 dp): a swipe up of 32 dp from it opens the menu; a tap goes on to the page under it (which wakes it) */
-    public static View edge(Context c) {
-        View s = new View(c);
-        float dp = c.getResources().getDisplayMetrics().density;
-        float[] downY = {-1};
-        s.setOnTouchListener((v, e) -> {
-            int a = e.getActionMasked();
-            if (a == MotionEvent.ACTION_DOWN) { downY[0] = e.getRawY(); return true; }
-            if (a == MotionEvent.ACTION_MOVE && downY[0] >= 0 && downY[0] - e.getRawY() > 32 * dp) { downY[0] = -1; if (opener != null) opener.run(); return true; }
-            if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) downY[0] = -1;
-            return true;
-        });
-        s.setContentDescription("Open the menu");
-        s.setOnClickListener(v -> { if (opener != null) opener.run(); });
-        s.setLayoutParams(new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, Math.round(28 * dp), Gravity.BOTTOM));
-        return s;
+    /**
+     * The page's root with the bottom edge watched: a swipe up of 32 dp that starts in the bottom 28 dp opens the menu. It only looks at the touches on their
+     * way (onInterceptTouchEvent) and takes a gesture once it is that swipe, so a tap or any other touch near the edge still reaches the page under it
+     */
+    public static FrameLayout edgeRoot(Context c) {
+        return new FrameLayout(c) {
+            private final float dp = c.getResources().getDisplayMetrics().density;
+            private float downY = -1;
+
+            /** True once the gesture is the swipe (the menu opened) */
+            private boolean swipe(MotionEvent e) {
+                int a = e.getActionMasked();
+                if (a == MotionEvent.ACTION_DOWN) downY = e.getY() >= getHeight() - 28 * dp ? e.getRawY() : -1;
+                else if (a == MotionEvent.ACTION_MOVE && downY >= 0 && downY - e.getRawY() > 32 * dp) { downY = -1; if (opener != null) opener.run(); return true; }
+                else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) downY = -1;
+                return false;
+            }
+
+            @Override public boolean onInterceptTouchEvent(MotionEvent e) { return swipe(e); }   // a page's view took the touch: watched on its way there
+
+            // No view under it took the touch: the root has the gesture, kept from a down at the edge on so its moves are seen
+            @Override public boolean onTouchEvent(MotionEvent e) { boolean edge = downY >= 0; swipe(e); return edge || downY >= 0; }
+        };
     }
 }

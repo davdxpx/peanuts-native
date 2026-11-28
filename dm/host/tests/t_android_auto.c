@@ -28,7 +28,8 @@ int main(void) {
     CHECK((v = val(r, n, "DM_VK_CS_WARM")) && !strcmp(v, "1"), "Turnip: the compute warm-up");   // PEANUTS
     CHECK(!val(r, n, "DM_VK_MESH") && !val(r, n, "DM_VK_GS_FILL") && !val(r, n, "DM_VK_ONE_LANE") && !val(r, n, "DM_VK_OQ_SPLIT_PASS") && !val(r, n, "DM_VK_PREWARM") && !val(r, n, "DM_VK_DYN_FILTER"),   // PEANUTS(upstream-candidate)
           "Turnip: no Qualcomm rule");
-    CHECK(n == 8, "Turnip: 8 rules, got %d", n);   // PEANUTS: 8 (DM_VK_QUAD_SHFL, DM_VK_CS_WARM)
+    CHECK((v = val(r, n, "DM_VK_PUSH_DELTA")) && !strcmp(v, "1"), "Turnip: partial pushes");   // PEANUTS: #503
+    CHECK(n == 9, "Turnip: 9 rules, got %d", n);   // PEANUTS: 9 (DM_VK_QUAD_SHFL, DM_VK_CS_WARM, DM_VK_PUSH_DELTA)
 
     // Qualcomm's driver (512.800 or later), mesh draws through compute, profile with every key
     n = vka_auto_rules(&(vka_auto_in){.driver_id = VKA_DRV_QCOM, .mesh_ext = 1, .memu = 1, .vin_dyn_ext = 1, .prof_one_lane = 2, .prof_prepass_cut = 3, .prof_oq_split = 1}, r, 16);
@@ -41,9 +42,9 @@ int main(void) {
     // ... with its mesh shaders (DM_VK_MESH=1): the prepass cut is on
     n = vka_auto_rules(&(vka_auto_in){.driver_id = VKA_DRV_QCOM, .mesh_ext = 1, .prof_prepass_cut = 3}, r, 16);
     CHECK((v = val(r, n, "DM_VK_MESH_PREPASS_SKIP")) && !strcmp(v, "1"), "Qualcomm with mesh shaders: prepass cut");
-    // ... a profile without those keys and a device without the mesh extension: only GS fill
+    // ... a profile without those keys and a device without the mesh extension: only GS fill (and partial pushes, PEANUTS: #503)
     n = vka_auto_rules(&(vka_auto_in){.driver_id = VKA_DRV_QCOM, .memu = 1}, r, 16);
-    CHECK(n == 1 && !strcmp(r[0].key, "DM_VK_GS_FILL"), "Qualcomm, no mesh extension, empty profile: GS fill only (%d)", n);
+    CHECK(n == 2 && val(r, n, "DM_VK_GS_FILL") && (v = val(r, n, "DM_VK_PUSH_DELTA")) && !strcmp(v, "1"), "Qualcomm, no mesh extension, empty profile: GS fill and push delta only (%d)", n);   // PEANUTS: #503
 
     // Qualcomm before 512.800: prewarm off, vertex input in the pipeline (only where the device has the dynamic state)
     n = vka_auto_rules(&(vka_auto_in){.driver_id = VKA_DRV_QCOM, .qcom_old = 1, .vin_dyn_ext = 1, .memu = 1}, r, 16);

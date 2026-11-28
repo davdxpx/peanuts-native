@@ -109,7 +109,8 @@ class Wiring(unittest.TestCase):
         self.assertIn('ended.putAll(BuildWatch.running(PROC, packName()));', p)
         self.assertIn('for (int pid : ended.keySet()) android.os.Process.killProcess(pid);', p)
         self.assertIn('return !BuildWatch.anyLeft(PROC, ended);', p)
-        self.assertIn('if (!"running".equals(Upstream.jobState(j))) return;', p)
+        self.assertIn('if (!"running".equals(st) && !waited) return;', p)   # a running job, or a heat or battery pause no packer holds any more
+        self.assertIn('boolean waited = why.equals("thermal") || why.equals("battery");', p)
         # uptime, CPU time, and a packer that went keeps its time when Android binds a new one
         self.assertRegex(p, r'long now = SystemClock\.uptimeMillis\(\);\s+Link l = link;\s+if \(w\.cpuDue\(now\)\) w\.cpu\(now, BuildWatch\.cpuTicks\(PROC, packName\(\)\), TICKS\);')
         self.assertIn('gone = SystemClock.uptimeMillis();', p)

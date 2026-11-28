@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- pil_layout_two: generated from design/peanuts-native/layouts/layouts.py, do not edit by hand -->
+<!-- pil_layout_two: a layout's picture for the in-game menus' question (dev.peanuts.ui.LayoutChoice) -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="240dp" android:height="168dp" android:viewportWidth="240" android:viewportHeight="168">
     <path android:pathData="M18 14H222A12 12 0 0 1 234 26V142A12 12 0 0 1 222 154H18A12 12 0 0 1 6 142V26A12 12 0 0 1 18 14Z" android:fillColor="#1B1C1F"/>

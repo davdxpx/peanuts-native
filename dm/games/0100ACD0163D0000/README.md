@@ -53,7 +53,7 @@ No frame-rate key: the game asks for present interval 2 and runs at 30 fps, as o
 
 ## Android <!-- PEANUTS -->
 
-- **Source only for now:** no readiness row and no `nxGames` entry, so the default APK does not carry the game. A test build adds it with `-PnxGames=0100ACD0163D0000`. <!-- PEANUTS -->
+- **On the release list from 0.1.9** (`peanuts/release-titles.txt`, so in `nxGames` and the default APK); no readiness row. Play it with Turnip: Qualcomm's driver does not run it (below). <!-- PEANUTS -->
 - 2026-11-24, Galaxy S24 Ultra (Adreno 750, Turnip Gen8 V39, Android 17), the Peanuts app with this profile: Prepare on the phone from a `.nup` of 1.0.5 (the code a few minutes, 21,923 shaders in about 4 minutes, then the driver's pipeline step); the boot movies (Sofdec) and the opening at Pauli's Diner in the engine at 30 fps, GPU about 21-25 ms a frame; then Gotham's streets from a rooftop save, with the Turnip road fixes below. Not checked: the cremation, the diner in play, a save and continue, missions past the streets. <!-- PEANUTS -->
 - **Qualcomm's driver:** the game does not run. On the S24 Ultra `libllvm-qgl.so` crashes (SIGSEGV) compiling a pipeline during the save load; on an Odin 2 (Adreno 740, driver 512.676) the game returns to the library without loading. So there is no Qualcomm "before" for the road fixes. <!-- PEANUTS -->
 - **The Turnip road fixes** are three game options, each recommended on Turnip (`driver.id=18`), each at the same 30 fps on the S24 Ultra: <!-- PEANUTS -->

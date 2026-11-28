@@ -57,6 +57,9 @@ public final class SettingsSectionsJvmTest {
         eq("app/Feel", SettingsSections.place("Haptics", "Library"));
         eq("app/In-game panel", SettingsSections.place("Mods tab", "Library"));   // PEANUTS: not under Controls, which is the controller's
         eq("app/Updates", SettingsSections.place("Check for updates", "Updates"));
+        eq("app/Extras", SettingsSections.place("Smooth Experience", "Library"));   // PEANUTS: Smooth Experience (dev.peanuts.smooth), built with Library's rows
+        eq("app/Extras", SettingsSections.place("Start screen", "Library"));   // its parts right under it
+        eq("developer/Testing", SettingsSections.place("Developer view", "Library"));
         eq("help/Questions and logs", SettingsSections.place("Questions and answers", "Updates"));
         eq("help/Questions and logs", SettingsSections.place("Share log", "Help"));
         eq("developer/Testing", SettingsSections.place("Advanced", "System"));

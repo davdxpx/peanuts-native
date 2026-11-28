@@ -35,7 +35,7 @@ class Hooks(unittest.TestCase):
     def test_game_activity(self):
         g = (LAUNCHER / 'GameActivity.java').read_text(encoding='utf-8')
         for call in ('InGamePanel.attach(this, root, panel)', 'InGamePanel.key(this, combo, k, down,', 'InGamePanel.toggle(this, true)',
-                     'InGamePanel.backKey(this, e)',
+                     'InGamePanel.backKey(this, e, prewarmCover != null)',
                      'InGamePanel.menuKey(this, e, gamepad(e.getSource()))', 'InGamePanel.menuMotion(this, e)', 'InGamePanel.back(this)',
                      'static File runSave()'):
             self.assertTrue(marked(g, call), f'GameActivity: the marked hook {call}')
@@ -172,7 +172,7 @@ class Bottom(unittest.TestCase):
         self.assertIn('if (oneMode(a)) { openOne(a, true, pad); return; }', b, 'Home pressed opens one menu on Game')
         self.assertIn('openOne(a, false, true)', b, 'Home held opens it on the last tab')
         self.assertIn('if (bottomMode(a)) openBottom(a, onGame, pad); else openRight(a, onGame, pad);', b, 'on the bottom screen, else at the right')
-        self.assertIn('onActivityPaused(Activity x) { if (x == a) closeBottom(true); }', b, 'the screen is given back when the game leaves it')
+        self.assertIn('onActivityPaused(Activity x) { if (x == a && panelOf == panel) closeBottom(true); }', b, 'the screen is given back when the game leaves it')
         prefs = (APP / 'main/java/dev/peanuts/PeanutsPrefs.java').read_text(encoding='utf-8')
         self.assertIn('launcher.getInt("menu_layout_pick", LAYOUT_TWO)', prefs, 'two menus until one is picked')
         self.assertIn('game.getLong("menu_layout_at", 0) >= launcher.getLong("menu_layout_pick_at", 0)', prefs, 'the newer choice counts')
@@ -180,7 +180,7 @@ class Bottom(unittest.TestCase):
         self.assertIn('FLAG_NOT_FOCUSABLE', screen, 'the controller stays with the game')
         look = (INGAME / 'Look.java').read_text(encoding='utf-8')
         self.assertIn('UP_MS = 280, DOWN_MS = 220', look)
-        for f, line in ((APP / 'main/java/dev/peanuts/ui/StatsView.java', 'BottomMenu.grip('), (APP / 'main/java/dev/peanuts/ui/GameScreen.java', 'BottomMenu.edge(')):
+        for f, line in ((APP / 'main/java/dev/peanuts/ui/StatsView.java', 'BottomMenu.grip('), (APP / 'main/java/dev/peanuts/ui/GameScreen.java', 'BottomMenu.edgeRoot(')):
             self.assertIn(line, f.read_text(encoding='utf-8'), f'{f.name}: the grip and the swipe up')
 
     def test_one_menu_keys(self):
@@ -212,7 +212,7 @@ class Bottom(unittest.TestCase):
         self.assertIn('box.post(() -> LayoutChoice.offer(a));', (APP / 'main/java/dev/peanuts/ui/Library.java').read_text(encoding='utf-8'), "Home's list asks")
         for name in ('two', 'right', 'bottom'):
             x = (RES / f'drawable/pil_layout_{name}.xml').read_text(encoding='utf-8')
-            self.assertIn('generated from design/peanuts-native/layouts/layouts.py', x, f'pil_layout_{name}: made by layouts.py')
+            self.assertNotIn('layouts.py', x, f'pil_layout_{name}: names no generator the repository does not have')
             self.assertIn(f'"pil_layout_{name}"', q, f'the choice shows pil_layout_{name}')
 
     def test_the_top_screen_dims_a_little(self):
@@ -230,13 +230,125 @@ class Bottom(unittest.TestCase):
         b = (LAUNCHER / 'InGamePanel.java').read_text(encoding='utf-8')
         self.assertIn('if (p != panelOf ||', b, 'only the quick menu is sent on, never the one menu itself')
         self.assertIn('root.addView(rightPanel, root.indexOfChild(panelOf) + 1,', b, "in the game's window, over the game as the quick menu")
-        self.assertIn('if (rightMode(a)) vis = View.GONE;', b, "the left edge is the game's")
+        self.assertIn('if (cachedRightMode(a)) vis = View.GONE;', b, "the left edge is the game's")
         self.assertIn('rightRows = gameRows(a, () -> rightPanel);', b, 'Game first on its rail, its rows closing it')
         self.assertIn('{ openRight(a, onGame, pad); return; }', b, 'the bottom screen gone: the one at the right')
         self.assertIn('String[] names = {"Two menus", "One menu at the right", "Bottom screen"};', b, "Layout's choices have the question's names")
         rows = (INGAME / 'GameRows.java').read_text(encoding='utf-8')
         self.assertIn('c.getDrawable(dev.nxnative.android.R.drawable.ic_chevron)', rows, "Game's rows that open a page show the launcher's chevron")
         self.assertIn('if (i == dev.peanuts.PeanutsPrefs.LAYOUT_BOTTOM && !second) continue;', b, 'the bottom screen only with a second display')
+
+
+class ReviewFixes(unittest.TestCase):
+    """The review of #678-#680, fixed for 0.1.9"""
+
+    def setUp(self):
+        self.panel = (LAUNCHER / 'InGamePanel.java').read_text(encoding='utf-8')
+
+    def body(self, sig):
+        i = self.panel.index(sig)
+        return self.panel[i:self.panel.index('\n    }\n', i)]
+
+    def test_back_is_left_to_the_cover_the_preparation_and_the_controller_applet(self):
+        g = (LAUNCHER / 'GameActivity.java').read_text(encoding='utf-8')
+        self.assertTrue(marked(g, 'InGamePanel.backKey(this, e, prewarmCover != null)'), 'the cover is passed in')
+        self.assertIn('return covered || dev.peanuts.build.ShaderCapture.active(a) || ctrlAppletOpen();', self.panel)
+        self.assertIn('&& !backBelongsElsewhere(a, covered);', self.body('static boolean backKey('), 'a Back down not taken: onBackPressed has it')
+        self.assertIn('startsWith("open")', self.body('private static boolean ctrlAppletOpen()'), "CtrlScreen's own test of its join screen")
+        # onBackPressed still handles them before the menus
+        ob = g[g.index('public void onBackPressed()'):]
+        ob = ob[:ob.index('\n')]
+        self.assertLess(ob.index('prewarmCover != null'), ob.index('InGamePanel.back(this)'))
+        self.assertLess(ob.index('ShaderCapture.cancel(this)'), ob.index('InGamePanel.back(this)'))
+        self.assertLess(ob.index('CtrlScreen.back()'), ob.index('InGamePanel.back(this)'))
+
+    def test_one_backup_at_a_time(self):
+        b = self.body('private static void backup(Activity a)')
+        self.assertTrue(b.split('\n')[1].strip().startswith('if (backingUp) return;'), 'a second press while it runs is ignored')
+        self.assertLess(b.index('backingUp = true;'), b.index('new Thread('))
+        self.assertIn('backingUp = false;', b[b.index('UI.post('):], 'ended on the UI thread, whatever the result')
+        self.assertNotIn('backingUp = false', self.body('private static void reset()'), 'a screen made again does not let a second one start beside it')
+
+    def test_a_recreated_screen_starts_clean(self):
+        a = self.body('static void attach(Activity a, FrameLayout root, SidePanel panel)')
+        self.assertTrue(a.split('\n')[1].strip() == 'reset();', 'reset first')
+        r = self.body('private static void reset()')
+        self.assertIn('closeBottom(true);', r)
+        for f in ('rightPanel', 'bottomPanel', 'topDim', 'rightRows', 'gameRows', 'bottomScreen', 'cover', 'version', 'menu', 'quickRow', 'menuRows'):
+            self.assertRegex(r, rf'\b{f} = null;', f'{f} reset')
+        self.assertIn('x == a && panelOf == panel', self.panel, "the old screen's end does not close the new one's bottom menu")
+
+    def test_the_left_edge_reads_the_layout_only_when_it_may_have_changed(self):
+        self.assertIn('registerDisplayListener(displays, UI)', self.panel)
+        self.assertNotIn('rightMode(a)) vis', self.panel.replace('cachedRightMode(a)) vis', ''), 'the global layout listener uses the cached layout')
+        self.assertIn('layoutChanged();', self.body('private static void layoutSetting('), 'a layout picked in the menu')
+
+    def test_the_menu_width_follows_the_screen(self):
+        self.assertIn('made.width(menuWidth(a, r - l))', self.panel)
+        self.assertIn('public void width(int px)', (INGAME / 'GameMenu.java').read_text(encoding='utf-8'))
+
+    def test_the_bottom_edge_passes_taps_on(self):
+        m = (INGAME / 'BottomMenu.java').read_text(encoding='utf-8')
+        self.assertIn('public boolean onInterceptTouchEvent(MotionEvent e) { return swipe(e); }', m, 'taken only once it is the swipe')
+        self.assertNotIn('setOnTouchListener', m, 'no strip over the page that takes every touch')
+        self.assertNotIn('BottomMenu.edge(', (APP / 'main/java/dev/peanuts/ui/GameScreen.java').read_text(encoding='utf-8'))
+
+    def test_the_layout_question(self):
+        q = (APP / 'main/java/dev/peanuts/ui/LayoutChoice.java').read_text(encoding='utf-8')
+        offer = q[q.index('public static void offer'):q.index('private static boolean padAttached')]
+        self.assertLess(offer.index('setOnShowListener'), offer.index('PeanutsPrefs.menuLayoutAsked(a, PeanutsPrefs.menuLayoutAsked(a) + 1)'), 'counted once it shows')
+        self.assertIn('uptimeMillis() - shownAt[0] < INPUT_DELAY_MS) return;', offer, 'a button already on its way picks nothing')
+
+    def test_bottom_screen_focus_frame_with_keys(self):
+        # The Thor run: on the bottom screen Android refuses to leave touch mode ("Touch mode switch rejected": its window never has the focus), so the
+        # panel drew no frame after the first opening and its first D-pad press only found a focus. Keys now drive it out of touch mode in SidePanel's eyes
+        side = (LAUNCHER / 'SidePanel.java').read_text(encoding='utf-8')
+        self.assertTrue(marked(side, '@Override public boolean isInTouchMode() { return super.isInTouchMode() && !InGamePanel.keyDriven(this); }'))
+        self.assertIn('static boolean keyDriven(SidePanel p) { return bottomKeys && p != null && p == bottomPanel; }', self.panel)
+        self.assertIn('if (down && o == bottomPanel) bottomKeys = true;', self.body('static boolean menuKey('), 'a key to the bottom menu: keys drive it')
+        ob = self.body('static void openBottom(')
+        self.assertLess(ob.index('bottomKeys = pad;'), ob.index('show(bottomPanel, gameRows, onGame, pad);'), 'opened with the controller: the frame at once')
+        self.assertIn('bottomKeys = false;', self.body('private static void bottomTouched()'))
+        self.assertIn('new dev.peanuts.ingame.BottomScreen(a, d, bottomPanel, InGamePanel::bottomTouched)', self.panel)
+        scr = (INGAME / 'BottomScreen.java').read_text(encoding='utf-8')
+        self.assertIn('if (e.getActionMasked() == android.view.MotionEvent.ACTION_DOWN && touched != null) touched.run();', scr, 'a touch gives it back to touch')
+        self.assertIn('bottomKeys = false;', self.body('private static void reset()'))
+        # SidePanel's own touch-mode checks are the ones the override changes: the frame, the first move, the focus at opening
+        for s in ('if (now == null || !inside(now) || isInTouchMode()) return;', 'if (f == null || isInTouchMode()) { ensureFocus(); return; }',
+                  'post(() -> { if (open && !isInTouchMode()) focusFirst(); });'):
+            self.assertIn(s, side)
+
+    def test_bottom_menu_focus_listeners_follow_its_window(self):
+        # The Thor run, again: the bottom screen's menu joins a new window at each opening, and a focus listener added while it had no window stayed with
+        # the first window only (no frame, no rail switching, no ticks from the second opening). Every focus listener of the quick menus moves with it
+        look = (INGAME / 'Look.java').read_text(encoding='utf-8')
+        f = look[look.index('public static void focusListener('):]
+        for s in ('addOnAttachStateChangeListener', 'o.removeOnGlobalFocusChangeListener(l);', 'o.addOnGlobalFocusChangeListener(l);',
+                  'onViewDetachedFromWindow(android.view.View x) { x.getViewTreeObserver().removeOnGlobalFocusChangeListener(l); }'):
+            self.assertIn(s, f)
+        side = (LAUNCHER / 'SidePanel.java').read_text(encoding='utf-8')
+        self.assertTrue(marked(side, 'dev.peanuts.ingame.Look.focusListener(this, this::focusMoved);'))
+        self.assertNotIn('getViewTreeObserver().addOnGlobalFocusChangeListener(this::focusMoved)', side)
+        self.assertIn('Look.focusListener(sheet, (old, now) -> {', (INGAME / 'Rail.java').read_text(encoding='utf-8'))
+        self.assertIn('Look.focusListener(p, (old, now) -> {', self.panel)
+        for f in (LAUNCHER / 'InGamePanel.java', INGAME / 'Rail.java', INGAME / 'GameRows.java', INGAME / 'GameMenu.java'):
+            self.assertNotIn('addOnGlobalFocusChangeListener', f.read_text(encoding='utf-8'), f.name)
+
+    def test_panel_polish_needs_no_r(self):
+        self.assertNotIn('R.id', (APP / 'main/java/dev/peanuts/ui/PanelPolish.java').read_text(encoding='utf-8'), 'test_android_hud compiles it alone')
+        self.assertNotIn('pn_inset', (RES / 'values/peanuts_ingame.xml').read_text(encoding='utf-8'))
+
+    def test_help_and_wiki_describe_two_menus(self):
+        h = (APP / 'main/java/dev/peanuts/ui/SettingsHelp.java').read_text(encoding='utf-8')
+        self.assertNotIn("in-game panel's Mods tab", h)
+        self.assertIn('pressed, the game menu; held, the quick menu', h)
+        self.assertIn("The quick menu's Cheats and Mods tabs", h)
+        side = (REPO / 'wiki/Side-Panel-In-Game.md').read_text(encoding='utf-8')
+        for s in ('# The in-game menus', '## The game menu', '### Cheats', '### Mods', '## Layout'):
+            self.assertIn(s, side)
+        self.assertIn('tab **Cheats**', (REPO / 'wiki/Cheats.md').read_text(encoding='utf-8'))
+        self.assertIn('## Quick menu button', (REPO / 'wiki/Settings-Controls.md').read_text(encoding='utf-8'))
+        self.assertIn('an extra button on the back of the controller', (APP / 'main/java/dev/peanuts/ui/QuickButton.java').read_text(encoding='utf-8'))
 
 
 class QuickMenuButton(unittest.TestCase):
