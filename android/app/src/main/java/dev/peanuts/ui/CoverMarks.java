@@ -116,23 +116,28 @@ final class CoverMarks {
     /**
      * The mark of a build that runs: the round yellow mark grown to the left into a pill (its right edge stays where the mark was), the heavy hammer at the
      * left (Hammer), the percent at the right, a deeper yellow filling it from the left. Upstream's own Prepare, which says no percent, shows the hammer alone.
+     * On a letter tile (edged) an edge in the letter's colour keeps the pill apart from the tile's own yellow.
      * grow() plays the growth when the build starts while the cover shows (220 ms), finish() the way back to the green check when it ends well (180 ms).
      */
     static final class BuildPill extends View {
         private final Hammer hammer;
         private final Drawable tool, check;
-        private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG), text = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG), text = new Paint(Paint.ANTI_ALIAS_FLAG), stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path clip = new Path();
         private final RectF r = new RectF();
-        private final int h, banana, deep, leaf, onBanana;
+        private final int h, banana, deep, leaf, onBanana, edge;
         private int percent;   // -1: none to say (upstream's Prepare)
         private float grow = 1f, done;   // 0: the round mark, 1: the pill; done 1: the green check
         private ValueAnimator anim;
 
-        BuildPill(Context c, int markDp, int percent) {
+        BuildPill(Context c, int markDp, int percent, boolean edged) {
             super(c);
             h = PUi.dp(c, markDp);
             banana = PUi.col(c, R.color.bn_banana); deep = PUi.col(c, R.color.bn_banana_deep); leaf = PUi.col(c, R.color.bn_leaf); onBanana = PUi.col(c, R.color.bn_on_banana);
+            edge = edged ? onBanana : 0;
+            stroke.setStyle(Paint.Style.STROKE);
+            stroke.setStrokeWidth(Math.max(1, PUi.dp(c, 1.5f)));   // as a round mark's outline (round)
+            stroke.setColor(onBanana);
             hammer = new Hammer(onBanana);
             hammer.setCallback(this);
             hammer.still(!Motion.on());
@@ -229,6 +234,11 @@ final class CoverMarks {
                 mark.draw(c);
             }
             c.restoreToCount(save);
+            if (edge != 0) {   // inside the pill's own bounds, so nothing is cut at its sides
+                float sw = stroke.getStrokeWidth() / 2f;
+                r.set(sw, sw, w - sw, h - sw);
+                c.drawRoundRect(r, h / 2f - sw, h / 2f - sw, stroke);
+            }
         }
 
         private static int blend(int x, int y, float t) {

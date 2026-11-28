@@ -97,6 +97,27 @@ class Library(unittest.TestCase):
         marks = (UI / 'CoverMarks.java').read_text(encoding='utf-8')
         self.assertIn('hammer.still(!Motion.on());', marks, 'Motion off: the hammer stands still')
 
+    def test_marks_on_a_letter_cover(self):
+        """A cover without its picture is PUi.tile's letter on banana yellow, the yellow marks' own colour: the pill, Build needed and a new update keep an edge there"""
+        pui = (UI / 'PUi.java').read_text(encoding='utf-8')
+        self.assertIn('t.setBackground(round(col(c, R.color.bn_banana), dp(c, 16), 0, 0));', method(pui, 'public static TextView tile('),
+                      'the letter tile is banana yellow: if that changes, so does the reason for the edge')
+        cover = method(self.src, 'private Cover cover(Row r, int coverDp, int padDp, boolean marks) {')
+        self.assertLess(cover.index('k.letter = bm == null;'), cover.index('mark(k, '), 'known before the mark is made')
+        mark = method(self.src, 'private View mark(Cover k, int markDp) {')
+        self.assertIn('int edge = k.letter ? R.color.bn_on_banana : 0;', mark)
+        self.assertIn('new CoverMarks.BuildPill(a, markDp, k.ownBuild ? Math.max(0, b.percent) : -1, k.letter);', mark)
+        self.assertIn('round(markDp, R.color.bn_banana, edge, "update", R.color.bn_on_banana)', mark, 'a new update')
+        self.assertIn('round(markDp, R.color.bn_banana, edge, "build", R.color.bn_on_banana)', mark, 'Build needed')
+        self.assertNotIn('round(markDp, R.color.bn_banana, 0,', mark, 'no yellow mark without the edge on a letter tile')
+        marks = (UI / 'CoverMarks.java').read_text(encoding='utf-8')
+        pill = marks[marks.index('static final class BuildPill'):marks.index('// ---- The NO SUPPORT tape ----')]
+        self.assertIn('BuildPill(Context c, int markDp, int percent, boolean edged) {', pill)
+        self.assertIn('edge = edged ? onBanana : 0;', pill)
+        draw = pill[pill.index('@Override protected void onDraw(Canvas c) {'):]
+        self.assertLess(draw.index('c.restoreToCount(save);'), draw.index('c.drawRoundRect(r, h / 2f - sw, h / 2f - sw, stroke);'),
+                        'the edge is drawn after the clip, inside the pill')
+
     def test_icons(self):
         icons = (REPO / 'peanuts/scripts/icons.py').read_text(encoding='utf-8')
         views = (UI / 'HomeViews.java').read_text(encoding='utf-8')

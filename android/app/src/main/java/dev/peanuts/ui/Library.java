@@ -1655,6 +1655,7 @@ public final class Library {
         CharSequence state;   // the state in words: the description, Compact, the large cover's line, the name bar
         int stateColor;
         boolean plays, building, ownBuild, stopped, queued, queueStopped, companion, askFound;
+        boolean letter;   // no picture: the letter tile, banana yellow like the yellow marks
         UpdateFound.Found found;
         BuildQueue.Item qi;
         Runnable tap, hold;
@@ -1733,6 +1734,7 @@ public final class Library {
         tile.setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, PUi.dp(a, coverDp)));
         Bitmap bm = icons.get(r.id());
         if (bm != null) PUi.tileIcon(tile, bm);
+        k.letter = bm == null;
         tiles.put(r.id(), tile);
         cover.addView(tile);
         k.tile = tile;
@@ -1755,18 +1757,23 @@ public final class Library {
         return k;
     }
 
-    /** The cover's one mark, top right (CoverMarks): only one state shows, a build before an update before Ready */
+    /**
+     * The cover's one mark, top right (CoverMarks): only one state shows, a build before an update before Ready. On a letter tile (no picture yet, or none:
+     * an app without keys) the yellow marks get an edge in the letter's colour, or yellow on yellow would leave only their icon; a picture that comes later
+     * keeps the edge until Home is drawn again
+     */
     private View mark(Cover k, int markDp) {
         Build b = build;
         int st = k.r.status();
+        int edge = k.letter ? R.color.bn_on_banana : 0;
         View m;
         if (k.queued) m = CoverMarks.queued(a, markDp, BuildPipeline.queueNow() == null ? 0 : BuildPipeline.queueNow().place(k.qi));
         else if (k.stopped || k.queueStopped) m = round(markDp, R.color.bn_danger_tint, R.color.bn_danger, "stop", R.color.bn_danger);
         else if (k.building) {
-            CoverMarks.BuildPill pill = new CoverMarks.BuildPill(a, markDp, k.ownBuild ? Math.max(0, b.percent) : -1);
+            CoverMarks.BuildPill pill = new CoverMarks.BuildPill(a, markDp, k.ownBuild ? Math.max(0, b.percent) : -1, k.letter);
             if (k.ownBuild) { coverPill = pill; if (pillGrown != b.id) { pillGrown = b.id; pill.grow(); } }   // it grows from the round mark once, when the build starts
             m = pill;
-        } else if (st == READY && k.found != null) m = k.askFound ? round(markDp, R.color.bn_banana, 0, "update", R.color.bn_on_banana) : round(markDp, R.color.bn_tint, 0, "update", R.color.bn_accent);
+        } else if (st == READY && k.found != null) m = k.askFound ? round(markDp, R.color.bn_banana, edge, "update", R.color.bn_on_banana) : round(markDp, R.color.bn_tint, 0, "update", R.color.bn_accent);
         else if (st == READY) {
             m = round(markDp, R.color.bn_leaf, 0, "check", R.color.bn_on_leaf);
             if (popReady != null && popReady.equalsIgnoreCase(k.r.id())) {   // its build ended a moment ago, in front of the user: the check is new
@@ -1777,7 +1784,7 @@ public final class Library {
             LibraryScanner.VersionState vs = k.r.title == null ? LibraryScanner.VersionState.UNKNOWN : k.r.title.versionState;
             if (vs == LibraryScanner.VersionState.FILE_GONE) m = round(markDp, R.color.bn_danger_tint, R.color.bn_danger, "folder", R.color.bn_danger);
             else if (vs == LibraryScanner.VersionState.UNSUPPORTED) m = round(markDp, R.color.bn_danger_tint, R.color.bn_danger, "layers", R.color.bn_danger);
-            else m = round(markDp, R.color.bn_banana, 0, "build", R.color.bn_on_banana);
+            else m = round(markDp, R.color.bn_banana, edge, "build", R.color.bn_on_banana);
         } else return null;
         FrameLayout.LayoutParams lp = CoverMarks.place(a, markDp);
         if (m instanceof ImageView) lp.width = PUi.dp(a, markDp);
