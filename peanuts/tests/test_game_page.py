@@ -136,6 +136,14 @@ class Wiring(unittest.TestCase):
         self.assertIn('if (page == EXPLAIN) bindKeys(shownExplain);', panel, 'a controller that comes or goes shows or hides them')
         self.assertIn('exCard.animate().cancel();', panel, 'a fade still running does not take the card back to nothing')
 
+    def test_the_shader_update_is_one_line(self):
+        page = (UI / 'GamePage.java').read_text(encoding='utf-8')
+        self.assertNotIn('detach(got.shader)', page, 'no card of text over the tiles')
+        self.assertIn('PUi.add(side, shaderLine(a, got.shader), 12);', page, "wide: one line in the game's panel, under the play time")
+        self.assertIn('PUi.add(p, shaderLine(a, got.shader), 10);', page, 'a phone: one line under Play')
+        self.assertIn('update.performClick()', page, "the sheet's Update shaders is the card's own button (upstream's action)")
+        self.assertIn('if (now == shaderView) { explainShader(); return true; }', page, "the second screen has the card's words")
+
     def test_no_separator_glyphs_in_the_pages_words(self):
         for f in ('GamePage.java', 'GameAreas.java', 'GameHelp.java'):
             src = (UI / f).read_text(encoding='utf-8')

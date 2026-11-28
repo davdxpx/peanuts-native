@@ -12,6 +12,8 @@
 #include "vka_gbar.h"
 #include <stdio.h>
 
+_Static_assert(VKGB_STAGE_COMPUTE == VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT && VKGB_STAGE_ALL == VK_PIPELINE_STAGE_ALL_COMMANDS_BIT && VKGB_ACC_SHADER_WRITE == VK_ACCESS_SHADER_WRITE_BIT
+               && VKGB_ACC_MEM_READ == VK_ACCESS_MEMORY_READ_BIT && VKGB_ACC_MEM_WRITE == VK_ACCESS_MEMORY_WRITE_BIT, "vkgb_host_bar's bits");   // PEANUTS
 static _Atomic(VkCommandBuffer) g_tcb;   // the replay's command buffer being recorded (vka_gbar_cb); the state below is the replay thread's
 static vkgb G; static vkgb_stats GS, GS0;
 
@@ -57,14 +59,11 @@ W(vkCmdDispatchBase, VKGB_C_DISPATCH, (VkCommandBuffer cb, uint32_t bx, uint32_t
 static void VKAPI_CALL g_vkCmdPipelineBarrier(VkCommandBuffer cb, VkPipelineStageFlags s, VkPipelineStageFlags d, VkDependencyFlags f, uint32_t nm, const VkMemoryBarrier *m,
                                               uint32_t nb, const VkBufferMemoryBarrier *b, uint32_t ni, const VkImageMemoryBarrier *i) {
     // PEANUTS begin: treat COMPUTE->ALL as VKGB_C_FULL (avoids duplicate settle) and reset since=VKGB_NONE after non-compute scoped barriers to ALL_COMMANDS
-    int full = 0, dst_all = 0;
-    if (d == VK_PIPELINE_STAGE_ALL_COMMANDS_BIT) {
-        for (uint32_t k = 0; k < nm && !full; k++) {
-            if ((m[k].dstAccessMask & (VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT)) != (VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT) || !m[k].srcAccessMask) continue;
-            if ((s == VK_PIPELINE_STAGE_ALL_COMMANDS_BIT && (m[k].srcAccessMask & VK_ACCESS_MEMORY_WRITE_BIT)) ||
-                ((s & VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT) && (m[k].srcAccessMask & VK_ACCESS_SHADER_WRITE_BIT))) full = 1;
-            else if (!nb && !ni) dst_all = 1;
-        }
+    // (vkgb_host_bar); DM_VK_BAR_SCOPED=0 (live) keeps the rule from before them
+    int full = 0, dst_all = 0, scoped = vka_bar_scoped();
+    for (uint32_t k = 0; k < nm && !full; k++) {
+        int h = vkgb_host_bar(s, d, m[k].srcAccessMask, m[k].dstAccessMask, nb || ni, scoped);
+        if (h == VKGB_H_FULL) full = 1; else if (h == VKGB_H_SINCE_NONE) dst_all = 1;
     }
     pre(cb, full ? VKGB_C_FULL : VKGB_C_WORK);
     N.vkCmdPipelineBarrier(cb, s, d, f, nm, m, nb, b, ni, i);

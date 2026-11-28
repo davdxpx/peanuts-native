@@ -204,6 +204,12 @@ public final class PeanutsPrefs {
     /** Settings > Library > Motion: false (default) = the launcher's animations follow the system's animator scale, true = fades and the progress fill only */
     public static boolean motionReduced(Context c) { return of(c).getBoolean("motion_reduced", false); }
     public static void motionReduced(Context c, boolean on) { of(c).edit().putBoolean("motion_reduced", on).apply(); }
+    /** Settings > App > Extras > Smooth Experience (dev.peanuts.smooth.Smooth): the switch, off by default, and each of its items (SmoothItems), on by default.
+     *  commit, not apply: the game's process reads them at its start, which may come right after the change */
+    public static boolean smooth(Context c) { return of(c).getBoolean("smooth", false); }
+    public static void smooth(Context c, boolean on) { of(c).edit().putBoolean("smooth", on).commit(); }
+    public static boolean smoothItem(Context c, String key) { return of(c).getBoolean("smooth_" + key, true); }
+    public static void smoothItem(Context c, String key, boolean on) { of(c).edit().putBoolean("smooth_" + key, on).commit(); }
     /** Settings > Library > Swap screens: false (default) = the game on the built-in screen and the companion on the other display, true = the other way round
      *  (a clip-on top screen that Android lists as the external display, GitHub issue #131). dev.peanuts.Screens applies it */
     public static boolean swapScreens(Context c) { return of(c).getBoolean("swap_screens", false); }
@@ -290,6 +296,37 @@ public final class PeanutsPrefs {
     /** Settings › App › Mods tab: the in-game panel's Mods tab for every game; on by default */
     public static boolean modsTabAll(Context c) { return of(c).getBoolean("mods_tab", true); }
     public static void modsTabAll(Context c, boolean on) { of(c).edit().putBoolean("mods_tab", on).apply(); }
+
+    /** Settings › Controls › Controller › Quick menu button (dev.peanuts.ui.QuickButton): the key code of the player's own button for the in-game quick menu,
+     *  0 none; the launcher writes it, the game's process reads it at its start */
+    public static int quickKey(Context c) { return of(c).getInt("quick_key", 0); }
+    public static void quickKey(Context c, int keyCode) { of(c).edit().putInt("quick_key", keyCode).apply(); }
+
+    /**
+     * The in-game menus' layout: two menus (the game menu at the left, the quick menu at the right), one menu at the right, or one menu on the bottom screen.
+     * Picked once in the launcher's question (dev.peanuts.ui.LayoutChoice, kept in "peanuts", which the launcher writes) and changed later in the menu's own
+     * settings (Layout, dev.nxnative.android.InGamePanel, kept in the game's prefs file, which its process writes): each with when, the newer one counts.
+     * Two menus until one is picked
+     */
+    public static final int LAYOUT_TWO = 0, LAYOUT_RIGHT = 1, LAYOUT_BOTTOM = 2;
+    private static SharedPreferences panel(Context c) { return c.getSharedPreferences("peanuts_panel", Context.MODE_PRIVATE); }
+    public static int menuLayout(Context c) {
+        SharedPreferences game = panel(c), launcher = of(c);
+        boolean inGame = game.contains("menu_layout") && game.getLong("menu_layout_at", 0) >= launcher.getLong("menu_layout_pick_at", 0);
+        int v = inGame ? game.getInt("menu_layout", LAYOUT_TWO) : launcher.getInt("menu_layout_pick", LAYOUT_TWO);
+        return v == LAYOUT_RIGHT || v == LAYOUT_BOTTOM ? v : LAYOUT_TWO;
+    }
+    /** The menu's own settings (the game's process) */
+    public static void menuLayout(Context c, int layout) { panel(c).edit().putInt("menu_layout", layout).putLong("menu_layout_at", System.currentTimeMillis()).apply(); }
+    /** The launcher's question */
+    public static void menuLayoutPick(Context c, int layout) {
+        of(c).edit().putInt("menu_layout_pick", layout).putLong("menu_layout_pick_at", System.currentTimeMillis()).apply();
+    }
+    /** A layout was picked, in the launcher's question or in the menu's own settings: the question is not asked again */
+    public static boolean menuLayoutPicked(Context c) { return of(c).contains("menu_layout_pick") || panel(c).contains("menu_layout"); }
+    /** How often the launcher's question showed (LayoutChoice.TIMES at most: closed without a pick, once more at the next start) */
+    public static int menuLayoutAsked(Context c) { return of(c).getInt("menu_layout_asked", 0); }
+    public static void menuLayoutAsked(Context c, int times) { of(c).edit().putInt("menu_layout_asked", times).apply(); }
 
     /** The in-game panel's tab shown last (its name), so it opens there again; "" none yet. In a file of its own: the game's process writes it, and the launcher's
      *  process, which keeps "peanuts" in memory, would write its older copy back over it */

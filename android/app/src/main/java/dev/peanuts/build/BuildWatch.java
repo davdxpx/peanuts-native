@@ -102,6 +102,14 @@ final class BuildWatch {
             cpuAt = Math.max(cpuAt, now);
         }
 
+        /**
+         * A heat or battery pause the build waits out, at each look: alive, the packer says its worker holds the job (in the pause, held or waiting). Then it is
+         * no hang and no stall (a change). With no packer holding it (its process went, or the one Android bound runs nothing) it is no change: such a pause
+         * never goes on by itself, so a packer that went is found as GONE and one that runs nothing as STALL, as for a running job (found in review: the heat
+         * hold of #803 with its process gone said "too hot, goes on when cooled" for good)
+         */
+        void paused(long now, boolean alive) { if (alive) changed(now); }
+
         /** Whether a CPU reading is due: every 15 s, or every quarter of a shorter hang time */
         boolean cpuDue(long now) { return now - cpuReadAt >= Math.min(15_000, hangMs / 4); }
 

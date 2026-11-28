@@ -423,6 +423,7 @@ void vka_barrier_stages_at(VkCommandBuffer cb, VkPipelineStageFlags src, VkAcces
 void vka_xp_ts(VkCommandBuffer cb, int site);   // DM_VK_XP_TS experiment (vka_tex.c)
 #define vka_barrier(cb) vka_barrier_at(cb, __FILE_NAME__, __LINE__)   // the site names the step that ends there in DM_VK_GPUPROF's report (vka_gprof.c)
 #define vka_barrier_stages(cb, s, sa, d, da) vka_barrier_stages_at(cb, s, sa, d, da, __FILE_NAME__, __LINE__)   // PEANUTS
+int vka_bar_scoped(void);   // PEANUTS: DM_VK_BAR_SCOPED (live, default 1); 0: every vka_barrier_stages is a full barrier again and vka_gbar.c classifies barriers as before #505/#562
 // The barrier a dispatch leaves pending (vka_draw.c vka_dispatch, "Dispatch order"): NVN orders one dispatch against the next only through the game's own barriers, so the
 // replay records the barrier after a dispatch only before other GPU work in the same command buffer (vka_disp_settle). Any full barrier recorded into it meanwhile settles it
 extern _Atomic(VkCommandBuffer) vka_disp_pend;
@@ -493,6 +494,7 @@ int vka_tex_id_class(int id);                       // the numeric class of text
 int vka_tex_id_class_rec(int id);                   // the same, memoized for the recording thread (by the ID's registration version)
 VkSampler vka_samp_id_rec(int id, VkFormat view_fmt);   // PEANUTS: direct combined sampler for this view; UNDEFINED = separate sampler; NULL = not registered
 VkSampler vka_samp_default(void);                   // the sampler an unbound sampler slot reads with (nearest, clamp to edge)
+int vka_tex_img_samp_rec(int tid, int sid, VkCommandBuffer cb, uint8_t dim, uint64_t frame, uint64_t fence, VkImageView *out_v, VkSampler *out_s);   // PEANUTS: combined image+sampler descriptor memo for recording thread
 
 // ---------- Shaders (vka_shader.c) ----------
 // The game's Vulkan shader library, <pack>/shaders/v-<DMSH_VK_CHAIN>/dmsh_vk.lib (DM_VK_SHLIB overrides the path), loaded at the first program the replay resolves.

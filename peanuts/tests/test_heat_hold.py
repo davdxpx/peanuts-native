@@ -109,6 +109,18 @@ class Hold(unittest.TestCase):
         time.sleep(0.5)
         self.assertEqual(self.count(), at, 'the worker lived on after the stop')
 
+    def test_the_held_line_is_the_apps(self):   # PackService (Tail) takes "held where it is" at the start of a trimmed line as the tool being held (HELD_LINE)
+        out = io.StringIO()
+        self.hold.write_text('')
+        t = threading.Thread(target=lambda: self.pa.wait_while_held(out))
+        t.start()
+        time.sleep(0.3)
+        self.hold.unlink()
+        t.join(5)
+        lines = [l.strip() for l in out.getvalue().splitlines()]
+        self.assertTrue(lines[0].startswith('held where it is'), lines)
+        self.assertFalse(lines[1].startswith('held where it is'), lines)
+
     def test_no_hold_file_no_wait(self):   # no PN_HOLD_FILE (a desktop run, an older app): nothing waits
         del os.environ['PN_HOLD_FILE']
         self.assertFalse(self.pa.held())
@@ -121,13 +133,36 @@ class Wiring(unittest.TestCase):
         svc = (REPO / 'android/app/src/ondevice/java/dev/nxnative/android/PackService.java').read_text(encoding='utf-8')
         hold = svc[svc.index('private void hold(Job j)'):]
         hold = hold[:hold.index('\n    }\n')]
-        self.assertIn('j.state("paused", "thermal", null);', hold, 'job.json says paused while held: Prepare treats it as a pause, the watchdog as no hang')
-        self.assertIn('j.reasonDetail(', hold)
         self.assertNotIn('engine.interrupt()', hold)
+        # job.json says paused once the tool says it is held (its line, as these tests' tools print it), not while it still runs (found in review):
+        # Prepare treats it as a pause, the watchdog as no hang
+        self.assertNotIn('j.state("paused"', hold)
+        taken = svc[svc.index('private void holdTaken(Job j)'):]
+        taken = taken[:taken.index('\n    }\n')]
+        self.assertIn('j.state("paused", "thermal", null);', taken)
+        self.assertIn('j.reasonDetail(', taken)
+        self.assertIn('static final String HELD_LINE = "held where it is";', svc)
+        tail = svc[svc.index('private final class Tail'):]
+        self.assertIn('else if (line.startsWith(HELD_LINE)) {', tail)
+        self.assertIn('holdTaken(j);', tail)
+        pa = (REPO / 'scripts/pack_android.py').read_text(encoding='utf-8')
+        self.assertEqual(pa.count("'  held where it is (the phone is too hot): it goes on from here'"), 2, 'the line both ways of holding print')
+        # at CRITICAL or worse a step not held is stopped; a held one stays held
+        pol = svc[svc.index('private void policy()'):]
+        pol = pol[:pol.index('\n    }\n')]
+        rule = pol[pol.index('thermal >= PackPolicy.CRITICAL'):]
+        self.assertIn('held && !holdSeen && inTool', pol)
+        self.assertLess(rule.index('unhold();'), rule.index('engine.interrupt();'))
         prep = (REPO / 'android/app/src/main/java/dev/peanuts/build/Prepare.java').read_text(encoding='utf-8')
         self.assertEqual(prep.count('BuildPipeline.heatPaused(goOn(state, reason, o) ? logId : null);'), 2, 'a build and a build with mods')
         self.assertEqual(prep.count('BuildPipeline.heatPaused(null);'), 2)
-        self.assertIn('w.changed(SystemClock.uptimeMillis());', prep[prep.index('p.on(pct, pausedLine(reason, o)'):][:400])
+        # a pause the packer no longer holds (its process ended while held or waiting) is watched as a running job is: it ends as a packer that ended, not
+        # "too hot, goes on when cooled" for good (BuildWatch.Watch.paused; BuildWatchJvmTest runs the rule)
+        self.assertNotIn('w.changed(SystemClock.uptimeMillis());', prep[prep.index('p.on(pct, pausedLine(reason, o)'):][:400])
+        for mods in ('false', 'true'):
+            at = prep.index('w.paused(SystemClock.uptimeMillis(), packerHolds());', prep.index('p.on(pct, pausedLine(reason, o)') if mods == 'false' else prep.index('MODS_AGAIN, BuildListener.CANCELLED);'))
+            self.assertIn(f'watch(w, file, step, stage, startedAt, {mods});', prep[at:at + 300])
+        self.assertIn('boolean waited = why.equals("thermal") || why.equals("battery");', prep)   # the watchdog's end keeps such a job as paused for its own reason
         lib = (REPO / 'android/app/src/main/java/dev/peanuts/ui/Library.java').read_text(encoding='utf-8')
         self.assertIn('BuildPipeline.goOnAnyway(a)', lib)
         self.assertIn('BuildPipeline.goOnOffered(b.titleId)', lib)

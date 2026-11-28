@@ -1,6 +1,6 @@
 {
   "about": "Written by peanuts/scripts/games_catalog.py from peanuts/release-titles.txt, dm/games/<title ID>/game.tsv and peanuts/games.tsv. Do not edit by hand.",
-  "app_version": "0.1.8",
+  "app_version": "0.1.9",
   "readme_order": [
     "01006BB00C6F0000",
     "01008CF01BAAC000",
@@ -77,7 +77,26 @@
     "01006F600FFC8000",
     "0100A7C01B792000",
     "01003D100E9C6000",
-    "01003D200BAA2000"
+    "01003D200BAA2000",
+    "01008FE00E2F6000",
+    "0100EB100AB42000",
+    "01000EA014150000",
+    "0100C5000F294000",
+    "010093C0215B4000",
+    "0100A9D01C446000",
+    "01008C0016544000",
+    "01001BB01E8E2000",
+    "01004BC0166CC000",
+    "0100ACD0163D0000",
+    "010057D006492000",
+    "0100E95004038000",
+    "010074F013262000",
+    "01002E7016C46000",
+    "01006A800016E000",
+    "0100A3501946E000",
+    "010088401495E000",
+    "01007A3024D10000",
+    "0100F6701FED4000"
   ],
   "games": [
     {
@@ -159,6 +178,48 @@
       "contributors": [],
       "profile": "dm/games/01007300020FA000/game.tsv",
       "note": "dm/games/01007300020FA000/README.md"
+    },
+    {
+      "title_id": "0100ACD0163D0000",
+      "name": "Batman: Arkham Knight",
+      "profile_name": "Batman: Arkham Knight",
+      "builds": [
+        {
+          "version": "v327680",
+          "number": 327680,
+          "display": "1.0.5"
+        }
+      ],
+      "readme_update": "1.0.5",
+      "package": "v327680",
+      "companion": false,
+      "since": "0.1.9",
+      "contributors": [
+        "tapionallanaire"
+      ],
+      "profile": "dm/games/0100ACD0163D0000/game.tsv",
+      "note": "dm/games/0100ACD0163D0000/README.md"
+    },
+    {
+      "title_id": "0100C5000F294000",
+      "name": "Battle Brothers",
+      "profile_name": "Battle Brothers",
+      "builds": [
+        {
+          "version": "v917504",
+          "number": 917504,
+          "display": "1.14.0"
+        }
+      ],
+      "readme_update": "1.14.0",
+      "package": "v917504",
+      "companion": false,
+      "since": "0.1.9",
+      "contributors": [
+        "marojiro"
+      ],
+      "profile": "dm/games/0100C5000F294000/game.tsv",
+      "note": "dm/games/0100C5000F294000/README.md"
     },
     {
       "title_id": "01009BF0072D4000",
@@ -258,6 +319,48 @@
       "note": "dm/games/0100F9F00C696000/README.md"
     },
     {
+      "title_id": "01004BC0166CC000",
+      "name": "CRISIS CORE –FINAL FANTASY VII– REUNION",
+      "profile_name": "CRISIS CORE –FINAL FANTASY VII– REUNION",
+      "builds": [
+        {
+          "version": "v0",
+          "number": 0,
+          "display": "1.0.0"
+        }
+      ],
+      "readme_update": "1.0.0",
+      "package": "v0",
+      "companion": false,
+      "since": "0.1.9",
+      "contributors": [
+        "tapionallanaire"
+      ],
+      "profile": "dm/games/01004BC0166CC000/game.tsv",
+      "note": "dm/games/01004BC0166CC000/README.md"
+    },
+    {
+      "title_id": "01002E7016C46000",
+      "name": "Cult of the Lamb",
+      "profile_name": "Cult of the Lamb",
+      "builds": [
+        {
+          "version": "v1966080",
+          "number": 1966080,
+          "display": "1.5.28"
+        }
+      ],
+      "readme_update": "1.5.28",
+      "package": "v1966080",
+      "companion": false,
+      "since": "0.1.10",
+      "contributors": [
+        "bryan-era24"
+      ],
+      "profile": "dm/games/01002E7016C46000/game.tsv",
+      "note": "dm/games/01002E7016C46000/README.md"
+    },
+    {
       "title_id": "010097F018538000",
       "name": "DAVE THE DIVER",
       "profile_name": "DAVE THE DIVER",
@@ -327,7 +430,7 @@
       ],
       "readme_update": "1.2.2",
       "package": "v262144",
-      "companion": false,
+      "companion": true,
       "since": "0.1.7",
       "contributors": [
         "intermission88"
@@ -421,6 +524,37 @@
       "note": "dm/games/01003E601E324000/README.md"
     },
     {
+      "title_id": "0100A9D01C446000",
+      "name": "DRAGON QUEST VII Reimagined",
+      "profile_name": "DRAGON QUEST VII Reimagined",
+      "builds": [
+        {
+          "version": "v131072",
+          "number": 131072,
+          "display": "1.2.0"
+        },
+        {
+          "version": "v65536",
+          "number": 65536,
+          "display": "1.1.0"
+        },
+        {
+          "version": "v0",
+          "number": 0,
+          "display": "1.0.0"
+        }
+      ],
+      "readme_update": "1.0.0, 1.1.0, 1.2.0",
+      "package": "v131072",
+      "companion": false,
+      "since": "0.1.9",
+      "contributors": [
+        "tapionallanaire"
+      ],
+      "profile": "dm/games/0100A9D01C446000/game.tsv",
+      "note": "dm/games/0100A9D01C446000/README.md"
+    },
+    {
       "title_id": "0100C49025D3E000",
       "name": "EA Sports FC 27",
       "profile_name": "EA SPORTS FC 27",
@@ -445,6 +579,32 @@
       ],
       "profile": "dm/games/0100C49025D3E000/game.tsv",
       "note": "dm/games/0100C49025D3E000/README.md"
+    },
+    {
+      "title_id": "01001BB01E8E2000",
+      "name": "FANTASIAN Neo Dimension",
+      "profile_name": "FANTASIAN Neo Dimension",
+      "builds": [
+        {
+          "version": "v131072",
+          "number": 131072,
+          "display": "1.0.2"
+        },
+        {
+          "version": "v0",
+          "number": 0,
+          "display": "1.0.0"
+        }
+      ],
+      "readme_update": "1.0.0, 1.0.2",
+      "package": "v131072",
+      "companion": false,
+      "since": "0.1.9",
+      "contributors": [
+        "tapionallanaire"
+      ],
+      "profile": "dm/games/01001BB01E8E2000/game.tsv",
+      "note": "dm/games/01001BB01E8E2000/README.md"
     },
     {
       "title_id": "0100755017EE0000",
@@ -473,6 +633,27 @@
       "note": "dm/games/0100755017EE0000/README.md"
     },
     {
+      "title_id": "01000EA014150000",
+      "name": "FINAL FANTASY (Pixel Remaster)",
+      "profile_name": "FINAL FANTASY (Pixel Remaster)",
+      "builds": [
+        {
+          "version": "v262144",
+          "number": 262144,
+          "display": "1.2.0"
+        }
+      ],
+      "readme_update": "1.2.0",
+      "package": "v262144",
+      "companion": false,
+      "since": "0.1.9",
+      "contributors": [
+        "shamonj03"
+      ],
+      "profile": "dm/games/01000EA014150000/game.tsv",
+      "note": "dm/games/01000EA014150000/README.md"
+    },
+    {
       "title_id": "0100606026F12000",
       "name": "FINAL FANTASY RESONANCE",
       "profile_name": "FINAL FANTASY RESONANCE",
@@ -485,11 +666,32 @@
       ],
       "readme_update": "1.0.1",
       "package": "v65536",
-      "companion": false,
+      "companion": true,
       "since": null,
       "contributors": [],
       "profile": "dm/games/0100606026F12000/game.tsv",
       "note": "dm/games/0100606026F12000/README.md"
+    },
+    {
+      "title_id": "0100EB100AB42000",
+      "name": "FINAL FANTASY XII THE ZODIAC AGE",
+      "profile_name": "FINAL FANTASY XII THE ZODIAC AGE",
+      "builds": [
+        {
+          "version": "v65536",
+          "number": 65536,
+          "display": "1.1.0"
+        }
+      ],
+      "readme_update": "1.1.0",
+      "package": "v65536",
+      "companion": false,
+      "since": "0.1.9",
+      "contributors": [
+        "shamonj03"
+      ],
+      "profile": "dm/games/0100EB100AB42000/game.tsv",
+      "note": "dm/games/0100EB100AB42000/README.md"
     },
     {
       "title_id": "0100A6301214E000",
@@ -838,6 +1040,27 @@
       "note": "dm/games/0100B8E016F76000/README.md"
     },
     {
+      "title_id": "010057D006492000",
+      "name": "OCTOPATH TRAVELER",
+      "profile_name": "OCTOPATH TRAVELER",
+      "builds": [
+        {
+          "version": "v327680",
+          "number": 327680,
+          "display": "1.0.5"
+        }
+      ],
+      "readme_update": "1.0.5",
+      "package": "v327680",
+      "companion": false,
+      "since": "0.1.9",
+      "contributors": [
+        "Alliance-Sky"
+      ],
+      "profile": "dm/games/010057D006492000/game.tsv",
+      "note": "dm/games/010057D006492000/README.md"
+    },
+    {
       "title_id": "01005270232F2000",
       "name": "OCTOPATH TRAVELER 0",
       "profile_name": "OCTOPATH TRAVELER 0",
@@ -855,6 +1078,53 @@
       "contributors": [],
       "profile": "dm/games/01005270232F2000/game.tsv",
       "note": "dm/games/01005270232F2000/README.md"
+    },
+    {
+      "title_id": "0100A3501946E000",
+      "name": "OCTOPATH TRAVELER II",
+      "profile_name": "OCTOPATH TRAVELER II",
+      "builds": [
+        {
+          "version": "v131072",
+          "number": 131072,
+          "display": "1.1.1"
+        }
+      ],
+      "readme_update": "1.1.1",
+      "package": "v131072",
+      "companion": false,
+      "since": "0.1.10",
+      "contributors": [
+        "zelkibuilds"
+      ],
+      "profile": "dm/games/0100A3501946E000/game.tsv",
+      "note": "dm/games/0100A3501946E000/README.md"
+    },
+    {
+      "title_id": "01008FE00E2F6000",
+      "name": "One Piece: Pirate Warriors 4",
+      "profile_name": "One Piece Pirate Warriors 4",
+      "builds": [
+        {
+          "version": "v1179648",
+          "number": 1179648,
+          "display": "1.8.7"
+        },
+        {
+          "version": "v0",
+          "number": 0,
+          "display": "1.0.0"
+        }
+      ],
+      "readme_update": "1.0.0, 1.8.7",
+      "package": "v1179648",
+      "companion": false,
+      "since": "0.1.9",
+      "contributors": [
+        "codetz7"
+      ],
+      "profile": "dm/games/01008FE00E2F6000/game.tsv",
+      "note": "dm/games/01008FE00E2F6000/README.md"
     },
     {
       "title_id": "01005CA01580E000",
@@ -926,7 +1196,7 @@
       ],
       "readme_update": "2.0.2",
       "package": "v393216",
-      "companion": false,
+      "companion": true,
       "since": "0.1.6",
       "contributors": [],
       "profile": "dm/games/0100F43008C44000/game.tsv",
@@ -1110,6 +1380,37 @@
       "note": "dm/games/010099A00BC1E000/README.md"
     },
     {
+      "title_id": "01008C0016544000",
+      "name": "Sea of Stars",
+      "profile_name": "Sea of Stars",
+      "builds": [
+        {
+          "version": "v983040",
+          "number": 983040,
+          "display": "3.0.60151"
+        },
+        {
+          "version": "v786432",
+          "number": 786432,
+          "display": "2.0.59001"
+        },
+        {
+          "version": "v0",
+          "number": 0,
+          "display": "1.0.45861"
+        }
+      ],
+      "readme_update": "1.0.45861, 2.0.59001, 3.0.60151",
+      "package": "v983040",
+      "companion": false,
+      "since": "0.1.9",
+      "contributors": [
+        "Alliance-Sky"
+      ],
+      "profile": "dm/games/01008C0016544000/game.tsv",
+      "note": "dm/games/01008C0016544000/README.md"
+    },
+    {
       "title_id": "010089B01AB44000",
       "name": "SPY×ANYA: Operation Memories",
       "profile_name": "SPY×ANYA Operation Memories",
@@ -1143,7 +1444,7 @@
       ],
       "readme_update": "1.1.0",
       "package": "v196608",
-      "companion": false,
+      "companion": true,
       "since": "0.1.7",
       "contributors": [],
       "profile": "dm/games/010065301A2E0000/game.tsv",
@@ -1298,6 +1599,27 @@
       "note": "dm/games/0100BC0018138000/README.md"
     },
     {
+      "title_id": "01006A800016E000",
+      "name": "Super Smash Bros. Ultimate",
+      "profile_name": "Super Smash Bros. Ultimate",
+      "builds": [
+        {
+          "version": "v2031616",
+          "number": 2031616,
+          "display": "13.0.5"
+        }
+      ],
+      "readme_update": "13.0.5",
+      "package": "v2031616",
+      "companion": false,
+      "since": "0.1.10",
+      "contributors": [
+        "bryan-era24"
+      ],
+      "profile": "dm/games/01006A800016E000/game.tsv",
+      "note": "dm/games/01006A800016E000/README.md"
+    },
+    {
       "title_id": "0100DE501433A000",
       "name": "Tetris Effect: Connected",
       "profile_name": "Tetris Effect: Connected",
@@ -1317,6 +1639,100 @@
       ],
       "profile": "dm/games/0100DE501433A000/game.tsv",
       "note": "dm/games/0100DE501433A000/README.md"
+    },
+    {
+      "title_id": "01007A3024D10000",
+      "name": "THE HOUSE OF THE DEAD 2: Remake",
+      "profile_name": "THE HOUSE OF THE DEAD 2: Remake",
+      "builds": [
+        {
+          "version": "v131072",
+          "number": 131072,
+          "display": "1.0.2"
+        },
+        {
+          "version": "v0",
+          "number": 0,
+          "display": "1.0.0"
+        }
+      ],
+      "readme_update": "1.0.0, 1.0.2",
+      "package": "v131072",
+      "companion": false,
+      "since": "0.1.10",
+      "contributors": [
+        "Sed-El"
+      ],
+      "profile": "dm/games/01007A3024D10000/game.tsv",
+      "note": "dm/games/01007A3024D10000/README.md"
+    },
+    {
+      "title_id": "010088401495E000",
+      "name": "THE HOUSE OF THE DEAD: Remake",
+      "profile_name": "THE HOUSE OF THE DEAD: Remake",
+      "builds": [
+        {
+          "version": "v131072",
+          "number": 131072,
+          "display": "1.1.0"
+        },
+        {
+          "version": "v0",
+          "number": 0,
+          "display": "1.0.0"
+        }
+      ],
+      "readme_update": "1.0.0, 1.1.0",
+      "package": "v131072",
+      "companion": false,
+      "since": "0.1.10",
+      "contributors": [
+        "Sed-El"
+      ],
+      "profile": "dm/games/010088401495E000/game.tsv",
+      "note": "dm/games/010088401495E000/README.md"
+    },
+    {
+      "title_id": "010093C0215B4000",
+      "name": "The Hundred Line -Last Defense Academy-",
+      "profile_name": "The Hundred Line -Last Defense Academy-",
+      "builds": [
+        {
+          "version": "v589824",
+          "number": 589824,
+          "display": "1.2.1"
+        }
+      ],
+      "readme_update": "1.2.1",
+      "package": "v589824",
+      "companion": false,
+      "since": "0.1.9",
+      "contributors": [
+        "buinghia98"
+      ],
+      "profile": "dm/games/010093C0215B4000/game.tsv",
+      "note": "dm/games/010093C0215B4000/README.md"
+    },
+    {
+      "title_id": "0100F6701FED4000",
+      "name": "The Legend of Heroes: Trails through Daybreak II",
+      "profile_name": "The Legend of Heroes: Trails through Daybreak II",
+      "builds": [
+        {
+          "version": "v0",
+          "number": 0,
+          "display": "1.0.0"
+        }
+      ],
+      "readme_update": "1.0.0",
+      "package": "v0",
+      "companion": false,
+      "since": "0.1.10",
+      "contributors": [
+        "tapionallanaire"
+      ],
+      "profile": "dm/games/0100F6701FED4000/game.tsv",
+      "note": "dm/games/0100F6701FED4000/README.md"
     },
     {
       "title_id": "01007EF00011E000",
@@ -1412,7 +1828,7 @@
       ],
       "readme_update": "1.4.3",
       "package": "v720896",
-      "companion": false,
+      "companion": true,
       "since": null,
       "contributors": [],
       "profile": "dm/games/0100F2C0115B6000/game.tsv",
@@ -1566,6 +1982,48 @@
       ],
       "profile": "dm/games/0100563010E0C000/game.tsv",
       "note": "dm/games/0100563010E0C000/README.md"
+    },
+    {
+      "title_id": "0100E95004038000",
+      "name": "Xenoblade Chronicles 2",
+      "profile_name": "Xenoblade Chronicles 2",
+      "builds": [
+        {
+          "version": "v983040",
+          "number": 983040,
+          "display": "2.1.0"
+        }
+      ],
+      "readme_update": "2.1.0",
+      "package": "v983040",
+      "companion": false,
+      "since": "0.1.10",
+      "contributors": [
+        "tapionallanaire"
+      ],
+      "profile": "dm/games/0100E95004038000/game.tsv",
+      "note": "dm/games/0100E95004038000/README.md"
+    },
+    {
+      "title_id": "010074F013262000",
+      "name": "Xenoblade Chronicles 3",
+      "profile_name": "Xenoblade Chronicles 3",
+      "builds": [
+        {
+          "version": "v720896",
+          "number": 720896,
+          "display": "2.2.1"
+        }
+      ],
+      "readme_update": "2.2.1",
+      "package": "v720896",
+      "companion": false,
+      "since": "0.1.10",
+      "contributors": [
+        "tapionallanaire"
+      ],
+      "profile": "dm/games/010074F013262000/game.tsv",
+      "note": "dm/games/010074F013262000/README.md"
     },
     {
       "title_id": "0100453019AA8000",

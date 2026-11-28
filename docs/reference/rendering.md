@@ -19,7 +19,7 @@ The replay on Metal (`dm/gfx/nvn/nvn_mtl.m`) and the Vulkan and OpenGL layers. E
 - **Symptom:** A stationary dialog flashes rectangles and its font atlas alternates with a much smaller texture when the game rotates descriptor pools.
 - **Cause:** adding the texture pool base to a combined handle can carry into the sampler field. Registrations for later full-size pools also exceed a single pool's 20-bit ID range.
 - **Fix:** keep the pool-local handles during recording; add each executing pool's base after extracting its field. Store direct texture registrations in sparse pages and capture their host IDs, not their page ordinals. GPU bindless array sizes do not change.
-- **Found on:** Trails through Daybreak II (0100F6701FED4000), whose bring-up profile is a separate change. <!-- PEANUTS(upstream-candidate) -->
+- **Found on:** [Trails through Daybreak II](../../dm/games/0100F6701FED4000/README.md). <!-- PEANUTS(upstream-candidate) -->
 
 ### Null textures in diagnostic logs
 
@@ -1376,6 +1376,14 @@ Digimon Story Cyber Sleuth: Complete Edition (Media.Vision's MVGL engine, SDK 6.
 - **Cause:** Portal's `main` is SDL with its EGL video backend; it imports 20 EGL functions and names `glShaderSource` twice (SDL's GL renderer), but imports no NVN and draws nothing. The renderer is in the Source engine NROs: `materialsystem.nro` (with the D3D9 layer linked in) and `video_nx.nro` import `nvnBootstrapLoader` and draw with NVN.
 - **Fix:** `profile_guess.py` `shader_sources` now reads the imports of the loose NROs in the RomFS (`romfs_nro_imports`): when one imports `nvnBootstrapLoader`, the game is an NVN game whatever `main` imports. Digimon keeps the GL rule: it has no NRO. The survey, which has only a RomFS manifest, called Portal 2 an OpenGL game and left GLSLC out of its modules until the survey's manifest pass also wrote the RomFS's NROs (`romfs_nro/`, 60 MB for Portal 2's 21) for it to read the same way.
 - **Found on:** [Portal](../../dm/games/01007BB017812000/README.md); [Portal 2](../../dm/games/0100ABD01785C000/README.md) (the survey).
+
+### A material's body invisible or black: NVN_FORMAT_BGR5A1 had no Vulkan format
+
+<!-- PEANUTS -->
+- **Symptom:** `[RED] vk: NVN format 0x97 has no Vulkan format on this device (VkFormat 0)`, then `texture ID … has no view of shape 0x1: it reads as unbound (… format 0x97 …)`. Whatever samples that texture reads (0, 0, 0, 0): with an alpha test on its alpha the surface is discarded (an invisible body with only head, hands and feet drawn), without one it is black.
+- **Cause:** the replay's format table (`vka_tex.c` `fmt_ent_of`) had the RGB 16-bit family (0x39-0x3C) and BGR565 (0x95) but not BGR5A1 (0x97). NVN names packed formats from the low bits up, as the table's other rows show (RGB5A1 0x3B → `A1B5G5R5_UNORM_PACK16`, red in the low bits; BGR565 0x95 → `R5G6B5_UNORM_PACK16`, blue in the low bits), and the Metal backend maps 0x97 to `MTLPixelFormatBGR5A1Unorm`, which MoltenVK pairs with `VK_FORMAT_A1R5G5B5_UNORM_PACK16`: blue in bits 0-4, green 5-9, red 10-14, alpha in bit 15.
+- **Fix:** 0x97 → `VK_FORMAT_A1R5G5B5_UNORM_PACK16` (a core format; the texel size table already has 2 bytes for 0x95-0x98). BGR5 (0x96) and A1BGR5 (0x98) stay unmapped until a game uses them.
+- **Found on:** NARUTO X BORUTO Ultimate Ninja STORM CONNECTIONS (`01005A20190A6000`, 1.70): one 512x512 BGR5A1 texture, the diffuse of Sage of the Six Paths Naruto's costume, read by fragment `c33de2d38178c8b4` (`nuccMaterial_nx.nsh`), whose alpha test (`diffuse.a * colour.a <= threshold` → discard) removed the body in fights; at the character select the costume was flat black.
 
 ### Which GL functions a game calls
 

@@ -166,8 +166,8 @@ def header(g):
         sys.exit(f"{g.id}: pso_gpu takes 1-4 whitespace-separated GPU architectures such as 'g18p applegpu_g19p' (each an optional applegpu_ prefix then an alphanumeric token; there is no none: omit the key for g18p with pso_mtl4 on, or no archive with pso_mtl4 off): {pg}")
     et = g.get('enc_thread', 'off')   # Metal encoding on its own thread on the Mac by default (nvn_rec.h rec_on; on iOS it is on for every game; DM_NVN_ENC_THREAD overrides): on / off
     if et not in ('on', 'off'): sys.exit(f'{g.id}: enc_thread must be on or off: {et}')
-    cp = g.get('core_preempt', 'off')   # same-core preemption approximation (hle_thread.c): on / off
-    if cp not in ('on', 'off'): sys.exit(f'{g.id}: core_preempt must be on or off: {cp}')
+    cp = g.get('core_preempt', 'off')   # same-core preemption approximation (hle_thread.c): on / off; PEANUTS: lock, one core's threads take turns (DM_CORE_LOCK)
+    if cp not in ('on', 'off', 'lock'): sys.exit(f'{g.id}: core_preempt must be on, off or lock: {cp}')
     aba = g.get('alloc_big_align', 'off')   # nn::mem::StandardAllocator::Allocate aligns blocks of 64 KB or more to 64 KB (hle_os.c; Vanillaware's memory pool storage): on / off
     if aba not in ('on', 'off'): sys.exit(f'{g.id}: alloc_big_align must be on or off: {aba}')
     sf = g.get('shared_font', 'bfttf')   # what the shared-font address points at (hle_sdk16.c): bfttf = 8-byte header + TTF, ttf = the TTF alone
@@ -199,6 +199,8 @@ def header(g):
     evw = g.get('event_wait', 'on')   # Android: GPU event and sync waits across NVN queues honoured by the Vulkan replay (vka_worker.c qs_on; DM_VK_EVENT_WAIT overrides): on / off
     if evw not in ('on', 'off'): sys.exit(f'{g.id}: event_wait must be on or off: {evw}')
     oqs = g.get('occlusion_split_pass', 'off')
+    tpr = g.get('tex_pool_range', '0')   # PEANUTS: IDs of the host texture table each texture pool takes at most (hle_nvn.c texpool_range; DM_NVN_TEXPOOL_RANGE overrides): 0 = the pool's size
+    if not tpr.isdigit() or int(tpr) and (not 256 <= int(tpr) <= 1048576 or int(tpr) % 256): sys.exit(f'{g.id}: tex_pool_range must be 0 (not set) or a multiple of 256 from 256 to 1048576: {tpr}')
     if oqs not in ('on', 'off'): sys.exit(f'{g.id}: occlusion_split_pass must be on or off: {oqs}')
     av1 = g.get('av1_decoder', 'hardware')   # Android: AV1 movies on the phone's hardware decoder (MediaCodec, the default) or dav1d frame-parallel (hle_movie_av1.c mav1_send)
     if av1 not in ('hardware', 'dav1d'): sys.exit(f'{g.id}: av1_decoder must be hardware or dav1d: {av1}')
@@ -377,9 +379,35 @@ def header(g):
                     mk = tok.split('=', 1)[1]
                     if not re.fullmatch(r'[A-Za-z0-9_]+', mk):
                         sys.exit(f'{g.id}: option needs takes a fixup marker: {tok}')
+                elif tok.startswith('group='):   # PEANUTS: option groups (one radio choice)
+                    if not re.fullmatch(r'[a-z0-9_]+', tok.split('=', 1)[1]):
+                        sys.exit(f'{g.id}: option group takes a lowercase name ([a-z0-9_]): {tok}')
                 else:
-                    sys.exit(f'{g.id}: option unknown attribute (expected restart|live, implies=<ENV>, needs=<marker>): {tok}')
+                    sys.exit(f'{g.id}: option unknown attribute (expected restart|live, implies=<ENV>, needs=<marker>, group=<name>): {tok}')
     option_names = {r[0]: r for r in g.values('option')}
+    # PEANUTS begin: option groups. `option_group <name> <label> <description>` titles the options whose row says group=<name>: the launcher shows them as one
+    # radio choice (Default, then each member), so at most one member is on. A member is a restart option without implies= (nothing else can turn it on).
+    def opt_attrs(r): return ' '.join(r[3:]).split()
+    option_group = {r[0]: next((t.split('=', 1)[1] for t in opt_attrs(r) if t.startswith('group=')), None) for r in g.values('option')}
+    groups = {}
+    for r in g.values('option_group'):
+        if len(r) != 3 or not re.fullmatch(r'[a-z0-9_]+', r[0]) or not r[1].strip() or not r[2].strip() or r[0] in groups:
+            sys.exit(f'{g.id}: option_group takes a unique <name> ([a-z0-9_]) <label> <one-line description>: {r}')
+        groups[r[0]] = r
+    for env, grp in option_group.items():
+        if grp is None: continue
+        if grp not in groups: sys.exit(f'{g.id}: option {env} names group {grp} without an option_group row')
+        if 'live' in opt_attrs(option_names[env]) or any(t.startswith('implies=') for t in opt_attrs(option_names[env])):
+            sys.exit(f'{g.id}: option {env} in group {grp} must be a restart option without implies=')
+    for r in g.values('option'):
+        imp = next((t.split('=', 1)[1] for t in opt_attrs(r) if t.startswith('implies=')), None)
+        if imp and option_group.get(imp): sys.exit(f'{g.id}: option {r[0]} implies {imp}, a member of group {option_group[imp]}')
+    for name in groups:
+        if sum(1 for v in option_group.values() if v == name) < 2: sys.exit(f'{g.id}: option_group {name} needs at least two options')
+        if sum(1 for v in option_group.values() if v == name) > 15: sys.exit(f'{g.id}: option_group {name}: at most 15 options (the in-game panel\'s radio buttons, SidePanel ID_OPT_GROUP)')
+    if len(groups) > 16: sys.exit(f'{g.id}: at most 16 option_group rows (SidePanel ID_OPT_GROUP)')
+    option_words = {}
+    # PEANUTS end
     option_sites = set()
     mains = {b.get('main') for b in g.builds().values()}
     for r in g.values('option_patch'):
@@ -389,8 +417,12 @@ def header(g):
             sys.exit(f'{g.id}: option_patch requires a restart option: {r[0]}')
         site = (r[1], int(r[2], 16))
         if site in option_sites:
-            sys.exit(f'{g.id}: option_patch repeats a main code word: {r}')
+            # PEANUTS: options of one group may patch the same word (only one is ever on), with the same expected word; never one option twice
+            prev = option_words[site]
+            if not (option_group[r[0]] and all(option_group[e] == option_group[r[0]] for e, _ in prev) and all(e != r[0] and x == r[3] for e, x in prev)):
+                sys.exit(f'{g.id}: option_patch repeats a main code word: {r}')
         option_sites.add(site)
+        option_words.setdefault(site, []).append((r[0], r[3]))   # PEANUTS
     if len(option_sites) > 128:
         sys.exit(f'{g.id}: option_patch: at most 128 code words')
     # Shaders whose subgroup operations run as subgroups of one invocation on Qualcomm's own driver even where the device has them (vka_shader.c single_lane, one_lane_forced;
@@ -425,7 +457,7 @@ def header(g):
          f'#define DM_GAME_STDALLOC_CAP {int(g.get("stdalloc_cap", "0"), 0):#x}ull',   # StandardAllocator's address space with virtual address memory (hle_svc.c); 0 = what the alias region has room for
          f'#define DM_GAME_DISPLAY_VERSIONS {vers}',
          f'#define DM_GAME_PRESENT_DISPLAY {int(pi == "display")}',
-         f'#define DM_GAME_CORE_PREEMPT {int(cp == "on")}',
+         f'#define DM_GAME_CORE_PREEMPT {2 if cp == "lock" else int(cp == "on")}',   # PEANUTS: lock = DM_CORE_LOCK (hle_thread.c)
          f'#define DM_GAME_ALLOC_BIG_ALIGN {int(aba == "on")}',
          f'#define DM_GAME_FPS_TARGET {int(ft)}',
          f'#define DM_GAME_FPS_HOLD {int(fh == "on")}',
@@ -446,6 +478,7 @@ def header(g):
          f'#define DM_GAME_TEX_DYN_SLOTS {int(tds == "on")}',
          f'#define DM_GAME_TEX_SOFT {int(tsf == "on")}',
          f'#define DM_GAME_OCCLUSION_SPLIT_PASS {int(oqs == "on")}',
+         f'#define DM_GAME_TEX_POOL_RANGE {int(tpr)}',   # PEANUTS
          f'#define DM_GAME_EVENT_WAIT {int(evw == "on")}',
          f'#define DM_GAME_GPU_TS_SEGMENT {int(gts == "segment")}',
          f'#define DM_GAME_DRAW_BARRIERS_GAME {int(dbr == "game")}',

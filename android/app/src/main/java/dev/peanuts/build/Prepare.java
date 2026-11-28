@@ -305,6 +305,8 @@ final class Prepare {
                 String err = o.optString("error");
                 log("prepare: the job failed at " + step + ": " + err + (o.optString("error_detail").isEmpty() ? "" : " (" + o.optString("error_detail").replace('\n', ' ') + ")"));
                 String fix = o.optString("fix"), cause = o.optString("cause");
+                // a game file the split found damaged (issue #561): the same file stops the same way again, so the card offers the game's sheet, not Retry
+                if (dev.nxnative.android.PrepareText.CAUSE_DAMAGED.equals(cause)) throw new BuildListener.Failure(err, BuildListener.FILE_DAMAGED);
                 // Not pressed for the player when the cause is theirs to mend (add-on content that was not imported): the build stops with the card's words,
                 // and the card offers Import again with the DLC, and Try anyway as a choice
                 if (AutoRelax.asks(fix, cause, o.optBoolean("try_anyway"))) {
@@ -353,8 +355,11 @@ final class Prepare {
                     throw new BuildListener.Failure(pausedText(reason) + " Tap Resume on the game's card to go on.", BuildListener.CANCELLED);
                 }
                 p.on(pct, pausedLine(reason, o) + " " + stepText(si, done, total, stage));   // a heat pause's words by how often it paused (#803)
-                lastChange = SystemClock.elapsedRealtime();   // a heat or battery pause is not a stall
-                w.changed(SystemClock.uptimeMillis());
+                // a heat or battery pause is not a stall while the packer holds the job; one whose packer went, or runs nothing, ends as a packer that ended
+                // (BuildWatch.Watch.paused): the card says to start again instead of "goes on when it has cooled down" for good
+                if (packerHolds()) lastChange = SystemClock.elapsedRealtime();
+                w.paused(SystemClock.uptimeMillis(), packerHolds());
+                watch(w, file, step, stage, startedAt, false);
                 continue;
             }
             p.on(pct, stepText(si, done, total, stage));
@@ -536,8 +541,9 @@ final class Prepare {
             if (state.equals("paused")) {
                 if (stops(reason)) throw new BuildListener.Failure(pausedText(reason) + " " + MODS_AGAIN, BuildListener.CANCELLED);
                 p.on(pct, pausedLine(reason, o) + " " + stepText(si, done, total, stage));   // #803
-                lastChange = SystemClock.elapsedRealtime();
-                w.changed(SystemClock.uptimeMillis());
+                if (packerHolds()) lastChange = SystemClock.elapsedRealtime();
+                w.paused(SystemClock.uptimeMillis(), packerHolds());   // as a build's: a pause with no packer holding it ends the build
+                watch(w, file, step, stage, startedAt, true);
                 continue;
             }
             p.on(pct, stepText(si, done, total, stage));
@@ -714,12 +720,21 @@ final class Prepare {
         }, kill, SystemClock::uptimeMillis, 5000, () -> SystemClock.sleep(50));
     }
 
-    /** A job.json that says running, as paused for the watchdog's reason. Any other state is left: a job that ended meanwhile keeps its end */
+    /** Whether the packer says its worker holds this run's job (Link.alive): a heat or battery pause it waits out */
+    private boolean packerHolds() { Link l = link; return l != null && l.alive; }
+
+    /**
+     * A job.json that says running, or paused for heat or battery (a pause no packer holds any more: it would never go on), as paused for the watchdog's reason.
+     * Any other state is left: a job that ended meanwhile keeps its end, a pause that ends the build keeps its reason
+     */
     private void keepPaused(File jobFile, String reason, String detail) {
         if (jobFile == null) return;
         try {
             Object j = Upstream.jobRead(jobFile);
-            if (!"running".equals(Upstream.jobState(j))) return;
+            String st = Upstream.jobState(j);
+            String why = "paused".equals(st) ? Upstream.str(Upstream.call(j.getClass(), j, "reason", new Class<?>[0])) : "";
+            boolean waited = why.equals("thermal") || why.equals("battery");
+            if (!"running".equals(st) && !waited) return;
             Upstream.call(j.getClass(), j, "state", new Class<?>[] {String.class, String.class, String.class}, "paused", reason, detail);
             Upstream.jobSave(j);
         } catch (ReflectiveOperationException | RuntimeException e) {
